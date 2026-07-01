@@ -155,6 +155,47 @@ func TestHandlerPersistsSSEUsage(t *testing.T) {
 	}
 }
 
+func TestHandlerPrefersRequestModelOverResponseModel(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	var logs bytes.Buffer
+	h := NewHandlerWithStore(&logs, st, "")
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": {"text/event-stream"},
+			},
+			Body: io.NopCloser(strings.NewReader("data: {\"model\":\"gpt-4o-mini-2024-07-18\",\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3,\"total_tokens\":10}}\n\n")),
+		}, nil
+	})}
+
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"claude-sonnet-4","stream":true}`))
+	req.Header.Set("Authorization", "Bearer secret")
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	stats, err := st.Stats(context.Background(), store.StatsFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("stats = %#v", stats)
+	}
+	if stats[0].Model != "claude-sonnet-4" {
+		t.Fatalf("model = %q, want request model", stats[0].Model)
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {

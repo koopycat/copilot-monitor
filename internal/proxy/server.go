@@ -155,7 +155,10 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 	model := meta.Model
 	usage := Usage{}
 	if observer != nil {
-		if observer.Model != "" {
+		// Prefer the request model because Copilot often emits response model names for
+		// internal helper calls. The response model is only a fallback when the request
+		// body did not expose a model.
+		if model == "" && observer.Model != "" {
 			model = observer.Model
 		}
 		usage = observer.Usage
