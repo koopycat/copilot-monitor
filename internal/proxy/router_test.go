@@ -22,6 +22,8 @@ func TestRoutePath(t *testing.T) {
 		{name: "embeddings", path: "/embeddings", wantOK: true, wantEndpoint: EndpointEmbeddings, wantUpstream: GitHubCopilotAPIHost, wantCapture: CaptureMetadata},
 		{name: "engine completions", path: "/v1/engines/copilot-codex/completions", wantOK: true, wantEndpoint: EndpointCompletions, wantUpstream: GitHubCopilotProxyHost, wantCapture: CaptureUsage},
 		{name: "v1 completions", path: "/v1/completions", wantOK: true, wantEndpoint: EndpointCompletions, wantUpstream: GitHubCopilotProxyHost, wantCapture: CaptureUsage},
+		{name: "anthropic messages", path: "/v1/messages", wantOK: true, wantEndpoint: EndpointChat, wantUpstream: GitHubCopilotAPIHost, wantCapture: CaptureUsage},
+		{name: "anthropic messages nested", path: "/v1/messages/count_tokens", wantOK: true, wantEndpoint: EndpointChat, wantUpstream: GitHubCopilotAPIHost, wantCapture: CaptureUsage},
 		{name: "unknown", path: "/telemetry", wantOK: false},
 	}
 

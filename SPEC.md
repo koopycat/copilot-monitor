@@ -101,6 +101,7 @@ The proxy rewrites the outbound URL and outbound `Host` header for the selected 
 | `/embeddings` | `https://api.githubcopilot.com` | Forward metadata only if usage is present |
 | `/v1/engines/*` | `https://copilot-proxy.githubusercontent.com` | Forward + capture inline completion usage when present |
 | `/v1/completions` | `https://copilot-proxy.githubusercontent.com` | Forward + capture inline completion usage when present |
+| `/v1/messages`, `/v1/messages/*` | `https://api.githubcopilot.com` | Forward + capture Anthropic-style message usage |
 | Any other path | `https://api.githubcopilot.com` | Forward only |
 
 The v1 proxy does not promise to capture Copilot telemetry or token refresh calls.

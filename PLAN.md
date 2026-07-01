@@ -140,6 +140,7 @@ Expected mapping:
 | `/embeddings` | `api.githubcopilot.com` | `embeddings` | partial |
 | `/v1/engines/*` | `copilot-proxy.githubusercontent.com` | `completions` | yes |
 | `/v1/completions` | `copilot-proxy.githubusercontent.com` | `completions` | yes |
+| `/v1/messages`, `/v1/messages/*` | `api.githubcopilot.com` | `chat` | yes |
 | any other path | `api.githubcopilot.com` | `passthrough` | no |
 
 Validation:

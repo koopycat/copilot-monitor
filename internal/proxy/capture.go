@@ -118,9 +118,17 @@ func parseUsageObject(value any) (Usage, bool) {
 	if !ok {
 		return Usage{}, false
 	}
+	promptTokens := intFromJSONNumber(m["prompt_tokens"])
+	completionTokens := intFromJSONNumber(m["completion_tokens"])
+	if promptTokens == 0 {
+		promptTokens = intFromJSONNumber(m["input_tokens"])
+	}
+	if completionTokens == 0 {
+		completionTokens = intFromJSONNumber(m["output_tokens"])
+	}
 	usage := Usage{
-		PromptTokens:     intFromJSONNumber(m["prompt_tokens"]),
-		CompletionTokens: intFromJSONNumber(m["completion_tokens"]),
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
 		TotalTokens:      intFromJSONNumber(m["total_tokens"]),
 	}
 	if usage.TotalTokens == 0 {

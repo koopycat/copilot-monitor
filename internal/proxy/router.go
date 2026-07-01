@@ -57,6 +57,8 @@ func RoutePath(path string) (Route, bool) {
 		return Route{Endpoint: EndpointCompletions, Upstream: GitHubCopilotProxyHost, Capture: CaptureUsage}, true
 	case path == "/v1/completions":
 		return Route{Endpoint: EndpointCompletions, Upstream: GitHubCopilotProxyHost, Capture: CaptureUsage}, true
+	case path == "/v1/messages" || strings.HasPrefix(path, "/v1/messages/"):
+		return Route{Endpoint: EndpointChat, Upstream: GitHubCopilotAPIHost, Capture: CaptureUsage}, true
 	default:
 		return Route{}, false
 	}

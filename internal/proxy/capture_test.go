@@ -42,3 +42,22 @@ func TestFindUsage(t *testing.T) {
 		t.Fatalf("usage = %#v", usage)
 	}
 }
+
+func TestFindAnthropicUsage(t *testing.T) {
+	value := map[string]any{
+		"type": "message_start",
+		"message": map[string]any{
+			"usage": map[string]any{
+				"input_tokens":  float64(12),
+				"output_tokens": float64(3),
+			},
+		},
+	}
+	usage, ok := findUsage(value)
+	if !ok {
+		t.Fatal("usage not found")
+	}
+	if usage.PromptTokens != 12 || usage.CompletionTokens != 3 || usage.TotalTokens != 15 {
+		t.Fatalf("usage = %#v", usage)
+	}
+}
