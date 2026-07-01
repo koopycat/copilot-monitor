@@ -283,7 +283,7 @@ No cert or key files are written by the proxy.
 
 | Concern | Choice |
 |---|---|
-| Language | Go 1.22+ |
+| Language | Go 1.25+ |
 | DB driver | `modernc.org/sqlite` |
 | CLI framework | stdlib `flag` with a small internal command dispatcher |
 | Table output | stdlib `text/tabwriter` |

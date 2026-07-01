@@ -3,6 +3,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -15,17 +16,27 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"copilot-monitoring/internal/store"
 )
 
 type Handler struct {
-	log    io.Writer
-	client *http.Client
-	nextID atomic.Uint64
+	log     io.Writer
+	client  *http.Client
+	store   *store.Store
+	project string
+	nextID  atomic.Uint64
 }
 
 func NewHandler(log io.Writer) *Handler {
+	return NewHandlerWithStore(log, nil, "")
+}
+
+func NewHandlerWithStore(log io.Writer, st *store.Store, project string) *Handler {
 	return &Handler{
-		log: log,
+		log:     log,
+		store:   st,
+		project: project,
 		client: &http.Client{Transport: &http.Transport{
 			Proxy:              http.ProxyFromEnvironment,
 			DisableCompression: true,
@@ -114,6 +125,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(h.log, "response id=%d stream_error=%q bytes=%d\n", id, err.Error(), bytesWritten)
 		return
 	}
+	latencyMS := time.Since(started).Milliseconds()
 	if observer != nil {
 		fmt.Fprintf(
 			h.log,
@@ -121,7 +133,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			id,
 			resp.StatusCode,
 			bytesWritten,
-			time.Since(started).Milliseconds(),
+			latencyMS,
 			observer.UsageSeen,
 			observer.Usage.PromptTokens,
 			observer.Usage.CompletionTokens,
@@ -129,9 +141,44 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			observer.Model,
 			observer.ParseErrors,
 		)
+		h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, observer, "")
 		return
 	}
-	fmt.Fprintf(h.log, "response id=%d status=%d bytes=%d latency_ms=%d\n", id, resp.StatusCode, bytesWritten, time.Since(started).Milliseconds())
+	fmt.Fprintf(h.log, "response id=%d status=%d bytes=%d latency_ms=%d\n", id, resp.StatusCode, bytesWritten, latencyMS)
+	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, nil, "")
+}
+
+func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route, r *http.Request, meta RequestMetadata, status int, latencyMS int64, observer *SSEObserver, errText string) {
+	if h.store == nil || route.Capture == CaptureNone || route.Capture == CaptureLocal || route.Capture == CaptureTunnel {
+		return
+	}
+	model := meta.Model
+	usage := Usage{}
+	if observer != nil {
+		if observer.Model != "" {
+			model = observer.Model
+		}
+		usage = observer.Usage
+	}
+	if err := h.store.InsertRequest(ctx, store.RequestRecord{
+		Timestamp:        ts,
+		Endpoint:         string(route.Endpoint),
+		Method:           r.Method,
+		Path:             r.URL.RequestURI(),
+		UpstreamHost:     route.Upstream,
+		Model:            model,
+		Stream:           meta.Stream,
+		Status:           status,
+		Error:            errText,
+		LatencyMS:        latencyMS,
+		PromptTokens:     usage.PromptTokens,
+		CompletionTokens: usage.CompletionTokens,
+		TotalTokens:      usage.TotalTokens,
+		Project:          h.project,
+		RequestHash:      meta.RequestHash,
+	}); err != nil {
+		fmt.Fprintf(h.log, "store_error=%q\n", err.Error())
+	}
 }
 
 func streamLogValue(meta RequestMetadata) string {

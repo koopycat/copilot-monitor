@@ -2,11 +2,15 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"copilot-monitoring/internal/store"
 )
 
 func TestMakeUpstreamRequestPreservesAuthAndRewritesTarget(t *testing.T) {
@@ -105,4 +109,54 @@ func TestHandlerUnknownPath(t *testing.T) {
 	if !strings.Contains(logs.String(), "route=unknown") {
 		t.Fatalf("logs missing route=unknown: %s", logs.String())
 	}
+}
+
+func TestHandlerPersistsSSEUsage(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	var logs bytes.Buffer
+	h := NewHandlerWithStore(&logs, st, "test-project")
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Host != GitHubCopilotAPIHost {
+			t.Fatalf("host = %q, want %q", req.URL.Host, GitHubCopilotAPIHost)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": {"text/event-stream"},
+			},
+			Body: io.NopCloser(strings.NewReader("data: {\"model\":\"gpt-4o\",\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3,\"total_tokens\":10}}\n\n")),
+		}, nil
+	})}
+
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-4o","stream":true}`))
+	req.Header.Set("Authorization", "Bearer secret")
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	stats, err := st.Stats(context.Background(), store.StatsFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("stats = %#v", stats)
+	}
+	if stats[0].Model != "gpt-4o" || stats[0].PromptTokens != 7 || stats[0].CompletionTokens != 3 || stats[0].TotalTokens != 10 {
+		t.Fatalf("stats[0] = %#v", stats[0])
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }

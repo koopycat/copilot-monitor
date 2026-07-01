@@ -2,8 +2,13 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"copilot-monitoring/internal/store"
 )
 
 func TestConfigureVSCode(t *testing.T) {
@@ -43,6 +48,41 @@ func TestVersion(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "copilot-monitor") {
 		t.Fatalf("unexpected version output: %s", stdout.String())
+	}
+}
+
+func TestStatsCommand(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "store.db")
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = st.InsertRequest(context.Background(), store.RequestRecord{Timestamp: time.Now().UTC(), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-4o", Status: 200, PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15})
+	_ = st.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"stats", "--db", dbPath, "--since", "all"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "gpt-4o") || !strings.Contains(out, "15") {
+		t.Fatalf("unexpected stats output:\n%s", out)
+	}
+}
+
+func TestParseSinceDays(t *testing.T) {
+	now := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+	got, err := parseSince("7d", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := now.Add(-7 * 24 * time.Hour)
+	if !got.Equal(want) {
+		t.Fatalf("got %s, want %s", got, want)
 	}
 }
 
