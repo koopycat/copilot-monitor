@@ -1,0 +1,108 @@
+package proxy
+
+import (
+	"bytes"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+func TestMakeUpstreamRequestPreservesAuthAndRewritesTarget(t *testing.T) {
+	in := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions?x=1", strings.NewReader(`{"model":"gpt-4o"}`))
+	in.Header.Set("Authorization", "Bearer secret")
+	in.Header.Set("Content-Type", "application/json")
+	in.Header.Set("Connection", "keep-alive")
+
+	route, ok := RoutePath("/chat/completions")
+	if !ok {
+		t.Fatal("missing chat route")
+	}
+	out, err := MakeUpstreamRequest(in, route, []byte(`{"model":"gpt-4o"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.URL.Scheme != "https" {
+		t.Fatalf("scheme = %q, want https", out.URL.Scheme)
+	}
+	if out.URL.Host != GitHubCopilotAPIHost {
+		t.Fatalf("host = %q, want %q", out.URL.Host, GitHubCopilotAPIHost)
+	}
+	if out.URL.RequestURI() != "/chat/completions?x=1" {
+		t.Fatalf("request URI = %q", out.URL.RequestURI())
+	}
+	if out.Host != GitHubCopilotAPIHost {
+		t.Fatalf("out.Host = %q, want %q", out.Host, GitHubCopilotAPIHost)
+	}
+	if got := out.Header.Get("Authorization"); got != "Bearer secret" {
+		t.Fatalf("Authorization = %q", got)
+	}
+	if got := out.Header.Get("Connection"); got != "" {
+		t.Fatalf("Connection header was not stripped: %q", got)
+	}
+	if got := out.Header.Get("Accept-Encoding"); got != "identity" {
+		t.Fatalf("Accept-Encoding = %q, want identity", got)
+	}
+}
+
+func TestStripHopByHopHeadersAlsoStripsConnectionTokens(t *testing.T) {
+	headers := http.Header{
+		"Connection":        {"x-remove, keep-alive"},
+		"X-Remove":          {"bad"},
+		"Keep-Alive":        {"timeout=5"},
+		"Authorization":     {"Bearer secret"},
+		"X-Should-Remain":   {"ok"},
+		"Transfer-Encoding": {"chunked"},
+	}
+
+	got := StripHopByHopHeaders(headers)
+	for _, name := range []string{"Connection", "X-Remove", "Keep-Alive", "Transfer-Encoding"} {
+		if got.Get(name) != "" {
+			t.Fatalf("%s was not stripped: %#v", name, got.Values(name))
+		}
+	}
+	if got.Get("Authorization") != "Bearer secret" {
+		t.Fatalf("Authorization = %q", got.Get("Authorization"))
+	}
+	if got.Get("X-Should-Remain") != "ok" {
+		t.Fatalf("X-Should-Remain = %q", got.Get("X-Should-Remain"))
+	}
+}
+
+func TestHandlerPing(t *testing.T) {
+	var logs bytes.Buffer
+	h := NewHandler(&logs)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/_ping", nil)
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	body, _ := io.ReadAll(rr.Body)
+	if string(body) != "OK" {
+		t.Fatalf("body = %q, want OK", string(body))
+	}
+	if !strings.Contains(logs.String(), "endpoint=ping") {
+		t.Fatalf("logs missing endpoint=ping: %s", logs.String())
+	}
+}
+
+func TestHandlerUnknownPath(t *testing.T) {
+	var logs bytes.Buffer
+	h := NewHandler(&logs)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/nope", nil)
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadGateway)
+	}
+	if !strings.Contains(logs.String(), "route=unknown") {
+		t.Fatalf("logs missing route=unknown: %s", logs.String())
+	}
+}

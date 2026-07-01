@@ -78,8 +78,7 @@ Isolation: not isolated, because it creates the foundation.
 
 ### 2. CLI scaffold
 
-Use Cobra for command registration.
-Add root flags for `--db` and `--json` but they can be unused initially.
+Use the stdlib `flag` package with a small internal command dispatcher.
 Add `version` command with a constant version string.
 Add help text for planned commands without implementing all behavior.
 

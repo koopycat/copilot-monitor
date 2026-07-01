@@ -285,7 +285,7 @@ No cert or key files are written by the proxy.
 |---|---|
 | Language | Go 1.22+ |
 | DB driver | `modernc.org/sqlite` |
-| CLI framework | `github.com/spf13/cobra` |
+| CLI framework | stdlib `flag` with a small internal command dispatcher |
 | Table output | stdlib `text/tabwriter` |
 | HTTP server | stdlib `net/http`, plain HTTP on loopback |
 | HTTP client | stdlib `net/http`, normal HTTPS upstream |
