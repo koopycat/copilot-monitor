@@ -1,0 +1,11 @@
+# Build outputs
+/phase0
+/copilot-monitor
+/bin/
+/dist/
+
+# Local scrape/cache data
+/.firecrawl/
+
+# OS/editor noise
+.DS_Store
