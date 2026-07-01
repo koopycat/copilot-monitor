@@ -5,8 +5,8 @@
 Copilot Monitor is a local HTTP reverse proxy for GitHub Copilot model API calls in VSCode.
 VSCode is configured to send Copilot API traffic to `http://127.0.0.1:7733` via Copilot's override URL settings.
 The proxy forwards those requests to the real GitHub Copilot upstreams, tees streaming responses in real time, and records model, token, latency, endpoint, and project metadata in SQLite.
-The current CLI reports captured usage.
-Planned reports will add sessions and estimated equivalent provider list-price cost.
+The current CLI reports captured usage and estimated equivalent provider list-price cost.
+Planned reports will add sessions and daily summaries.
 
 ## Terminology
 
@@ -170,13 +170,13 @@ Implemented commands:
 copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name]
 copilot-monitor configure-vscode [--addr 127.0.0.1:7733]
 copilot-monitor stats [--db path] [--since 30d] [--project x] [--endpoint chat]
+copilot-monitor cost [--db path] [--since 30d] [--project x] [--endpoint chat]
 copilot-monitor version
 ```
 
 Planned commands:
 
 ```
-copilot-monitor cost [--since 30d] [--project x]
 copilot-monitor today
 copilot-monitor sessions [--since 30d] [--limit 50]
 copilot-monitor models
@@ -378,15 +378,16 @@ Implemented:
 8. SQLite persistence of captured usage.
 9. `stats` report grouped by model and endpoint.
 10. Anthropic `/v1/messages` support.
+11. Embedded public list-price model catalog.
+12. `cost` report for estimated equivalent provider list-price cost.
 
 Not yet implemented:
 
-1. Estimated list-price cost command.
-2. Sessionization.
-3. `today`, `sessions`, and `models` commands.
-4. JSON report output.
-5. Optional prompt/response body storage.
-6. README quickstart.
+1. Sessionization.
+2. `today`, `sessions`, and `models` commands.
+3. JSON report output.
+4. Optional prompt/response body storage.
+5. README quickstart.
 
 ## Future Work
 

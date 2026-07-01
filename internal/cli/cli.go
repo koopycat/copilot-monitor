@@ -11,6 +11,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"copilot-monitoring/internal/catalog"
+	costcalc "copilot-monitoring/internal/cost"
 	"copilot-monitoring/internal/proxy"
 	"copilot-monitoring/internal/store"
 )
@@ -36,6 +38,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runServer(args[1:], stdout, stderr)
 	case "stats":
 		return runStats(args[1:], stdout, stderr)
+	case "cost":
+		return runCost(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
@@ -50,12 +54,14 @@ Usage:
   copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name]
   copilot-monitor configure-vscode [--addr 127.0.0.1:7733]
   copilot-monitor stats [--db path] [--since 30d] [--project name] [--endpoint chat]
+  copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor version
 
 Commands:
   run               Start the local HTTP proxy listener.
   configure-vscode  Print the VSCode settings JSON snippet.
   stats             Print captured usage grouped by model and endpoint.
+  cost              Print estimated equivalent provider list-price cost.
   version           Print the version.
 `)+"\n")
 }
@@ -160,6 +166,59 @@ func runStats(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\n", row.Model, row.Endpoint, row.Requests, row.PromptTokens, row.CompletionTokens, row.TotalTokens)
 	}
 	_ = tw.Flush()
+	return 0
+}
+
+func runCost(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("cost", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
+	sinceText := fs.String("since", "30d", "duration to look back, e.g. 24h, 7d, 30d, or all")
+	project := fs.String("project", "", "filter by project")
+	endpoint := fs.String("endpoint", "", "filter by endpoint")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	since, err := parseSince(*sinceText, time.Now())
+	if err != nil {
+		fmt.Fprintf(stderr, "invalid --since value %q: %v\n", *sinceText, err)
+		return 2
+	}
+	st, err := store.Open(*dbPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to open db %q: %v\n", *dbPath, err)
+		return 1
+	}
+	defer st.Close()
+
+	rows, err := st.Stats(context.Background(), store.StatsFilter{Since: since, Project: *project, Endpoint: *endpoint})
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to query stats: %v\n", err)
+		return 1
+	}
+	cat, err := catalog.LoadDefault()
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to load model catalog: %v\n", err)
+		return 1
+	}
+	total := costcalc.Calculate(rows, cat)
+
+	fmt.Fprintf(stdout, "Estimated equivalent provider list-price cost (%s). This is not your GitHub Copilot bill.\n", cat.Currency)
+	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "MODEL\tENDPOINT\tPROVIDER\tREQUESTS\tPROMPT_TOK\tCOMPL_TOK\tINPUT $\tOUTPUT $\tEST. LIST $")
+	for _, row := range total.Rows {
+		provider := row.Provider
+		if row.Fallback {
+			provider += "*"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%d\t%.6f\t%.6f\t%.6f\n", row.Model, row.Endpoint, provider, row.Requests, row.PromptTokens, row.CompletionTokens, row.InputUSD, row.OutputUSD, row.TotalUSD)
+	}
+	fmt.Fprintf(tw, "TOTAL\t\t\t%d\t%d\t%d\t%.6f\t%.6f\t%.6f\n", total.Requests, total.PromptTokens, total.CompletionTokens, total.InputUSD, total.OutputUSD, total.TotalUSD)
+	_ = tw.Flush()
+	if total.FallbackCount > 0 {
+		fmt.Fprintf(stdout, "\n* fallback pricing used for %d row(s) at %.6f %s per million input and output tokens.\n", total.FallbackCount, cat.FallbackPerM, cat.Currency)
+	}
 	return 0
 }
 
