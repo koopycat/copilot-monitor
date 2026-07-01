@@ -56,10 +56,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to read request body", http.StatusBadRequest)
 		return
 	}
+	meta := ParseRequestMetadata(body)
 
 	fmt.Fprintf(
 		h.log,
-		"request id=%d ts=%s method=%s path=%q endpoint=%s upstream=%s capture=%s auth_present=%t\n",
+		"request id=%d ts=%s method=%s path=%q endpoint=%s upstream=%s capture=%s auth_present=%t model=%q stream=%s\n",
 		id,
 		started.Format(time.RFC3339Nano),
 		r.Method,
@@ -68,6 +69,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		route.Upstream,
 		route.Capture,
 		r.Header.Get("Authorization") != "",
+		meta.Model,
+		streamLogValue(meta),
 	)
 
 	if isWebSocketUpgrade(r) {
@@ -98,7 +101,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	copyHeaders(w.Header(), StripHopByHopHeaders(resp.Header))
 	w.WriteHeader(resp.StatusCode)
-	bytesWritten, err := streamResponse(w, resp.Body)
+	var observer *SSEObserver
+	if shouldObserveResponse(route, resp.Header.Get("Content-Type")) {
+		observer = NewSSEObserver()
+	}
+	bytesWritten, err := streamResponse(w, resp.Body, observer)
 	if err != nil {
 		if r.Context().Err() != nil {
 			fmt.Fprintf(h.log, "response id=%d client_disconnected=true bytes=%d error=%q\n", id, bytesWritten, err.Error())
@@ -107,7 +114,41 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(h.log, "response id=%d stream_error=%q bytes=%d\n", id, err.Error(), bytesWritten)
 		return
 	}
+	if observer != nil {
+		fmt.Fprintf(
+			h.log,
+			"response id=%d status=%d bytes=%d latency_ms=%d usage_detected=%t prompt_tokens=%d completion_tokens=%d total_tokens=%d response_model=%q parse_errors=%d\n",
+			id,
+			resp.StatusCode,
+			bytesWritten,
+			time.Since(started).Milliseconds(),
+			observer.UsageSeen,
+			observer.Usage.PromptTokens,
+			observer.Usage.CompletionTokens,
+			observer.Usage.TotalTokens,
+			observer.Model,
+			observer.ParseErrors,
+		)
+		return
+	}
 	fmt.Fprintf(h.log, "response id=%d status=%d bytes=%d latency_ms=%d\n", id, resp.StatusCode, bytesWritten, time.Since(started).Milliseconds())
+}
+
+func streamLogValue(meta RequestMetadata) string {
+	if !meta.HasStream {
+		return "unknown"
+	}
+	if meta.Stream {
+		return "true"
+	}
+	return "false"
+}
+
+func shouldObserveResponse(route Route, contentType string) bool {
+	if route.Capture != CaptureUsage && route.Capture != CaptureMetadata {
+		return false
+	}
+	return strings.Contains(strings.ToLower(contentType), "text/event-stream") || strings.Contains(strings.ToLower(contentType), "json")
 }
 
 func readAndRestoreBody(r *http.Request) ([]byte, error) {
@@ -203,14 +244,22 @@ func copyHeaders(dst, src http.Header) {
 	}
 }
 
-func streamResponse(w http.ResponseWriter, body io.Reader) (int64, error) {
+func streamResponse(w http.ResponseWriter, body io.Reader, observer *SSEObserver) (int64, error) {
 	flusher, _ := w.(http.Flusher)
 	buf := make([]byte, 32*1024)
 	var total int64
+	defer func() {
+		if observer != nil {
+			observer.Finish()
+		}
+	}()
 	for {
 		n, readErr := body.Read(buf)
 		if n > 0 {
 			chunk := buf[:n]
+			if observer != nil {
+				observer.Observe(chunk)
+			}
 			written, writeErr := w.Write(chunk)
 			total += int64(written)
 			if writeErr != nil {
