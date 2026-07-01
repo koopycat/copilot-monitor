@@ -40,6 +40,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runStats(args[1:], stdout, stderr)
 	case "cost":
 		return runCost(args[1:], stdout, stderr)
+	case "today":
+		return runToday(args[1:], stdout, stderr)
+	case "sessions":
+		return runSessions(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
@@ -55,6 +59,8 @@ Usage:
   copilot-monitor configure-vscode [--addr 127.0.0.1:7733]
   copilot-monitor stats [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
+  copilot-monitor today [--db path] [--project name] [--endpoint chat]
+  copilot-monitor sessions [--db path] [--since 30d] [--project name] [--limit 50]
   copilot-monitor version
 
 Commands:
@@ -62,6 +68,8 @@ Commands:
   configure-vscode  Print the VSCode settings JSON snippet.
   stats             Print captured usage grouped by model and endpoint.
   cost              Print estimated equivalent provider list-price cost.
+  today             Print today's captured usage.
+  sessions          Print captured sessions using a 30-minute inactivity gap.
   version           Print the version.
 `)+"\n")
 }
@@ -160,12 +168,7 @@ func runStats(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "MODEL\tENDPOINT\tREQUESTS\tPROMPT_TOK\tCOMPL_TOK\tTOTAL")
-	for _, row := range rows {
-		fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\n", row.Model, row.Endpoint, row.Requests, row.PromptTokens, row.CompletionTokens, row.TotalTokens)
-	}
-	_ = tw.Flush()
+	printStatsRows(stdout, rows)
 	return 0
 }
 
@@ -220,6 +223,101 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "\n* fallback pricing used for %d row(s) at %.6f %s per million input and output tokens.\n", total.FallbackCount, cat.FallbackPerM, cat.Currency)
 	}
 	return 0
+}
+
+func runToday(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("today", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
+	project := fs.String("project", "", "filter by project")
+	endpoint := fs.String("endpoint", "", "filter by endpoint")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	now := time.Now()
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	st, err := store.Open(*dbPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to open db %q: %v\n", *dbPath, err)
+		return 1
+	}
+	defer st.Close()
+
+	rows, err := st.Stats(context.Background(), store.StatsFilter{Since: start, Project: *project, Endpoint: *endpoint})
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to query today's stats: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "Usage since %s\n", start.Format(time.RFC3339))
+	printStatsRows(stdout, rows)
+	return 0
+}
+
+func runSessions(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("sessions", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
+	sinceText := fs.String("since", "30d", "duration to look back, e.g. 24h, 7d, 30d, or all")
+	project := fs.String("project", "", "filter by project")
+	limit := fs.Int("limit", 50, "maximum sessions to print")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	since, err := parseSince(*sinceText, time.Now())
+	if err != nil {
+		fmt.Fprintf(stderr, "invalid --since value %q: %v\n", *sinceText, err)
+		return 2
+	}
+	st, err := store.Open(*dbPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to open db %q: %v\n", *dbPath, err)
+		return 1
+	}
+	defer st.Close()
+
+	if err := st.RebuildSessions(context.Background(), 30*time.Minute); err != nil {
+		fmt.Fprintf(stderr, "failed to rebuild sessions: %v\n", err)
+		return 1
+	}
+	rows, err := st.Sessions(context.Background(), store.SessionFilter{Since: since, Project: *project, Limit: *limit})
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to query sessions: %v\n", err)
+		return 1
+	}
+
+	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "START\tEND\tDURATION\tPROJECT\tREQUESTS\tTOKENS")
+	for _, row := range rows {
+		duration := row.EndedAt.Sub(row.StartedAt).Round(time.Second)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d\t%d\n",
+			row.StartedAt.Local().Format("2006-01-02 15:04:05"),
+			row.EndedAt.Local().Format("2006-01-02 15:04:05"),
+			duration,
+			emptyDash(row.Project),
+			row.RequestCount,
+			row.TokenCount,
+		)
+	}
+	_ = tw.Flush()
+	return 0
+}
+
+func printStatsRows(w io.Writer, rows []store.ModelStats) {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "MODEL\tENDPOINT\tREQUESTS\tPROMPT_TOK\tCOMPL_TOK\tTOTAL")
+	for _, row := range rows {
+		fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\n", row.Model, row.Endpoint, row.Requests, row.PromptTokens, row.CompletionTokens, row.TotalTokens)
+	}
+	_ = tw.Flush()
+}
+
+func emptyDash(value string) string {
+	if value == "" {
+		return "-"
+	}
+	return value
 }
 
 func parseSince(value string, now time.Time) (time.Time, error) {

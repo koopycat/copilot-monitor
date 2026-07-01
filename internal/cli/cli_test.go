@@ -99,6 +99,57 @@ func TestCostCommand(t *testing.T) {
 	}
 }
 
+func TestTodayCommand(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "store.db")
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = st.InsertRequest(context.Background(), store.RequestRecord{Timestamp: time.Now().UTC(), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-4o", Status: 200, PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15})
+	_ = st.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"today", "--db", dbPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "Usage since") || !strings.Contains(out, "gpt-4o") {
+		t.Fatalf("unexpected today output:\n%s", out)
+	}
+}
+
+func TestSessionsCommand(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "store.db")
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Now().UTC().Add(-time.Hour)
+	for _, rec := range []store.RequestRecord{
+		{Timestamp: base, Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-4o", Status: 200, TotalTokens: 10, Project: "p"},
+		{Timestamp: base.Add(time.Minute), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-4o", Status: 200, TotalTokens: 20, Project: "p"},
+	} {
+		if err := st.InsertRequest(context.Background(), rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = st.Close()
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"sessions", "--db", dbPath, "--since", "all"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "REQUESTS") || !strings.Contains(out, "p") || !strings.Contains(out, "30") {
+		t.Fatalf("unexpected sessions output:\n%s", out)
+	}
+}
+
 func TestCostCommandFallbackNote(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "store.db")
 	st, err := store.Open(dbPath)

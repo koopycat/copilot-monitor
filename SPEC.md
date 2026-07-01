@@ -171,14 +171,14 @@ copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name]
 copilot-monitor configure-vscode [--addr 127.0.0.1:7733]
 copilot-monitor stats [--db path] [--since 30d] [--project x] [--endpoint chat]
 copilot-monitor cost [--db path] [--since 30d] [--project x] [--endpoint chat]
+copilot-monitor today [--db path] [--project x] [--endpoint chat]
+copilot-monitor sessions [--db path] [--since 30d] [--project x] [--limit 50]
 copilot-monitor version
 ```
 
 Planned commands:
 
 ```
-copilot-monitor today
-copilot-monitor sessions [--since 30d] [--limit 50]
 copilot-monitor models
 ```
 
@@ -268,9 +268,10 @@ A single visible user prompt can produce multiple captured requests, including i
 ## Sessions
 
 A session is a maximal run of captured requests whose gaps between consecutive requests are all under 30 minutes.
-The sessionizer runs lazily when `sessions`, `stats`, or `cost` is invoked and the session table is stale.
-A request arriving more than 30 minutes after the previous captured request starts a new session.
+The `sessions` command rebuilds sessions lazily from the captured request table before reading.
+A request arriving 30 minutes or more after the previous captured request starts a new session.
 Project tags are independent of session boundaries.
+If a session contains multiple project tags, its session project is stored as `<mixed>`.
 
 ## Model Catalog
 
@@ -380,14 +381,15 @@ Implemented:
 10. Anthropic `/v1/messages` support.
 11. Embedded public list-price model catalog.
 12. `cost` report for estimated equivalent provider list-price cost.
+13. 30-minute gap sessionization.
+14. `today` and `sessions` reports.
 
 Not yet implemented:
 
-1. Sessionization.
-2. `today`, `sessions`, and `models` commands.
-3. JSON report output.
-4. Optional prompt/response body storage.
-5. README quickstart.
+1. `models` command.
+2. JSON report output.
+3. Optional prompt/response body storage.
+4. README quickstart.
 
 ## Future Work
 
