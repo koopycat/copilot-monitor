@@ -116,7 +116,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if shouldObserveResponse(route, resp.Header.Get("Content-Type")) {
 		observer = NewSSEObserver()
 	}
-	bytesWritten, err := streamResponse(w, resp.Body, observer)
+	var preview *ResponsePreview
+	if resp.StatusCode >= 400 {
+		preview = NewResponsePreview(2048)
+	}
+	bytesWritten, err := streamResponse(w, resp.Body, observer, preview)
 	if err != nil {
 		if r.Context().Err() != nil {
 			fmt.Fprintf(h.log, "response id=%d client_disconnected=true bytes=%d error=%q\n", id, bytesWritten, err.Error())
@@ -126,10 +130,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	latencyMS := time.Since(started).Milliseconds()
+	previewText := ""
+	if preview != nil {
+		previewText = preview.String()
+	}
 	if observer != nil {
 		fmt.Fprintf(
 			h.log,
-			"response id=%d status=%d bytes=%d latency_ms=%d usage_detected=%t prompt_tokens=%d completion_tokens=%d total_tokens=%d response_model=%q parse_errors=%d\n",
+			"response id=%d status=%d bytes=%d latency_ms=%d usage_detected=%t prompt_tokens=%d completion_tokens=%d total_tokens=%d response_model=%q parse_errors=%d error_preview=%q\n",
 			id,
 			resp.StatusCode,
 			bytesWritten,
@@ -140,12 +148,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			observer.Usage.TotalTokens,
 			observer.Model,
 			observer.ParseErrors,
+			previewText,
 		)
-		h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, observer, "")
+		h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, observer, previewText)
 		return
 	}
-	fmt.Fprintf(h.log, "response id=%d status=%d bytes=%d latency_ms=%d\n", id, resp.StatusCode, bytesWritten, latencyMS)
-	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, nil, "")
+	fmt.Fprintf(h.log, "response id=%d status=%d bytes=%d latency_ms=%d error_preview=%q\n", id, resp.StatusCode, bytesWritten, latencyMS, previewText)
+	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, nil, previewText)
 }
 
 func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route, r *http.Request, meta RequestMetadata, status int, latencyMS int64, observer *SSEObserver, errText string) {
@@ -294,7 +303,7 @@ func copyHeaders(dst, src http.Header) {
 	}
 }
 
-func streamResponse(w http.ResponseWriter, body io.Reader, observer *SSEObserver) (int64, error) {
+func streamResponse(w http.ResponseWriter, body io.Reader, observer *SSEObserver, preview *ResponsePreview) (int64, error) {
 	flusher, _ := w.(http.Flusher)
 	buf := make([]byte, 32*1024)
 	var total int64
@@ -309,6 +318,9 @@ func streamResponse(w http.ResponseWriter, body io.Reader, observer *SSEObserver
 			chunk := buf[:n]
 			if observer != nil {
 				observer.Observe(chunk)
+			}
+			if preview != nil {
+				preview.Observe(chunk)
 			}
 			written, writeErr := w.Write(chunk)
 			total += int64(written)
