@@ -28,9 +28,6 @@ func NewHandler(db *store.Store) *Handler {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
-	case "/", "/index.html":
-		h.dashboard.ServeHTTP(w, r)
-		return
 	case "/api/health":
 		h.handleHealth(w, r)
 	case "/api/stats":
@@ -44,7 +41,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/stats/timeline":
 		h.handleTimeline(w, r)
 	default:
-		http.NotFound(w, r)
+		h.dashboard.ServeHTTP(w, r)
 	}
 }
 
