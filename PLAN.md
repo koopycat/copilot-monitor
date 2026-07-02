@@ -18,7 +18,7 @@ Cached input and cache-write token accounting is accurate for both OpenAI and An
 Implemented commands: `run`, `configure-vscode`, `stats`, `cost`, `today`, `sessions`, `version`.
 Optional `--usage-debug-log` flag writes JSONL metadata for pricing research.
 
-Remaining work: JSON output, `models` command, body storage, README quickstart, and noise filtering for zero-usage agent metadata rows.
+Remaining work: integration tests with a local upstream server and final edge-case hardening.
 
 ## Dependency Map
 
@@ -70,7 +70,7 @@ Completed tasks are marked with `done`.
 | 22 | done | Add `--json` output | Mostly | 13, 16, 18 | Machine-readable reports |
 | 23 | done | Add README quickstart | Yes | 3, 4, 7 | User can configure VSCode and run the proxy |
 | 24 | todo | Add integration tests with local upstream server | No | 6, 9, 12 | Forwarding, streaming, and persistence covered |
-| 25 | todo | Final polish | No | All prior | `go test ./...`, `go vet ./...`, clean README |
+| 25 | done | Final polish | No | All prior | `go test ./...`, `go vet ./...`, clean README |
 
 ## Detailed Chunks
 
