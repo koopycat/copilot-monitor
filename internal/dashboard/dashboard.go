@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-//go:embed index.html app.js chart.js
+//go:embed index.html app.js chart.js dashboard.css
 var dashboardFS embed.FS
 
 func DashboardHandler() http.Handler {
