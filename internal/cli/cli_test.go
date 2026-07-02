@@ -99,6 +99,29 @@ func TestCostCommand(t *testing.T) {
 	}
 }
 
+func TestStatsCommandJSON(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "store.db")
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = st.InsertRequest(context.Background(), store.RequestRecord{Timestamp: time.Now().UTC(), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-4o", Status: 200, PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15})
+	_ = st.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"stats", "--db", dbPath, "--since", "all", "--json"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "gpt-4o") || !strings.Contains(out, "\"prompt_tokens\"") {
+		t.Fatalf("unexpected JSON output:\n%s", out)
+	}
+}
+
 func TestTodayCommand(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "store.db")
 	st, err := store.Open(dbPath)

@@ -196,6 +196,9 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 	if h.store == nil || route.Capture == CaptureNone || route.Capture == CaptureLocal || route.Capture == CaptureTunnel {
 		return
 	}
+	if errText == "" && route.Capture == CaptureUsage && (observer == nil || !observer.UsageSeen) {
+		return
+	}
 	model := meta.Model
 	usage := Usage{}
 	if observer != nil {

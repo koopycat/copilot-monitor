@@ -6,39 +6,39 @@ import (
 )
 
 type Row struct {
-	Model             string
-	Endpoint          string
-	Provider          string
-	Requests          int
-	PromptTokens      int
-	CachedInputTokens int
-	CacheWriteTokens  int
-	CompletionTokens  int
-	TotalTokens       int
-	InputUSD          float64
-	CachedInputUSD    float64
-	CacheWriteUSD     float64
-	OutputUSD         float64
-	TotalUSD          float64
-	Fallback          bool
-	NotBilled         bool
+	Model             string  `json:"model"`
+	Endpoint          string  `json:"endpoint"`
+	Provider          string  `json:"provider"`
+	Requests          int     `json:"requests"`
+	PromptTokens      int     `json:"prompt_tokens"`
+	CachedInputTokens int     `json:"cached_input_tokens"`
+	CacheWriteTokens  int     `json:"cache_write_tokens"`
+	CompletionTokens  int     `json:"completion_tokens"`
+	TotalTokens       int     `json:"total_tokens"`
+	InputUSD          float64 `json:"input_usd"`
+	CachedInputUSD    float64 `json:"cached_input_usd"`
+	CacheWriteUSD     float64 `json:"cache_write_usd"`
+	OutputUSD         float64 `json:"output_usd"`
+	TotalUSD          float64 `json:"total_usd"`
+	Fallback          bool    `json:"fallback"`
+	NotBilled         bool    `json:"not_billed"`
 }
 
 type Total struct {
-	Rows              []Row
-	Requests          int
-	PromptTokens      int
-	CachedInputTokens int
-	CacheWriteTokens  int
-	CompletionTokens  int
-	TotalTokens       int
-	InputUSD          float64
-	CachedInputUSD    float64
-	CacheWriteUSD     float64
-	OutputUSD         float64
-	TotalUSD          float64
-	FallbackCount     int
-	NotBilledCount    int
+	Rows              []Row   `json:"rows"`
+	Requests          int     `json:"requests"`
+	PromptTokens      int     `json:"prompt_tokens"`
+	CachedInputTokens int     `json:"cached_input_tokens"`
+	CacheWriteTokens  int     `json:"cache_write_tokens"`
+	CompletionTokens  int     `json:"completion_tokens"`
+	TotalTokens       int     `json:"total_tokens"`
+	InputUSD          float64 `json:"input_usd"`
+	CachedInputUSD    float64 `json:"cached_input_usd"`
+	CacheWriteUSD     float64 `json:"cache_write_usd"`
+	OutputUSD         float64 `json:"output_usd"`
+	TotalUSD          float64 `json:"total_usd"`
+	FallbackCount     int     `json:"fallback_count"`
+	NotBilledCount    int     `json:"not_billed_count"`
 }
 
 func Calculate(stats []store.ModelStats, catalog catalog.Catalog) Total {

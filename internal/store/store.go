@@ -47,14 +47,14 @@ type StatsFilter struct {
 }
 
 type ModelStats struct {
-	Model             string
-	Endpoint          string
-	Requests          int
-	PromptTokens      int
-	CachedInputTokens int
-	CacheWriteTokens  int
-	CompletionTokens  int
-	TotalTokens       int
+	Model             string `json:"model"`
+	Endpoint          string `json:"endpoint"`
+	Requests          int    `json:"requests"`
+	PromptTokens      int    `json:"prompt_tokens"`
+	CachedInputTokens int    `json:"cached_input_tokens"`
+	CacheWriteTokens  int    `json:"cache_write_tokens"`
+	CompletionTokens  int    `json:"completion_tokens"`
+	TotalTokens       int    `json:"total_tokens"`
 }
 
 func DefaultPath() string {

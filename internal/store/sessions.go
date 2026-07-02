@@ -14,12 +14,12 @@ type SessionFilter struct {
 }
 
 type SessionStats struct {
-	ID           int64
-	StartedAt    time.Time
-	EndedAt      time.Time
-	Project      string
-	RequestCount int
-	TokenCount   int
+	ID           int64     `json:"id"`
+	StartedAt    time.Time `json:"started_at"`
+	EndedAt      time.Time `json:"ended_at"`
+	Project      string    `json:"project"`
+	RequestCount int       `json:"request_count"`
+	TokenCount   int       `json:"token_count"`
 }
 
 type sessionRequest struct {

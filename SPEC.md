@@ -174,10 +174,10 @@ Implemented commands:
 ```
 copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path]
 copilot-monitor configure-vscode [--addr 127.0.0.1:7733]
-copilot-monitor stats [--db path] [--since 30d] [--project x] [--endpoint chat]
-copilot-monitor cost [--db path] [--since 30d] [--project x] [--endpoint chat]
-copilot-monitor today [--db path] [--project x] [--endpoint chat]
-copilot-monitor sessions [--db path] [--since 30d] [--project x] [--limit 50]
+copilot-monitor stats [--db path] [--since 30d] [--project x] [--endpoint chat] [--json]
+copilot-monitor cost [--db path] [--since 30d] [--project x] [--endpoint chat] [--json]
+copilot-monitor today [--db path] [--project x] [--endpoint chat] [--json]
+copilot-monitor sessions [--db path] [--since 30d] [--project x] [--limit 50] [--json]
 copilot-monitor version
 ```
 
@@ -398,13 +398,14 @@ Implemented:
 14. `today` and `sessions` reports.
 15. Optional usage-only JSONL debug log for pricing research.
 16. Cached input and cache-write token capture for pricing accuracy.
+17. Machine-readable JSON output for `stats`, `cost`, `today`, and `sessions`.
+18. Zero-usage agent metadata filtering.
 
 Not yet implemented:
 
 1. `models` command.
-2. JSON report output.
-3. Optional prompt/response body storage.
-4. README quickstart.
+2. Optional prompt/response body storage.
+3. Integration tests with a local upstream server.
 
 ## Known Issues
 

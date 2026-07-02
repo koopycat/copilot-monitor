@@ -208,6 +208,38 @@ func TestHandlerWritesUsageDebugRecord(t *testing.T) {
 	}
 }
 
+func TestHandlerDoesNotPersistZeroUsageAgentRoutes(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	var logs bytes.Buffer
+	h := NewHandlerWithStore(&logs, st, "")
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"models":[]}`)),
+		}, nil
+	})}
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/agents/swe/models", nil)
+	req.Header.Set("Authorization", "Bearer secret")
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	stats, err := st.Stats(context.Background(), store.StatsFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 0 {
+		t.Fatalf("expected no persisted rows for zero-usage agent route, got: %#v", stats)
+	}
+}
+
 func TestHandlerPrefersRequestModelOverResponseModel(t *testing.T) {
 	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
 	if err != nil {

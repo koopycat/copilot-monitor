@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -157,6 +158,7 @@ func runStats(args []string, stdout, stderr io.Writer) int {
 	sinceText := fs.String("since", "30d", "duration to look back, e.g. 24h, 7d, 30d, or all")
 	project := fs.String("project", "", "filter by project")
 	endpoint := fs.String("endpoint", "", "filter by endpoint")
+	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -179,6 +181,15 @@ func runStats(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	if *jsonFlag {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(rows); err != nil {
+			fmt.Fprintf(stderr, "json encode failed: %v\n", err)
+			return 1
+		}
+		return 0
+	}
 	printStatsRows(stdout, rows)
 	return 0
 }
@@ -190,6 +201,7 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 	sinceText := fs.String("since", "30d", "duration to look back, e.g. 24h, 7d, 30d, or all")
 	project := fs.String("project", "", "filter by project")
 	endpoint := fs.String("endpoint", "", "filter by endpoint")
+	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -218,6 +230,15 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 	}
 	total := costcalc.Calculate(rows, cat)
 
+	if *jsonFlag {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(total); err != nil {
+			fmt.Fprintf(stderr, "json encode failed: %v\n", err)
+			return 1
+		}
+		return 0
+	}
 	fmt.Fprintf(stdout, "Estimated equivalent GitHub Copilot AI-credit list-price cost (%s). This is not your GitHub Copilot bill.\n", cat.Currency)
 	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "MODEL\tENDPOINT\tPROVIDER\tREQUESTS\tINPUT_TOK\tCACHED_TOK\tCACHE_WRITE_TOK\tOUTPUT_TOK\tINPUT $\tCACHED $\tCACHE WRITE $\tOUTPUT $\tEST. LIST $")
@@ -248,6 +269,7 @@ func runToday(args []string, stdout, stderr io.Writer) int {
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
 	project := fs.String("project", "", "filter by project")
 	endpoint := fs.String("endpoint", "", "filter by endpoint")
+	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -266,6 +288,16 @@ func runToday(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "failed to query today's stats: %v\n", err)
 		return 1
 	}
+
+	if *jsonFlag {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(rows); err != nil {
+			fmt.Fprintf(stderr, "json encode failed: %v\n", err)
+			return 1
+		}
+		return 0
+	}
 	fmt.Fprintf(stdout, "Usage since %s\n", start.Format(time.RFC3339))
 	printStatsRows(stdout, rows)
 	return 0
@@ -278,6 +310,7 @@ func runSessions(args []string, stdout, stderr io.Writer) int {
 	sinceText := fs.String("since", "30d", "duration to look back, e.g. 24h, 7d, 30d, or all")
 	project := fs.String("project", "", "filter by project")
 	limit := fs.Int("limit", 50, "maximum sessions to print")
+	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -302,6 +335,16 @@ func runSessions(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to query sessions: %v\n", err)
 		return 1
+	}
+
+	if *jsonFlag {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(rows); err != nil {
+			fmt.Fprintf(stderr, "json encode failed: %v\n", err)
+			return 1
+		}
+		return 0
 	}
 
 	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)

@@ -67,8 +67,8 @@ Completed tasks are marked with `done`.
 | 19 | done | Add inline completion routes | No | 6, 8, 9, 12 | `/v1/engines/*` and `/v1/completions` are forwarded and captured when usage is present |
 | 20 | done | Add agent routes | No | 6, 8, 9, 12 | `/agents/*` is forwarded and captured when usage is present |
 | 21 | skip | Add `--store-bodies` | Mostly | 11, 12 | Optional prompt and completion persistence |
-| 22 | todo | Add `--json` output | Mostly | 13, 16, 18 | Machine-readable reports |
-| 23 | todo | Add README quickstart | Yes | 3, 4, 7 | User can configure VSCode and run the proxy |
+| 22 | done | Add `--json` output | Mostly | 13, 16, 18 | Machine-readable reports |
+| 23 | done | Add README quickstart | Yes | 3, 4, 7 | User can configure VSCode and run the proxy |
 | 24 | todo | Add integration tests with local upstream server | No | 6, 9, 12 | Forwarding, streaming, and persistence covered |
 | 25 | todo | Final polish | No | All prior | `go test ./...`, `go vet ./...`, clean README |
 
@@ -547,12 +547,11 @@ Tasks: 22 (`--json`), 23 (README), 24 (integration tests), 25 (final polish).
 
 These were observed during real usage and should be addressed before v1:
 
-| Issue | Impact | |
+| Issue | Impact | Status |
 |---|---|---|
-| Agent metadata routes (`/agents`, `/agents/swe/models`) are persisted without usage | Clutters stats and cost with zero-token rows |
-| `gpt-4o-mini-2024-07-18` not in GitHub Copilot pricing page | Uses lower-confidence provider fallback pricing |
-| Stats column `PROMPT_TOK` is named from the stored field; for Anthropic it means input tokens | Slight naming inconsistency for Anthropic rows |
-| No `--json` flag for machine-readable output | Report output is human-table only |
+| Agent metadata routes (`/agents`, `/agents/swe/models`) were persisted without usage | Clutters stats and cost with zero-token rows | Fixed: zero-usage capture rows are skipped |
+| `gpt-4o-mini-2024-07-18` not in GitHub Copilot pricing page | Uses lower-confidence provider fallback pricing | Open |
+| Stats column `PROMPT_TOK` is named from the stored field; for Anthropic it means input tokens | Slight naming inconsistency for Anthropic rows | Open |
 
 ## Definition of Done for v1
 
