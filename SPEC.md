@@ -52,6 +52,7 @@ copilot-monitor stats [--since 30d] [--project x] [--endpoint chat] [--json]
 copilot-monitor cost  [--since 30d] [--project x] [--endpoint chat] [--json]
 copilot-monitor today [--project x] [--endpoint chat] [--json]
 copilot-monitor sessions [--since 30d] [--project x] [--limit 50] [--json]
+copilot-monitor compare [--a 2026-06] [--b 2026-07] [--db path]
 ```
 
 ### Setup

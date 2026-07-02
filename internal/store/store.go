@@ -42,6 +42,7 @@ type RequestRecord struct {
 
 type StatsFilter struct {
 	Since    time.Time
+	Until    time.Time
 	Project  string
 	Endpoint string
 }
@@ -68,18 +69,31 @@ type TimelineBucket struct {
 	TotalTokens      int    `json:"total_tokens"`
 }
 
+type CompareResult struct {
+	Periods []ComparePeriod `json:"periods"`
+}
+
+type ComparePeriod struct {
+	Label       string       `json:"label"`
+	Start       time.Time    `json:"start"`
+	End         time.Time    `json:"end"`
+	Models      []ModelStats `json:"models"`
+	Requests    int          `json:"requests"`
+	TotalTokens int          `json:"total_tokens"`
+}
+
 type ExportRow struct {
-	Timestamp         string  `json:"ts"`
-	Endpoint          string  `json:"endpoint"`
-	Model             string  `json:"model"`
-	Status            int     `json:"status"`
-	LatencyMS         int64   `json:"latency_ms"`
-	PromptTokens      int     `json:"prompt_tokens"`
-	CachedInputTokens int     `json:"cached_input_tokens"`
-	CacheWriteTokens  int     `json:"cache_write_tokens"`
-	CompletionTokens  int     `json:"completion_tokens"`
-	TotalTokens       int     `json:"total_tokens"`
-	Project           string  `json:"project"`
+	Timestamp         string `json:"ts"`
+	Endpoint          string `json:"endpoint"`
+	Model             string `json:"model"`
+	Status            int    `json:"status"`
+	LatencyMS         int64  `json:"latency_ms"`
+	PromptTokens      int    `json:"prompt_tokens"`
+	CachedInputTokens int    `json:"cached_input_tokens"`
+	CacheWriteTokens  int    `json:"cache_write_tokens"`
+	CompletionTokens  int    `json:"completion_tokens"`
+	TotalTokens       int    `json:"total_tokens"`
+	Project           string `json:"project"`
 }
 
 func DefaultPath() string {
@@ -188,6 +202,7 @@ SELECT
   COALESCE(AVG(latency_ms), 0) AS avg_latency_ms
 FROM requests
 WHERE (? = '' OR ts >= ?)
+  AND (? = '' OR ts < ?)
   AND (? = '' OR project = ?)
   AND (? = '' OR endpoint = ?)
 GROUP BY model, endpoint
@@ -196,7 +211,11 @@ ORDER BY total_tokens DESC, requests DESC, model ASC, endpoint ASC`
 	if !filter.Since.IsZero() {
 		since = filter.Since.UTC().Format(time.RFC3339Nano)
 	}
-	rows, err := s.db.QueryContext(ctx, query, since, since, filter.Project, filter.Project, filter.Endpoint, filter.Endpoint)
+	until := ""
+	if !filter.Until.IsZero() {
+		until = filter.Until.UTC().Format(time.RFC3339Nano)
+	}
+	rows, err := s.db.QueryContext(ctx, query, since, since, until, until, filter.Project, filter.Project, filter.Endpoint, filter.Endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -211,6 +230,42 @@ ORDER BY total_tokens DESC, requests DESC, model ASC, endpoint ASC`
 		out = append(out, row)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) CompareStats(ctx context.Context, aStart, aEnd, bStart, bEnd time.Time) (CompareResult, error) {
+	if s == nil || s.db == nil {
+		return CompareResult{}, errors.New("nil store")
+	}
+	a, err := s.statsPeriod(ctx, aStart, aEnd)
+	if err != nil {
+		return CompareResult{}, err
+	}
+	b, err := s.statsPeriod(ctx, bStart, bEnd)
+	if err != nil {
+		return CompareResult{}, err
+	}
+	return CompareResult{Periods: []ComparePeriod{a, b}}, nil
+}
+
+func (s *Store) statsPeriod(ctx context.Context, start, end time.Time) (ComparePeriod, error) {
+	models, err := s.Stats(ctx, StatsFilter{Since: start, Until: end})
+	if err != nil {
+		return ComparePeriod{}, err
+	}
+	if models == nil {
+		models = []ModelStats{}
+	}
+	period := ComparePeriod{
+		Label:  start.UTC().Format("2006-01"),
+		Start:  start.UTC(),
+		End:    end.UTC(),
+		Models: models,
+	}
+	for _, row := range models {
+		period.Requests += row.Requests
+		period.TotalTokens += row.TotalTokens
+	}
+	return period, nil
 }
 
 func (s *Store) Timeline(ctx context.Context, filter StatsFilter, granularity string) ([]TimelineBucket, error) {

@@ -50,6 +50,11 @@
   .legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.7rem; margin: 0.75rem 0 1.5rem; color: var(--muted); }
   .legend-item { display: inline-flex; align-items: center; gap: 0.35rem; }
   .legend-swatch { width: 0.6rem; height: 0.6rem; border-radius: 2px; flex-shrink: 0; }
+  .compare-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+  .compare-card { border: 1px solid var(--border); border-radius: 8px; padding: 1rem; background: var(--surface); }
+  .compare-title { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.75rem; }
+  .compare-line { display: flex; justify-content: space-between; gap: 1rem; padding: 0.2rem 0; color: var(--muted); }
+  .compare-line strong { color: var(--ink); font-weight: 500; text-align: right; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: 0.8rem; }
   th, td { padding: 0.45rem 0.65rem; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
   th:first-child, td:first-child { text-align: left; }
@@ -68,6 +73,7 @@
   @media (max-width: 600px) {
     .row { gap: 1rem; }
     .metric-value { font-size: 1.5rem; }
+    .compare-grid { grid-template-columns: 1fr; }
     table { font-size: 0.7rem; }
     th, td { padding: 0.35rem 0.4rem; }
   }
@@ -81,7 +87,7 @@
 
   <div class="row">
     <div class="metric">
-      <div class="metric-value">{{ cost !== null ? $usd(cost) : '—' }}</div>
+      <div class="metric-value">{{ cost !== null ? $usd(cost) : '-' }}</div>
       <div class="metric-label">est. AI-credit cost, 30d</div>
     </div>
     <div class="metric">
@@ -102,6 +108,16 @@
   </h2>
   <div class="chart-wrap"><canvas id="chart" role="img" aria-label="Usage chart"></canvas></div>
   <div class="legend" id="chart-legend"></div>
+
+  <h2>Compare</h2>
+  <div class="compare-grid">
+    <div class="compare-card" v-for="(p,i) in comparePeriods" :key="p.label || i">
+      <div class="compare-title">{{ compareLabel(p) }}</div>
+      <div class="compare-line"><span>Total cost</span><strong>{{ $usd(p.total_cost || 0) }}</strong></div>
+      <div class="compare-line"><span>Total tokens</span><strong>{{ $intl(p.total_tokens || 0) }}</strong></div>
+      <div class="compare-line"><span>Top model</span><strong>{{ topModel(p) }}</strong></div>
+    </div>
+  </div>
 
   <h2>Models</h2>
   <table>
@@ -152,7 +168,7 @@
       <tr v-for="s in sessions" :key="s.id">
         <td>{{ new Date(s.started_at).toLocaleString() }}</td>
         <td class="num">{{ $dur((new Date(s.ended_at) - new Date(s.started_at)) / 1000) }}</td>
-        <td>{{ s.project || '—' }}</td>
+        <td>{{ s.project || '-' }}</td>
         <td class="num">{{ $intl(s.request_count) }}</td>
         <td class="num">{{ $intl(s.token_count) }}</td>
       </tr>

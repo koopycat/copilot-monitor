@@ -38,6 +38,42 @@ func TestInsertAndStats(t *testing.T) {
 	}
 }
 
+func TestCompareStatsUsesTwoMonthWindows(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	ctx := context.Background()
+	records := []RequestRecord{
+		{Timestamp: time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC), Endpoint: "chat", Model: "gpt-5-mini", Status: 200, TotalTokens: 100},
+		{Timestamp: time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC), Endpoint: "chat", Model: "gpt-5-mini", Status: 200, TotalTokens: 200},
+		{Timestamp: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC), Endpoint: "chat", Model: "ignored", Status: 200, TotalTokens: 300},
+	}
+	for _, rec := range records {
+		if err := s.InsertRequest(ctx, rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	result, err := s.CompareStats(ctx,
+		time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Periods) != 2 {
+		t.Fatalf("periods = %d, want 2", len(result.Periods))
+	}
+	if result.Periods[0].TotalTokens != 100 || result.Periods[1].TotalTokens != 200 {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
 func TestStatsFilterSince(t *testing.T) {
 	s, err := Open(filepath.Join(t.TempDir(), "store.db"))
 	if err != nil {

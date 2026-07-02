@@ -99,6 +99,53 @@ func TestCostCommand(t *testing.T) {
 	}
 }
 
+func TestCompareCommand(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "store.db")
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rec := range []store.RequestRecord{
+		{Timestamp: time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-5-mini", Status: 200, PromptTokens: 1000, CompletionTokens: 500, TotalTokens: 1500},
+		{Timestamp: time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-5-mini", Status: 200, PromptTokens: 2000, CompletionTokens: 1000, TotalTokens: 3000},
+	} {
+		if err := st.InsertRequest(context.Background(), rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = st.Close()
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"compare", "--db", dbPath, "--a", "2026-06", "--b", "2026-07"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{"Comparing 2026-06 to 2026-07", "PERIOD A COST", "gpt-5-mini", "TOTAL", "+100%"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("output missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestCompareCommandEmptyDB(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "store.db")
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = st.Close()
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"compare", "--db", dbPath, "--a", "2026-06", "--b", "2026-07"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "TOTAL") {
+		t.Fatalf("unexpected compare output:\n%s", stdout.String())
+	}
+}
+
 func TestStatsCommandJSON(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "store.db")
 	st, err := store.Open(dbPath)

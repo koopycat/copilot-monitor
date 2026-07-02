@@ -20,6 +20,7 @@ All endpoints are read-only. All support `?since=30d` and `?project=` filters un
 | `GET` | `/api/sessions` | `?since=&project=&limit=50` | `[]SessionStats` |
 | `GET` | `/api/stats/timeline` | `?since=&granularity=day|hour` | `[]TimelineBucket` |
 | `GET` | `/api/export` | `?since=` | CSV dump of raw requests |
+| `GET` | `/api/compare` | `?a=YYYY-MM&b=YYYY-MM` or `?periods=2&bucket=month` | Two-period comparison with totals |
 | `GET` | `/` | none | HTML dashboard |
 
 ## Dashboard
@@ -33,6 +34,7 @@ Features:
 - Cost summary with projected monthly estimate
 - Average latency metric
 - Stacked bar chart with day/hour toggle
+- Two-period comparison panel
 - Per-model tables with token counts and latency
 - Cost breakdown with fallback and not-billed tags
 - Recent sessions table
