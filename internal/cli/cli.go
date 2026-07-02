@@ -12,6 +12,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"copilot-monitoring/internal/api"
 	"copilot-monitoring/internal/catalog"
 	costcalc "copilot-monitoring/internal/cost"
 	"copilot-monitoring/internal/log"
@@ -46,6 +47,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runToday(args[1:], stdout, stderr)
 	case "sessions":
 		return runSessions(args[1:], stdout, stderr)
+	case "serve":
+		return runServe(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
@@ -63,11 +66,13 @@ Usage:
   copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor today [--db path] [--project name] [--endpoint chat]
   copilot-monitor sessions [--db path] [--since 30d] [--project name] [--limit 50]
+  copilot-monitor serve [--addr 127.0.0.1:7734] [--db path]
   copilot-monitor version
 
 Commands:
   run               Start the local HTTP proxy listener.
   configure-vscode  Print the VSCode settings JSON snippet.
+  serve             Start the read-only HTTP API and dashboard.
   stats             Print captured usage grouped by model and endpoint.
   cost              Print estimated equivalent provider list-price cost.
   today             Print today's captured usage.
@@ -373,6 +378,39 @@ func printStatsRows(w io.Writer, rows []store.ModelStats) {
 		fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\n", row.Model, row.Endpoint, row.Requests, row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens, row.CompletionTokens, row.TotalTokens)
 	}
 	_ = tw.Flush()
+}
+
+func runServe(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	addr := fs.String("addr", "127.0.0.1:7734", "HTTP listen address")
+	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	st, err := store.Open(*dbPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to open db %q: %v\n", *dbPath, err)
+		return 1
+	}
+	defer st.Close()
+
+	handler := api.NewHandler(st)
+	server := &http.Server{
+		Addr:              *addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	fmt.Fprintf(stdout, "copilot-monitor API listening on http://%s\n", settingsAddr(*addr))
+	fmt.Fprintf(stdout, "database: %s\n", store.FormatPath(*dbPath))
+
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, context.Canceled) {
+		fmt.Fprintf(stderr, "server failed: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func emptyDash(value string) string {

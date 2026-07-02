@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copilot Monitor</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem; background: #0d1117; color: #c9d1d9; }
+  h1 { font-size: 1.5rem; margin-bottom: 1.5rem; }
+  h2 { font-size: 1rem; color: #8b949e; margin: 1.5rem 0 0.5rem; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.85rem; }
+  th, td { padding: 0.5rem 0.75rem; text-align: right; border-bottom: 1px solid #21262d; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: #8b949e; font-weight: 500; }
+  tr:hover td { background: #161b22; }
+  .bar { display: inline-block; height: 0.75rem; background: #58a6ff; border-radius: 2px; vertical-align: middle; margin-right: 0.5rem; }
+  .bar.green { background: #3fb950; }
+  .bar.red { background: #f85149; }
+  .bar.yellow { background: #d29922; }
+  .cost-total { font-size: 2rem; font-weight: 600; color: #58a6ff; margin-bottom: 0.25rem; }
+  .cost-sub { font-size: 0.8rem; color: #8b949e; }
+  .session-row { white-space: nowrap; }
+  .footer { margin-top: 2rem; font-size: 0.75rem; color: #484f58; }
+  .error { color: #f85149; padding: 1rem; border: 1px solid #f8514933; border-radius: 6px; }
+</style>
+</head>
+<body>
+<h1>Copilot Monitor</h1>
+
+<div id="cost-summary"></div>
+
+<h2>Models</h2>
+<table id="stats-table"><thead><tr><th>Model</th><th>Requests</th><th>Input</th><th>Cached</th><th>Cache Write</th><th>Output</th><th>Total Tokens</th></tr></thead><tbody></tbody></table>
+
+<h2>Cost Breakdown</h2>
+<table id="cost-table"><thead><tr><th>Model</th><th>Provider</th><th>Input $</th><th>Cached $</th><th>Cache Write $</th><th>Output $</th><th>Total $</th></tr></thead><tbody></tbody></table>
+
+<h2>Sessions</h2>
+<table id="sessions-table"><thead><tr><th>Start</th><th>End</th><th>Duration</th><th>Project</th><th>Requests</th><th>Tokens</th></tr></thead><tbody></tbody></table>
+
+<p class="footer" id="updated"></p>
+
+<script>
+async function fetchJSON(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(resp.status);
+  return resp.json();
+}
+
+function bar(cell, fraction, cls) {
+  const width = Math.max(2, Math.round(fraction * 100));
+  return `<span class="bar ${cls || ''}" style="width:${width}px"></span>${cell}`;
+}
+
+function formatUSD(n) { return n < 0.01 ? '<0.01' : n.toFixed(2); }
+function fmtDur(d) { return d < 60 ? d + 's' : Math.round(d / 60) + 'm'; }
+
+async function load() {
+  try {
+    const [stats, cost, sessions] = await Promise.all([
+      fetchJSON('/api/stats?since=30d'),
+      fetchJSON('/api/cost?since=30d'),
+      fetchJSON('/api/sessions?since=30d&limit=20')
+    ]);
+
+    document.getElementById('cost-summary').innerHTML =
+      `<div class="cost-total">$${formatUSD(cost.total_usd || 0)}</div>
+       <div class="cost-sub">estimated AI-credit cost, last 30 days</div>`;
+
+    const statsBody = document.getElementById('stats-table').querySelector('tbody');
+    const maxTokens = Math.max(1, ...stats.map(s => s.total_tokens));
+    statsBody.innerHTML = stats.map(s =>
+      `<tr>
+        <td>${bar(s.model + ' ' + s.endpoint, s.total_tokens / maxTokens, 'green')}</td>
+        <td>${s.requests}</td>
+        <td>${s.prompt_tokens}</td>
+        <td>${s.cached_input_tokens}</td>
+        <td>${s.cache_write_tokens}</td>
+        <td>${s.completion_tokens}</td>
+        <td>${s.total_tokens}</td>
+      </tr>`).join('');
+
+    const costRows = cost.rows || [];
+    const maxCost = Math.max(0.001, ...costRows.map(r => r.total_usd));
+    document.getElementById('cost-table').querySelector('tbody').innerHTML = costRows.map(r =>
+      `<tr>
+        <td>${bar(r.model + ' ' + r.endpoint, r.total_usd / maxCost, r.fallback ? 'yellow' : 'blue')}${r.not_billed ? ' (not billed)' : ''}</td>
+        <td>${r.provider}${r.fallback ? '*' : ''}</td>
+        <td>$${formatUSD(r.input_usd)}</td>
+        <td>$${formatUSD(r.cached_input_usd)}</td>
+        <td>$${formatUSD(r.cache_write_usd)}</td>
+        <td>$${formatUSD(r.output_usd)}</td>
+        <td>$${formatUSD(r.total_usd)}</td>
+      </tr>`).join('');
+
+    document.getElementById('sessions-table').querySelector('tbody').innerHTML = sessions.map(s =>
+      `<tr class="session-row">
+        <td>${new Date(s.started_at).toLocaleString()}</td>
+        <td>${new Date(s.ended_at).toLocaleString()}</td>
+        <td>${fmtDur((new Date(s.ended_at) - new Date(s.started_at)) / 1000)}</td>
+        <td>${s.project || '-'}</td>
+        <td>${s.request_count}</td>
+        <td>${s.token_count}</td>
+      </tr>`).join('');
+
+    document.getElementById('updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    document.getElementById('cost-summary').innerHTML = `<div class="error">Failed to load data: ${e.message}</div>`;
+  }
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>
