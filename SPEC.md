@@ -112,7 +112,6 @@ Anyone with shell access to the machine can read the database file.
 copilot_monitoring/
 ├── cmd/
 │   ├── copilot-monitor/main.go
-│   └── phase0/main.go
 ├── internal/
 │   ├── api/                    # Read-only HTTP API handler
 │   ├── catalog/                # Embedded model price catalog
@@ -130,5 +129,4 @@ copilot_monitoring/
 ├── justfile
 ├── go.mod / go.sum
 ├── SPEC.md / PLAN.md / README.md
-└── PHASE0.md
 ```
