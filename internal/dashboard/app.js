@@ -25,6 +25,10 @@ function App() {
     timeline: [],
     _timer: null,
 
+    init() {
+      this.load();
+      this.startTimer();
+    },
     get maxToken() {
       return Math.max(1, ...this.stats.map(s => s.total_tokens));
     },
@@ -64,7 +68,7 @@ function App() {
         this.costRows = cost.rows || [];
         this.sessions = sessions || [];
         this.timeline = timeline || [];
-        drawChart(document.getElementById('chart'), this.timeline, this.gran, colorMap, COLORS, modelColor);
+        drawChart(document.getElementById('chart'), this.timeline, this.gran, modelColor);
         this.lastUpdated = new Date().toLocaleTimeString();
       } catch(e) {
         this.lastUpdated = null;

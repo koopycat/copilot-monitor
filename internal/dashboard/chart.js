@@ -1,4 +1,4 @@
-export function drawChart(canvas, data, granularity, colorMap, COLORS, modelColor) {
+export function drawChart(canvas, data, granularity, modelColor) {
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
   const parent = canvas.parentElement;
@@ -43,7 +43,7 @@ export function drawChart(canvas, data, granularity, colorMap, COLORS, modelColo
   const stacked = new Map(dates.map(d => [d, 0]));
 
   for (let i = 0; i < models.length; i++) {
-    ctx.fillStyle = modelColor ? modelColor(models[i], i) : COLORS[i % COLORS.length];
+    ctx.fillStyle = modelColor(models[i], i);
     for (let j = 0; j < dates.length; j++) {
       const val = buckets.get(dates[j] + '|' + models[i]) || 0;
       if (val === 0) continue;
@@ -83,6 +83,7 @@ export function drawChart(canvas, data, granularity, colorMap, COLORS, modelColo
   }
 
   document.getElementById('chart-legend').innerHTML = models.map((m, i) =>
-    `<span class="legend-item"><span class="legend-swatch" style="background:${modelColor ? modelColor(m, i) : COLORS[i % COLORS.length]}"></span>${m}</span>`
+    `<span class="legend-item"><span class="legend-swatch" style="background:${modelColor(m, i)}">
+</span>${m}</span>`
   ).join('');
 }

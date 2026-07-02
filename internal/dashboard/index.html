@@ -31,7 +31,9 @@
     -webkit-font-smoothing: antialiased;
   }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
-  h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.25rem; }
+  h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.25rem; display: flex; align-items: center; gap: 0.5rem; }
+  .refresh-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 1rem; cursor: pointer; width: 2rem; height: 2rem; display: inline-flex; align-items: center; justify-content: center; transition: color var(--speed), border-color var(--speed); }
+  .refresh-btn:hover { color: var(--accent); border-color: var(--accent); }
   h2 { font-size: 0.875rem; font-weight: 500; color: var(--muted); margin: 2rem 0 0.5rem; letter-spacing: 0.02em; text-transform: uppercase; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
   .toggle-group { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; font-size: 0.65rem; font-weight: 500; text-transform: none; letter-spacing: 0; }
   .toggle-btn { padding: 0.25rem 0.65rem; background: transparent; color: var(--muted); border: none; cursor: pointer; transition: background var(--speed), color var(--speed); }
@@ -72,8 +74,8 @@
 </style>
 </head>
 <body>
-<div id="app" v-scope="App()" v-cloak @vue:mounted="load" @vue:unmounted="stopTimer">
-  <h1>Copilot Monitor</h1>
+<div id="app" v-scope="App()" v-cloak @vue:mounted="init" @vue:unmounted="stopTimer">
+  <h1>Copilot Monitor <button class="refresh-btn" @click="load" title="Refresh now">↻</button></h1>
   <p class="subtitle" v-if="lastUpdated">Updated {{ lastUpdated }}</p>
   <p class="subtitle" v-else>Loading&hellip;</p>
 
