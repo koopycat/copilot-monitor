@@ -68,6 +68,20 @@ type TimelineBucket struct {
 	TotalTokens      int    `json:"total_tokens"`
 }
 
+type ExportRow struct {
+	Timestamp         string  `json:"ts"`
+	Endpoint          string  `json:"endpoint"`
+	Model             string  `json:"model"`
+	Status            int     `json:"status"`
+	LatencyMS         int64   `json:"latency_ms"`
+	PromptTokens      int     `json:"prompt_tokens"`
+	CachedInputTokens int     `json:"cached_input_tokens"`
+	CacheWriteTokens  int     `json:"cache_write_tokens"`
+	CompletionTokens  int     `json:"completion_tokens"`
+	TotalTokens       int     `json:"total_tokens"`
+	Project           string  `json:"project"`
+}
+
 func DefaultPath() string {
 	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
 		return filepath.Join(xdg, "copilot-monitor", "store.db")
@@ -244,6 +258,41 @@ ORDER BY date ASC, hour ASC, model ASC`, dateExpr, groupExpr)
 	for rows.Next() {
 		var row TimelineBucket
 		if err := rows.Scan(&row.Date, &row.Hour, &row.Model, &row.Requests, &row.PromptTokens, &row.CompletionTokens, &row.TotalTokens); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) ExportRequests(ctx context.Context, since time.Time) ([]ExportRow, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("nil store")
+	}
+	sinceStr := ""
+	if !since.IsZero() {
+		sinceStr = since.UTC().Format(time.RFC3339Nano)
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT ts, endpoint, COALESCE(model,''), status, latency_ms,
+  COALESCE(prompt_tokens,0), COALESCE(cached_input_tokens,0), COALESCE(cache_write_tokens,0),
+  COALESCE(completion_tokens,0), COALESCE(total_tokens,0), COALESCE(project,'')
+FROM requests
+WHERE (? = '' OR ts >= ?)
+  AND model IS NOT NULL AND model != ''
+  AND status = 200
+ORDER BY ts DESC`, sinceStr, sinceStr)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []ExportRow
+	for rows.Next() {
+		var row ExportRow
+		if err := rows.Scan(&row.Timestamp, &row.Endpoint, &row.Model, &row.Status, &row.LatencyMS,
+			&row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens,
+			&row.CompletionTokens, &row.TotalTokens, &row.Project); err != nil {
 			return nil, err
 		}
 		out = append(out, row)
