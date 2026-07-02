@@ -11,7 +11,14 @@ export function modelColor(model, i) {
 const USD  = new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', minimumFractionDigits:2, maximumFractionDigits:2 });
 const usd  = n => n == null ? '-' : n < 0.01 ? '<$0.01' : USD.format(n);
 const ms   = n => n == null ? '-' : n < 1 ? '<1ms' : n < 1000 ? Math.round(n)+'ms' : (n/1000).toFixed(1)+'s';
-const dur  = s => s < 60 ? s+'s' : Math.round(s/60)+'m';
+const dur  = s => {
+  s = Math.max(0, Math.round(s || 0));
+  if (s < 60) return s+'s';
+  if (s < 3600) return Math.floor(s/60)+'m '+String(s % 60).padStart(2, '0')+'s';
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h+'h '+String(m).padStart(2, '0')+'m';
+};
 const intl = n => n == null ? '0' : n.toLocaleString();
 
 function monthLabel(date) {
@@ -44,6 +51,12 @@ function App() {
     sessions: [],
     timeline: [],
     compare: [],
+    currentSession: null,
+    currentSessionModels: [],
+    sessionPulse: false,
+    _lastSessionID: null,
+    _lastSessionCount: null,
+    _pulseTimer: null,
     _timer: null,
 
     init() {
@@ -63,6 +76,27 @@ function App() {
       if (!total) return '-';
       const sum = this.stats.reduce((s, r) => s + r.avg_latency_ms * r.requests, 0);
       return ms(sum / total);
+    },
+    get liveSessionActive() {
+      return !!(this.currentSession && this.currentSession.active);
+    },
+    get sessionStatusText() {
+      if (!this.currentSession) return 'idle';
+      if (this.currentSession.active) return 'active';
+      const last = new Date(this.currentSession.last_request_at).getTime();
+      if (!last) return 'idle';
+      return 'idle '+dur((Date.now() - last) / 1000)+' ago';
+    },
+    get sessionDurationText() {
+      if (!this.currentSession) return '-';
+      const start = new Date(this.currentSession.started_at).getTime();
+      const end = this.currentSession.active ? Date.now() : new Date(this.currentSession.last_request_at).getTime();
+      if (!start || !end) return '-';
+      return dur((end - start) / 1000);
+    },
+    get sessionModelsText() {
+      if (!this.currentSessionModels.length) return '-';
+      return this.currentSessionModels.map(m => m.model+' ('+intl(m.requests)+')').join(', ');
     },
 
     get comparePeriods() {
@@ -96,12 +130,13 @@ function App() {
     async load() {
       try {
         const params = this.gran === 'hour' ? 'since=24h&granularity=hour' : 'since=30d&granularity=day';
-        const [stats, cost, sessions, timeline, compare] = await Promise.all([
+        const [stats, cost, sessions, timeline, compare, current] = await Promise.all([
           fetch('/api/stats?since=30d').then(r=>r.json()),
           fetch('/api/cost?since=30d').then(r=>r.json()),
           fetch('/api/sessions?since=30d&limit=20').then(r=>r.json()),
           fetch('/api/stats/timeline?'+params).then(r=>r.json()),
           fetch('/api/compare').then(r=>r.json()),
+          fetch('/api/session/current').then(r=>r.json()),
         ]);
         this.stats = stats || [];
         this.cost = cost.total_usd || 0;
@@ -109,6 +144,7 @@ function App() {
         this.sessions = sessions || [];
         this.timeline = timeline || [];
         this.compare = compare.periods || [];
+        this.updateCurrentSession(current);
         drawChart(document.getElementById('chart'), this.timeline, this.gran, modelColor);
         this.lastUpdated = new Date().toLocaleTimeString();
       } catch(e) {
@@ -116,8 +152,28 @@ function App() {
         console.error(e);
       }
     },
+    updateCurrentSession(current) {
+      const session = current && current.session ? current.session : null;
+      const models = current && current.models ? current.models : [];
+      if (session && this._lastSessionID === session.id && this._lastSessionCount !== null && session.request_count > this._lastSessionCount) {
+        this.triggerSessionPulse();
+      }
+      this.currentSession = session;
+      this.currentSessionModels = models;
+      this._lastSessionID = session ? session.id : null;
+      this._lastSessionCount = session ? session.request_count : null;
+    },
+    triggerSessionPulse() {
+      this.sessionPulse = false;
+      if (this._pulseTimer) clearTimeout(this._pulseTimer);
+      requestAnimationFrame(() => {
+        this.sessionPulse = true;
+        this._pulseTimer = setTimeout(() => { this.sessionPulse = false; this._pulseTimer = null; }, 2000);
+      });
+    },
     stopTimer() {
       if (this._timer) { clearInterval(this._timer); this._timer = null; }
+      if (this._pulseTimer) { clearTimeout(this._pulseTimer); this._pulseTimer = null; }
     },
     startTimer() {
       this.stopTimer();

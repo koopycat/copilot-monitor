@@ -22,6 +22,18 @@ type SessionStats struct {
 	TokenCount   int       `json:"token_count"`
 }
 
+type CurrentSession struct {
+	ID            int64        `json:"id"`
+	StartedAt     time.Time    `json:"started_at"`
+	LastRequestAt time.Time    `json:"last_request_at"`
+	Project       string       `json:"project"`
+	RequestCount  int          `json:"request_count"`
+	TokenCount    int          `json:"token_count"`
+	Status        string       `json:"status"`
+	Active        bool         `json:"active"`
+	Models        []ModelStats `json:"-"`
+}
+
 type sessionRequest struct {
 	ID         int64
 	Timestamp  time.Time
@@ -154,6 +166,58 @@ func sessionProject(requests []sessionRequest) string {
 		}
 	}
 	return project
+}
+
+func (s *Store) CurrentSession(ctx context.Context) (*CurrentSession, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("nil store")
+	}
+	sessions, err := s.Sessions(ctx, SessionFilter{Limit: 1})
+	if err != nil {
+		return nil, err
+	}
+	if len(sessions) == 0 {
+		return nil, nil
+	}
+	latest := sessions[0]
+	models, err := s.sessionModelStats(ctx, latest.ID)
+	if err != nil {
+		return nil, err
+	}
+	active := latest.EndedAt.UTC().After(time.Now().UTC().Add(-30 * time.Minute))
+	status := "idle"
+	if active {
+		status = "active"
+	}
+	return &CurrentSession{
+		ID:            latest.ID,
+		StartedAt:     latest.StartedAt,
+		LastRequestAt: latest.EndedAt,
+		Project:       latest.Project,
+		RequestCount:  latest.RequestCount,
+		TokenCount:    latest.TokenCount,
+		Status:        status,
+		Active:        active,
+		Models:        models,
+	}, nil
+}
+
+func (s *Store) sessionModelStats(ctx context.Context, sessionID int64) ([]ModelStats, error) {
+	return s.queryModelStats(ctx, `
+SELECT
+  COALESCE(NULLIF(model, ''), '<unknown>') AS model,
+  endpoint,
+  COUNT(*) AS requests,
+  COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+  COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens,
+  COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens,
+  COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+  COALESCE(SUM(total_tokens), 0) AS total_tokens,
+  COALESCE(AVG(latency_ms), 0) AS avg_latency_ms
+FROM requests
+WHERE session_id = ?
+GROUP BY model, endpoint
+ORDER BY total_tokens DESC, requests DESC, model ASC, endpoint ASC`, sessionID)
 }
 
 func (s *Store) Sessions(ctx context.Context, filter SessionFilter) ([]SessionStats, error) {

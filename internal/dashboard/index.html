@@ -45,6 +45,25 @@
   .metric { min-width: 160px; }
   .metric-value { font-size: 2rem; font-weight: 600; color: var(--accent); line-height: 1.15; }
   .metric-label { font-size: 0.75rem; color: var(--faint); margin-top: 0.25rem; }
+  .live-session { min-width: 280px; flex: 1 1 280px; max-width: 420px; border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem 1rem; background: var(--surface); transition: border-color var(--speed), box-shadow var(--speed); }
+  .live-session.active { border-color: rgba(63, 185, 80, 0.45); }
+  .live-session.pulse { animation: session-glow 2s ease-out; }
+  .live-session-head { display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin-bottom: 0.65rem; }
+  .live-session-title { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .live-session-status { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--muted); font-size: 0.72rem; }
+  .status-dot { width: 0.55rem; height: 0.55rem; border-radius: 999px; background: var(--faint); }
+  .status-dot.active { background: var(--success); box-shadow: 0 0 0 4px rgba(63, 185, 80, 0.12); }
+  .live-session-cost { color: var(--success); font-size: 1.6rem; font-weight: 600; line-height: 1.1; margin-bottom: 0.7rem; }
+  .live-session-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; }
+  .live-session-item span { display: block; color: var(--faint); font-size: 0.65rem; }
+  .live-session-item strong { display: block; color: var(--ink); font-size: 0.85rem; font-weight: 500; }
+  .live-session-models { margin-top: 0.65rem; color: var(--muted); font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @keyframes session-glow {
+    0% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
+    20% { box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.28), 0 0 28px rgba(63, 185, 80, 0.35); }
+    100% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) { .live-session.pulse { animation: none; } }
   .chart-wrap { position: relative; width: 100%; overflow-x: auto; margin-bottom: 0.5rem; }
   canvas { display: block; max-width: 100%; }
   .legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.7rem; margin: 0.75rem 0 1.5rem; color: var(--muted); }
@@ -97,6 +116,19 @@
     <div class="metric">
       <div class="metric-value">{{ latencyText }}</div>
       <div class="metric-label">avg latency</div>
+    </div>
+    <div class="live-session" :class="{active: liveSessionActive, pulse: sessionPulse}">
+      <div class="live-session-head">
+        <div class="live-session-title">Live Session</div>
+        <div class="live-session-status"><span class="status-dot" :class="{active: liveSessionActive}"></span>{{ sessionStatusText }}</div>
+      </div>
+      <div class="live-session-cost">{{ currentSession ? $usd(currentSession.cost || 0) : '-' }}</div>
+      <div class="live-session-grid">
+        <div class="live-session-item"><span>Requests</span><strong>{{ $intl(currentSession ? currentSession.request_count : 0) }}</strong></div>
+        <div class="live-session-item"><span>Tokens</span><strong>{{ $intl(currentSession ? currentSession.token_count : 0) }}</strong></div>
+        <div class="live-session-item"><span>Duration</span><strong>{{ sessionDurationText }}</strong></div>
+      </div>
+      <div class="live-session-models">Models: {{ sessionModelsText }}</div>
     </div>
   </div>
 

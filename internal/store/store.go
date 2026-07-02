@@ -215,7 +215,11 @@ ORDER BY total_tokens DESC, requests DESC, model ASC, endpoint ASC`
 	if !filter.Until.IsZero() {
 		until = filter.Until.UTC().Format(time.RFC3339Nano)
 	}
-	rows, err := s.db.QueryContext(ctx, query, since, since, until, until, filter.Project, filter.Project, filter.Endpoint, filter.Endpoint)
+	return s.queryModelStats(ctx, query, since, since, until, until, filter.Project, filter.Project, filter.Endpoint, filter.Endpoint)
+}
+
+func (s *Store) queryModelStats(ctx context.Context, query string, args ...any) ([]ModelStats, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

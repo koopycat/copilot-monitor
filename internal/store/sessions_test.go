@@ -77,6 +77,92 @@ func TestRebuildSessionsMarksMixedProjects(t *testing.T) {
 	}
 }
 
+func TestCurrentSessionReturnsLatestSessionWithModels(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	ctx := context.Background()
+	base := time.Now().UTC().Add(-10 * time.Minute)
+	for _, rec := range []RequestRecord{
+		{Timestamp: base, Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-5-mini", Status: 200, PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150, Project: "a"},
+		{Timestamp: base.Add(time.Minute), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "claude-sonnet-4.6", Status: 200, PromptTokens: 200, CompletionTokens: 100, TotalTokens: 300, Project: "a"},
+	} {
+		if err := s.InsertRequest(ctx, rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.RebuildSessions(ctx, 30*time.Minute); err != nil {
+		t.Fatal(err)
+	}
+
+	current, err := s.CurrentSession(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current == nil {
+		t.Fatal("current session is nil")
+	}
+	if !current.Active || current.Status != "active" {
+		t.Fatalf("status = %q active = %v", current.Status, current.Active)
+	}
+	if current.RequestCount != 2 || current.TokenCount != 450 || current.Project != "a" {
+		t.Fatalf("current = %#v", current)
+	}
+	if len(current.Models) != 2 {
+		t.Fatalf("models = %#v", current.Models)
+	}
+	if current.Models[0].Model != "claude-sonnet-4.6" || current.Models[0].TotalTokens != 300 {
+		t.Fatalf("models = %#v", current.Models)
+	}
+}
+
+func TestCurrentSessionReturnsIdleForOldLatestSession(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	ctx := context.Background()
+	old := time.Now().UTC().Add(-2 * time.Hour)
+	if err := s.InsertRequest(ctx, RequestRecord{Timestamp: old, Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-5-mini", Status: 200, TotalTokens: 10}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RebuildSessions(ctx, 30*time.Minute); err != nil {
+		t.Fatal(err)
+	}
+
+	current, err := s.CurrentSession(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current == nil {
+		t.Fatal("current session is nil")
+	}
+	if current.Active || current.Status != "idle" {
+		t.Fatalf("status = %q active = %v", current.Status, current.Active)
+	}
+}
+
+func TestCurrentSessionEmptyDB(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	current, err := s.CurrentSession(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current != nil {
+		t.Fatalf("current = %#v, want nil", current)
+	}
+}
+
 func TestSessionsFilterSinceAndLimit(t *testing.T) {
 	s, err := Open(filepath.Join(t.TempDir(), "store.db"))
 	if err != nil {
