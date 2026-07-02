@@ -31,7 +31,7 @@ Hot reload (server rebuilds on every `.go`, `.html`, or `.js` change):
 just watch
 ```
 
-Requires [air](https://github.com/cosmtrek/air) (`brew install air`).
+Requires [air](https://github.com/air-verse/air) (`go install github.com/air-verse/air@latest`).
 
 Live dashboard URL: `http://127.0.0.1:7734/`
 

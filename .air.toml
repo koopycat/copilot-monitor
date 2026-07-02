@@ -1,14 +1,44 @@
-root = "."
-test_cmd_name = "go test ./..."
-build_cmd = "go build -o ./copilot-monitor ./cmd/copilot-monitor"
-run_cmd = "./copilot-monitor serve --addr 127.0.0.1:7734 --db ~/.local/share/copilot-monitor/dev.db"
+#:schema https://json.schemastore.org/any.json
 
-include_ext = ["go", "html", "js", "css"]
-exclude_dir = [".git", ".devenv", ".firecrawl", "phase0", "vendor"]
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  args_bin = []
+  bin = "./copilot-monitor"
+  cmd = "go build -o ./copilot-monitor ./cmd/copilot-monitor"
+  delay = 1000
+  entrypoint = ["./copilot-monitor", "serve", "--addr", "127.0.0.1:7734"]
+  exclude_dir = [".git", ".devenv", ".firecrawl", "phase0", "tmp", "vendor", "testdata"]
+  exclude_file = []
+  exclude_regex = ["_test.go"]
+  exclude_unchanged = false
+  follow_symlink = false
+  full_bin = ""
+  ignore_dangerous_root_dir = false
+  include_dir = []
+  include_ext = ["go", "html", "js", "css", "json"]
+  include_file = []
+  kill_delay = "500ms"
+  log = "build-errors.log"
+  poll = false
+  poll_interval = 0
+  post_cmd = []
+  pre_cmd = []
+  rerun = false
+  rerun_delay = 500
+  send_interrupt = true
+  stop_on_error = false
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  mode = ""
+  runner = "green"
 
 [log]
-main_only = false
-silent = false
-
-[misc]
-clean_on_exit = true
+  main_only = false
+  silent = false
+  time = false
