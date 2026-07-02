@@ -21,19 +21,24 @@ const dur  = s => {
 };
 const intl = n => n == null ? '0' : n.toLocaleString();
 
+async function safeFetch(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) {
+    return null;
+  }
+}
+
 function monthLabel(date) {
   return date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0');
 }
-
-function currentMonthLabel() {
-  return monthLabel(new Date());
-}
-
+function currentMonthLabel() { return monthLabel(new Date()); }
 function previousMonthLabel() {
   const now = new Date();
   return monthLabel(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)));
 }
-
 function comparePeriodRank(period) {
   if (!period || !period.label) return 2;
   if (period.label === currentMonthLabel()) return 0;
@@ -98,7 +103,6 @@ function App() {
       if (!this.currentSessionModels.length) return '-';
       return this.currentSessionModels.map(m => m.model+' ('+intl(m.requests)+')').join(', ');
     },
-
     get comparePeriods() {
       const periods = this.compare.length ? this.compare : [
         { label: currentMonthLabel(), total_cost: 0, total_tokens: 0, models: [] },
@@ -131,19 +135,19 @@ function App() {
       try {
         const params = this.gran === 'hour' ? 'since=24h&granularity=hour' : 'since=30d&granularity=day';
         const [stats, cost, sessions, timeline, compare, current] = await Promise.all([
-          fetch('/api/stats?since=30d').then(r=>r.json()),
-          fetch('/api/cost?since=30d').then(r=>r.json()),
-          fetch('/api/sessions?since=30d&limit=20').then(r=>r.json()),
-          fetch('/api/stats/timeline?'+params).then(r=>r.json()),
-          fetch('/api/compare').then(r=>r.json()),
-          fetch('/api/session/current').then(r=>r.json()),
+          safeFetch('/api/stats?since=30d'),
+          safeFetch('/api/cost?since=30d'),
+          safeFetch('/api/sessions?since=30d&limit=20'),
+          safeFetch('/api/stats/timeline?'+params),
+          safeFetch('/api/compare'),
+          safeFetch('/api/session/current'),
         ]);
         this.stats = stats || [];
-        this.cost = cost.total_usd || 0;
-        this.costRows = cost.rows || [];
+        this.cost = (cost && cost.total_usd) || 0;
+        this.costRows = (cost && cost.rows) || [];
         this.sessions = sessions || [];
         this.timeline = timeline || [];
-        this.compare = compare.periods || [];
+        this.compare = (compare && compare.periods) || [];
         this.updateCurrentSession(current);
         drawChart(document.getElementById('chart'), this.timeline, this.gran, modelColor);
         this.lastUpdated = new Date().toLocaleTimeString();
