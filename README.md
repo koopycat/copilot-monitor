@@ -5,10 +5,22 @@ Captures usage metadata, token counts, and estimated GitHub Copilot AI-credit co
 
 ## Quickstart
 
+Enter the devenv shell:
+
+```sh
+devenv shell
+```
+
 Build:
 
 ```sh
-go build ./cmd/copilot-monitor
+just build
+```
+
+Run all checks:
+
+```sh
+just all
 ```
 
 Print VSCode settings:

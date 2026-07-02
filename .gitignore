@@ -13,5 +13,8 @@
 *.db-wal
 usage-debug*.jsonl
 
+# devenv
+/.devenv/
+
 # OS/editor noise
 .DS_Store

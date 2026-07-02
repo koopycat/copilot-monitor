@@ -338,7 +338,7 @@ No cert or key files are written by the proxy.
 
 | Concern | Choice |
 |---|---|
-| Language | Go 1.25+ |
+| Language | Go 1.26+ (managed via devenv) |
 | DB driver | `modernc.org/sqlite` |
 | CLI framework | stdlib `flag` with a small internal command dispatcher |
 | Table output | stdlib `text/tabwriter` |
@@ -374,6 +374,8 @@ copilot_monitoring/
 │       ├── schema.sql
 │       ├── store.go
 │       └── store_test.go
+├── devenv.nix
+├── justfile
 ├── go.mod
 ├── go.sum
 ├── PHASE0.md

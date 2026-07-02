@@ -1,4 +1,4 @@
-VET_BIN := `go env GOPATH` / "bin"
+default: all
 
 all: vet test build
 
@@ -10,8 +10,8 @@ test:
 
 vet:
     go vet ./...
-    {{VET_BIN}}/staticcheck ./...
-    {{VET_BIN}}/govulncheck ./...; true
+    go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+    go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 fmt:
     go fmt ./...
