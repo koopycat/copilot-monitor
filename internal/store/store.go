@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"embed"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -214,7 +213,7 @@ func FormatPath(path string) string {
 	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return fmt.Sprintf("%s", path)
+		return path
 	}
 	return abs
 }

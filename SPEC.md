@@ -346,11 +346,11 @@ No cert or key files are written by the proxy.
 | HTTP client | stdlib `net/http`, normal HTTPS upstream |
 | JSON parsing | stdlib `encoding/json` |
 | Tests | stdlib `testing` + `net/http/httptest` |
-| Static analysis | `go vet` |
+| Static analysis | `go vet`, `staticcheck`, `govulncheck` |
 
 All dependencies must be available through `go get` with no system packages.
-Static analysis via `go vet` must pass on every change before it is considered complete.
-The `justfile` provides `just all` which runs `vet`, `test`, and `build` in that order.
+Static analysis via `go vet`, `staticcheck`, and `govulncheck` must pass on every change before it is considered complete.
+The `justfile` provides `just vet` which runs all three tools in sequence.
 
 ## Current File Layout
 

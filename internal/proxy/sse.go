@@ -68,9 +68,7 @@ func (o *SSEObserver) processLine(line []byte) {
 		return
 	}
 
-	for _, rawUsage := range findRawUsageObjects(value) {
-		o.UsageObjects = append(o.UsageObjects, rawUsage)
-	}
+	o.UsageObjects = append(o.UsageObjects, findRawUsageObjects(value)...)
 	if usage, ok := findUsage(value); ok {
 		o.Usage = usage
 		o.UsageSeen = true
