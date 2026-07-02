@@ -137,6 +137,10 @@
       <button class="toggle-btn" :class="{active:gran==='day'}" @click="switchGran('day')">Day</button>
       <button class="toggle-btn" :class="{active:gran==='hour'}" @click="switchGran('hour')">Hour</button>
     </span>
+    <span class="toggle-group">
+      <button class="toggle-btn" :class="{active:metric==='tokens'}" @click="switchMetric('tokens')">Tokens</button>
+      <button class="toggle-btn" :class="{active:metric==='requests'}" @click="switchMetric('requests')">Requests</button>
+    </span>
   </h2>
   <div class="chart-wrap"><canvas id="chart" role="img" aria-label="Usage chart"></canvas></div>
   <div class="legend" id="chart-legend"></div>

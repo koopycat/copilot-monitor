@@ -1,4 +1,4 @@
-export function drawChart(canvas, data, granularity, modelColor) {
+export function drawChart(canvas, data, granularity, modelColor, metric = 'tokens') {
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
   const parent = canvas.parentElement;
@@ -18,21 +18,23 @@ export function drawChart(canvas, data, granularity, modelColor) {
     return;
   }
 
+  const value = (d) => metric === 'requests' ? d.requests : d.total_tokens;
+
   const dateKey = granularity === 'hour'
     ? d => d.date + '|' + String(d.hour).padStart(2, '0')
     : d => d.date;
   const dates = [...new Set(data.map(dateKey))].sort();
   const models = [...new Set(data.map(d => d.model))].sort();
   const buckets = new Map();
-  let maxTokens = 0;
+  let maxValue = 0;
 
   for (const d of data) {
     const key = dateKey(d) + '|' + d.model;
-    const sum = (buckets.get(key) || 0) + d.total_tokens;
+    const sum = (buckets.get(key) || 0) + value(d);
     buckets.set(key, sum);
-    if (sum > maxTokens) maxTokens = sum;
+    if (sum > maxValue) maxValue = sum;
   }
-  if (maxTokens === 0) maxTokens = 1;
+  if (maxValue === 0) maxValue = 1;
 
   const padL = 42, padR = 12, top = 16, bottom = 30;
   const chartW = w - padL - padR, chartH = h - top - bottom;
@@ -47,7 +49,7 @@ export function drawChart(canvas, data, granularity, modelColor) {
     for (let j = 0; j < dates.length; j++) {
       const val = buckets.get(dates[j] + '|' + models[i]) || 0;
       if (val === 0) continue;
-      const barH = (val / maxTokens) * chartH;
+      const barH = (val / maxValue) * chartH;
       const x = padL + j * (barW + gap);
       const y = h - bottom - stacked.get(dates[j]) - barH;
       ctx.fillRect(x, y, barW, Math.max(1, barH));
@@ -72,18 +74,20 @@ export function drawChart(canvas, data, granularity, modelColor) {
   }
 
   ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-  const ticks = 4, tickStep = Math.max(1, Math.round(maxTokens / ticks));
-  for (let v = 0; v <= maxTokens; v += tickStep) {
-    const y = h - bottom - (v / maxTokens) * chartH;
+  const ticks = 4, tickStep = Math.max(1, Math.round(maxValue / ticks));
+  const formatTick = metric === 'requests'
+    ? (v) => v >= 1000 ? Math.round(v / 1000) + 'k' : String(v)
+    : (v) => v >= 1000 ? Math.round(v / 1000) + 'k' : String(v);
+  for (let v = 0; v <= maxValue; v += tickStep) {
+    const y = h - bottom - (v / maxValue) * chartH;
     if (y < top) continue;
     ctx.fillStyle = faint; ctx.font = '0.55rem system-ui';
-    ctx.fillText(v >= 1000 ? Math.round(v / 1000) + 'k' : String(v), padL - 4, y);
+    ctx.fillText(formatTick(v), padL - 4, y);
     ctx.strokeStyle = border;
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
   }
 
   document.getElementById('chart-legend').innerHTML = models.map((m, i) =>
-    `<span class="legend-item"><span class="legend-swatch" style="background:${modelColor(m, i)}">
-</span>${m}</span>`
+    `<span class="legend-item"><span class="legend-swatch" style="background:${modelColor(m, i)}"></span>${m}</span>`
   ).join('');
 }

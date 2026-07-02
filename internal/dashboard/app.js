@@ -49,6 +49,7 @@ function comparePeriodRank(period) {
 function App() {
   const S = {
     gran: 'day',
+    metric: 'tokens',
     cost: null,
     lastUpdated: null,
     stats: [],
@@ -141,6 +142,11 @@ function App() {
       this.gran = g;
       this.load();
     },
+    switchMetric(m) {
+      if (m === this.metric) return;
+      this.metric = m;
+      drawChart(document.getElementById('chart'), this.timeline, this.gran, modelColor, this.metric);
+    },
     barW(val, max) {
       const pct = max ? val / max : 0;
       return Math.max(1, Math.round(pct * 60));
@@ -174,7 +180,7 @@ function App() {
         this.timeline = timeline || [];
         this.compare = (compare && compare.periods) || [];
         this.updateCurrentSession(current);
-        drawChart(document.getElementById('chart'), this.timeline, this.gran, modelColor);
+        drawChart(document.getElementById('chart'), this.timeline, this.gran, modelColor, this.metric);
         this.lastUpdated = new Date().toLocaleTimeString();
       } catch(e) {
         this.lastUpdated = null;
