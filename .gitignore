@@ -1,5 +1,4 @@
 # Build outputs
-/phase0
 /copilot-monitor
 /bin/
 /dist/
@@ -18,3 +17,4 @@ usage-debug*.jsonl
 
 # OS/editor noise
 .DS_Store
+/.idea/
