@@ -18,6 +18,9 @@ func TestSSEObserverDetectsUsageAndModelAcrossSplitLines(t *testing.T) {
 	if observer.Usage.PromptTokens != 3 || observer.Usage.CompletionTokens != 2 || observer.Usage.TotalTokens != 5 {
 		t.Fatalf("usage = %#v", observer.Usage)
 	}
+	if len(observer.UsageObjects) != 1 {
+		t.Fatalf("usage objects = %d, want 1", len(observer.UsageObjects))
+	}
 	if observer.Bytes == 0 {
 		t.Fatal("bytes were not counted")
 	}

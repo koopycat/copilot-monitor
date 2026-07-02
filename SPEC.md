@@ -167,7 +167,7 @@ If parsing fails, forwarding continues and the request is stored with missing to
 Implemented commands:
 
 ```
-copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name]
+copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path]
 copilot-monitor configure-vscode [--addr 127.0.0.1:7733]
 copilot-monitor stats [--db path] [--since 30d] [--project x] [--endpoint chat]
 copilot-monitor cost [--db path] [--since 30d] [--project x] [--endpoint chat]
@@ -308,6 +308,14 @@ Editing the JSON and rebuilding the binary recomputes historical estimated list-
 - Nothing is uploaded.
 - Telemetry and token-refresh traffic are not a v1 capture target.
 
+## Usage Debug Log
+
+`run --usage-debug-log path` writes JSONL records that contain only usage-related metadata for pricing research.
+The debug log includes request ID, endpoint, path, request model, response model, HTTP status, content type, safe response headers, and raw `usage` objects seen in streaming events.
+The debug log must not include prompts, completions, source code, request bodies, response bodies, auth headers, cookies, or tokens.
+Sensitive response headers are redacted defensively.
+This mode is intended to be enabled temporarily while sampling real Copilot traffic across model families.
+
 ## Storage Locations
 
 Following XDG Base Directory on Linux and the equivalent on macOS.
@@ -383,6 +391,7 @@ Implemented:
 12. `cost` report for estimated equivalent provider list-price cost.
 13. 30-minute gap sessionization.
 14. `today` and `sessions` reports.
+15. Optional usage-only JSONL debug log for pricing research.
 
 Not yet implemented:
 

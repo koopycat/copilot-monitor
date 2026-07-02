@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,11 +22,12 @@ import (
 )
 
 type Handler struct {
-	log     io.Writer
-	client  *http.Client
-	store   *store.Store
-	project string
-	nextID  atomic.Uint64
+	log        io.Writer
+	client     *http.Client
+	store      *store.Store
+	project    string
+	usageDebug *UsageDebugLogger
+	nextID     atomic.Uint64
 }
 
 func NewHandler(log io.Writer) *Handler {
@@ -33,10 +35,15 @@ func NewHandler(log io.Writer) *Handler {
 }
 
 func NewHandlerWithStore(log io.Writer, st *store.Store, project string) *Handler {
+	return NewHandlerWithStoreAndUsageDebug(log, st, project, nil)
+}
+
+func NewHandlerWithStoreAndUsageDebug(log io.Writer, st *store.Store, project string, usageDebug *UsageDebugLogger) *Handler {
 	return &Handler{
-		log:     log,
-		store:   st,
-		project: project,
+		log:        log,
+		store:      st,
+		project:    project,
+		usageDebug: usageDebug,
 		client: &http.Client{Transport: &http.Transport{
 			Proxy:              http.ProxyFromEnvironment,
 			DisableCompression: true,
@@ -151,10 +158,36 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			previewText,
 		)
 		h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, observer, previewText)
+		h.writeUsageDebug(started, id, route, r, meta, resp, observer)
 		return
 	}
 	fmt.Fprintf(h.log, "response id=%d status=%d bytes=%d latency_ms=%d error_preview=%q\n", id, resp.StatusCode, bytesWritten, latencyMS, previewText)
 	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, nil, previewText)
+	h.writeUsageDebug(started, id, route, r, meta, resp, nil)
+}
+
+func (h *Handler) writeUsageDebug(ts time.Time, id uint64, route Route, r *http.Request, meta RequestMetadata, resp *http.Response, observer *SSEObserver) {
+	if h.usageDebug == nil || route.Capture == CaptureNone || route.Capture == CaptureLocal || route.Capture == CaptureTunnel {
+		return
+	}
+	record := UsageDebugRecord{
+		Timestamp:       ts,
+		RequestID:       id,
+		Endpoint:        string(route.Endpoint),
+		Path:            r.URL.RequestURI(),
+		RequestModel:    meta.Model,
+		Status:          resp.StatusCode,
+		ContentType:     resp.Header.Get("Content-Type"),
+		ResponseHeaders: SafeHeaders(resp.Header),
+	}
+	if observer != nil {
+		record.ResponseModel = observer.Model
+		record.UsageDetected = observer.UsageSeen
+		record.UsageObjects = append([]json.RawMessage(nil), observer.UsageObjects...)
+	}
+	if err := h.usageDebug.Write(record); err != nil {
+		fmt.Fprintf(h.log, "usage_debug_error=%q\n", err.Error())
+	}
 }
 
 func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route, r *http.Request, meta RequestMetadata, status int, latencyMS int64, observer *SSEObserver, errText string) {

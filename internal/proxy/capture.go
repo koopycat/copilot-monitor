@@ -113,6 +113,26 @@ func findUsage(value any) (Usage, bool) {
 	return Usage{}, false
 }
 
+func findRawUsageObjects(value any) []json.RawMessage {
+	var out []json.RawMessage
+	switch typed := value.(type) {
+	case map[string]any:
+		if raw, ok := typed["usage"]; ok {
+			if encoded, err := json.Marshal(raw); err == nil {
+				out = append(out, encoded)
+			}
+		}
+		for _, v := range typed {
+			out = append(out, findRawUsageObjects(v)...)
+		}
+	case []any:
+		for _, item := range typed {
+			out = append(out, findRawUsageObjects(item)...)
+		}
+	}
+	return out
+}
+
 func parseUsageObject(value any) (Usage, bool) {
 	m, ok := value.(map[string]any)
 	if !ok {

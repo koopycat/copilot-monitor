@@ -7,12 +7,13 @@ import (
 )
 
 type SSEObserver struct {
-	buf         []byte
-	Bytes       int64
-	Usage       Usage
-	UsageSeen   bool
-	Model       string
-	ParseErrors int
+	buf          []byte
+	Bytes        int64
+	Usage        Usage
+	UsageSeen    bool
+	UsageObjects []json.RawMessage
+	Model        string
+	ParseErrors  int
 }
 
 func NewSSEObserver() *SSEObserver {
@@ -67,6 +68,9 @@ func (o *SSEObserver) processLine(line []byte) {
 		return
 	}
 
+	for _, rawUsage := range findRawUsageObjects(value) {
+		o.UsageObjects = append(o.UsageObjects, rawUsage)
+	}
 	if usage, ok := findUsage(value); ok {
 		o.Usage = usage
 		o.UsageSeen = true

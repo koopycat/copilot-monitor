@@ -55,7 +55,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprint(w, strings.TrimSpace(`copilot-monitor monitors GitHub Copilot model API usage through a local HTTP reverse proxy.
 
 Usage:
-  copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name]
+  copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path]
   copilot-monitor configure-vscode [--addr 127.0.0.1:7733]
   copilot-monitor stats [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
@@ -109,6 +109,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	addr := fs.String("addr", "127.0.0.1:7733", "HTTP listen address")
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
 	project := fs.String("project", "", "optional project label")
+	usageDebugPath := fs.String("usage-debug-log", "", "optional JSONL path for usage-only debug metadata")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -120,7 +121,14 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 	defer st.Close()
 
-	handler := proxy.NewHandlerWithStore(stderr, st, *project)
+	usageDebug, err := proxy.OpenUsageDebugLogger(*usageDebugPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to open usage debug log %q: %v\n", *usageDebugPath, err)
+		return 1
+	}
+	defer usageDebug.Close()
+
+	handler := proxy.NewHandlerWithStoreAndUsageDebug(stderr, st, *project, usageDebug)
 	server := &http.Server{
 		Addr:              *addr,
 		Handler:           handler,
@@ -129,6 +137,9 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 
 	fmt.Fprintf(stdout, "copilot-monitor listening on http://%s\n", settingsAddr(*addr))
 	fmt.Fprintf(stdout, "database: %s\n", store.FormatPath(*dbPath))
+	if *usageDebugPath != "" {
+		fmt.Fprintf(stdout, "usage debug log: %s\n", store.FormatPath(*usageDebugPath))
+	}
 	fmt.Fprintf(stdout, "VSCode settings:\n")
 	printVSCodeSettings(stdout, *addr)
 

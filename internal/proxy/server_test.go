@@ -1,11 +1,14 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -152,6 +155,56 @@ func TestHandlerPersistsSSEUsage(t *testing.T) {
 	}
 	if stats[0].Model != "gpt-4o" || stats[0].PromptTokens != 7 || stats[0].CompletionTokens != 3 || stats[0].TotalTokens != 10 {
 		t.Fatalf("stats[0] = %#v", stats[0])
+	}
+}
+
+func TestHandlerWritesUsageDebugRecord(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "usage.jsonl")
+	usageDebug, err := OpenUsageDebugLogger(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var logs bytes.Buffer
+	h := NewHandlerWithStoreAndUsageDebug(&logs, nil, "", usageDebug)
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": {"text/event-stream"},
+				"X-Request-Id": {"abc"},
+			},
+			Body: io.NopCloser(strings.NewReader("data: {\"model\":\"gpt-5-mini\",\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3,\"total_tokens\":10}}\n\n")),
+		}, nil
+	})}
+
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-5-mini","stream":true}`))
+	req.Header.Set("Authorization", "Bearer secret")
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if err := usageDebug.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	if !scanner.Scan() {
+		t.Fatal("missing debug record")
+	}
+	var record UsageDebugRecord
+	if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
+		t.Fatal(err)
+	}
+	if record.RequestModel != "gpt-5-mini" || record.ResponseModel != "gpt-5-mini" || !record.UsageDetected || len(record.UsageObjects) != 1 {
+		t.Fatalf("record = %#v", record)
+	}
+	if record.ResponseHeaders["X-Request-Id"][0] != "abc" {
+		t.Fatalf("headers = %#v", record.ResponseHeaders)
 	}
 }
 
