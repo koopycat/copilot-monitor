@@ -19,7 +19,7 @@ All endpoints are read-only. All support `?since=30d` and `?project=` filters un
 | `GET` | `/api/today` | `?project=&endpoint=` | `[]ModelStats` since local midnight |
 | `GET` | `/api/sessions` | `?since=&project=&limit=50` | `[]SessionStats` |
 | `GET` | `/api/stats/timeline` | `?since=&granularity=day|hour` | `[]TimelineBucket` |
-| `GET` | `/api/export` | `?format=csv|json&since=` | CSV or JSON dump of raw requests |
+| `GET` | `/api/export` | `?since=` | CSV dump of raw requests |
 | `GET` | `/` | none | HTML dashboard |
 
 ## Dashboard

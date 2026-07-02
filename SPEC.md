@@ -58,7 +58,7 @@ copilot-monitor sessions [--since 30d] [--project x] [--limit 50] [--json]
 
 ```sh
 copilot-monitor configure-vscode
-copilot-monitor export [--format csv|json] [--since 30d] [--db path]
+copilot-monitor export [--since 30d] [--db path]
 copilot-monitor version
 ```
 

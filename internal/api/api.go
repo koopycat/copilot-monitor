@@ -159,30 +159,19 @@ func (h *Handler) handleTimeline(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleExport(w http.ResponseWriter, r *http.Request) {
 	since := parseSinceParam(r)
-	format := r.URL.Query().Get("format")
-	if format == "" {
-		format = "json"
-	}
 	rows, err := h.db.ExportRequests(r.Context(), since)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	switch format {
-	case "csv":
-		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-		w.Header().Set("Content-Disposition", "attachment; filename=copilot-export.csv")
-		w.Write([]byte("ts,endpoint,model,status,latency_ms,prompt_tokens,cached_input_tokens,cache_write_tokens,completion_tokens,total_tokens,project\n"))
-		for _, row := range rows {
-			fmt.Fprintf(w, "%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%s\n",
-				row.Timestamp, row.Endpoint, csvEscape(row.Model), row.Status, row.LatencyMS,
-				row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens,
-				row.CompletionTokens, row.TotalTokens, csvEscape(row.Project))
-		}
-	default:
-		jsonHeader(w)
-		json.NewEncoder(w).Encode(rows)
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment; filename=copilot-export.csv")
+	w.Write([]byte("ts,endpoint,model,status,latency_ms,prompt_tokens,cached_input_tokens,cache_write_tokens,completion_tokens,total_tokens,project\n"))
+	for _, row := range rows {
+		fmt.Fprintf(w, "%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%s\n",
+			row.Timestamp, row.Endpoint, csvEscape(row.Model), row.Status, row.LatencyMS,
+			row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens,
+			row.CompletionTokens, row.TotalTokens, csvEscape(row.Project))
 	}
 }
 

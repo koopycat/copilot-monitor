@@ -422,7 +422,6 @@ func runExport(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
 	sinceText := fs.String("since", "30d", "duration to look back")
-	format := fs.String("format", "csv", "output format: csv or json")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -445,19 +444,12 @@ func runExport(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	switch *format {
-	case "json":
-		enc := json.NewEncoder(stdout)
-		enc.SetIndent("", "  ")
-		_ = enc.Encode(rows)
-	default:
-		fmt.Fprintln(stdout, "ts,endpoint,model,status,latency_ms,prompt_tokens,cached_input_tokens,cache_write_tokens,completion_tokens,total_tokens,project")
-		for _, row := range rows {
-			fmt.Fprintf(stdout, "%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%s\n",
-				row.Timestamp, row.Endpoint, csvField(row.Model), row.Status, row.LatencyMS,
-				row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens,
-				row.CompletionTokens, row.TotalTokens, csvField(row.Project))
-		}
+	fmt.Fprintln(stdout, "ts,endpoint,model,status,latency_ms,prompt_tokens,cached_input_tokens,cache_write_tokens,completion_tokens,total_tokens,project")
+	for _, row := range rows {
+		fmt.Fprintf(stdout, "%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%s\n",
+			row.Timestamp, row.Endpoint, csvField(row.Model), row.Status, row.LatencyMS,
+			row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens,
+			row.CompletionTokens, row.TotalTokens, csvField(row.Project))
 	}
 	return 0
 }
