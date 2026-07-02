@@ -406,6 +406,15 @@ Not yet implemented:
 3. Optional prompt/response body storage.
 4. README quickstart.
 
+## Known Issues
+
+Agent metadata routes such as `/agents` and `/agents/swe/models` are captured as rows with no token usage.
+These clutter stats and cost reports and should be excluded from persistence or filtered out during read.
+
+Some Copilot models encountered in real traffic are not in the GitHub Copilot pricing page, e.g. `gpt-4o-mini-2024-07-18`.
+These fall back to provider-level pricing, which is lower confidence than exact catalog entries.
+The cost table marks provider fallback rows with `*` in the provider column.
+
 ## Future Work
 
 - True generic HTTP proxy mode with optional TLS interception.

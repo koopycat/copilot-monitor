@@ -8,6 +8,18 @@ Do not read GitHub tokens from disk in v1.
 Do not implement TLS or certificate management.
 Do not buffer streaming responses before forwarding them to VSCode.
 
+## Current Status (2026-07-02)
+
+The core proxy works against real VSCode Copilot traffic.
+All model-generating Copilot API calls are forwarded and usage metadata is captured.
+Cost reporting uses GitHub Copilot AI-credit list prices with provider-level fallback.
+Cached input and cache-write token accounting is accurate for both OpenAI and Anthropic streaming responses.
+
+Implemented commands: `run`, `configure-vscode`, `stats`, `cost`, `today`, `sessions`, `version`.
+Optional `--usage-debug-log` flag writes JSONL metadata for pricing research.
+
+Remaining work: JSON output, `models` command, body storage, README quickstart, and noise filtering for zero-usage agent metadata rows.
+
 ## Dependency Map
 
 ```
@@ -30,33 +42,35 @@ The end-to-end proxy path must be implemented in strict order because each step 
 
 ## Ranked Task List
 
-| Rank | Task | Can be done in isolation? | Depends on | Output |
-|---:|---|---|---|---|
-| 1 | Initialize Go module and directory layout | No | None | Buildable empty CLI project |
-| 2 | Add CLI scaffold | Mostly | 1 | `copilot-monitor version`, help output |
-| 3 | Add `configure-vscode` command | Yes | 2 | Prints exact VSCode settings JSON |
-| 4 | Add HTTP server skeleton | No | 2 | `run` listens on `127.0.0.1:7733` |
-| 5 | Add path router package | Yes | 1 | Pure function maps inbound path to upstream base URL and endpoint type |
-| 6 | Add transparent forwarder for non-streaming requests | No | 4, 5 | Requests forward to selected upstream with incoming auth headers preserved |
-| 7 | Add chat forwarding E2E | No | 6 | `/chat/completions` works through VSCode or curl fixture |
-| 8 | Add request metadata parser | Yes | 1 | Extracts model, stream flag, and request hash from JSON body |
-| 9 | Add real-time SSE tee parser | Yes | 1 | Parses `data:` events and usage from fixtures without delaying writes |
-| 10 | Wire SSE tee into chat forwarding | No | 7, 8, 9 | Chat streams to VSCode in real time and capture struct is produced |
-| 11 | Add SQLite schema and migration/open logic | Yes | 1 | Creates `store.db` with `requests`, `sessions`, `bodies` tables |
-| 12 | Add request writer | Mostly | 10, 11 | Captured chat requests are persisted |
-| 13 | Add `stats` query and command | Mostly | 11, 12 | Per-model usage table |
-| 14 | Add model catalog loader | Yes | 1 | Embedded `models.json` parses and validates |
-| 15 | Add cost calculator | Yes | 14 | Pure function computes input, output, and total estimated list-price cost |
-| 16 | Add `cost` command | Mostly | 13, 15 | Cost report labeled as estimated list-price cost |
-| 17 | Add sessionizer | Yes | 11 | Assigns 30-minute gap sessions in tests |
-| 18 | Add `sessions` and `today` commands | Mostly | 13, 17 | Session and daily reports |
-| 19 | Add inline completion routes | No | 6, 8, 9, 12 | `/v1/engines/*` and `/v1/completions` are forwarded and captured when usage is present |
-| 20 | Add agent routes | No | 6, 8, 9, 12 | `/agents/*` is forwarded and captured when usage is present |
-| 21 | Add `--store-bodies` | Mostly | 11, 12 | Optional prompt and completion persistence |
-| 22 | Add `--json` output | Mostly | 13, 16, 18 | Machine-readable reports |
-| 23 | Add README quickstart | Yes | 3, 4, 7 | User can configure VSCode and run the proxy |
-| 24 | Add integration tests with local upstream server | No | 6, 9, 12 | Forwarding, streaming, and persistence covered |
-| 25 | Final polish | No | All prior | `go test ./...`, `go vet ./...`, clean README |
+Completed tasks are marked with `done`.
+
+| Rank | Status | Task | Can be done in isolation? | Depends on | Output |
+|---:|---|---:|---|---|---|
+| 1 | done | Initialize Go module and directory layout | No | None | Buildable empty CLI project |
+| 2 | done | Add CLI scaffold | Mostly | 1 | `copilot-monitor version`, help output |
+| 3 | done | Add `configure-vscode` command | Yes | 2 | Prints exact VSCode settings JSON |
+| 4 | done | Add HTTP server skeleton | No | 2 | `run` listens on `127.0.0.1:7733` |
+| 5 | done | Add path router package | Yes | 1 | Pure function maps inbound path to upstream base URL and endpoint type |
+| 6 | done | Add transparent forwarder for non-streaming requests | No | 4, 5 | Requests forward to selected upstream with incoming auth headers preserved |
+| 7 | done | Add chat forwarding E2E | No | 6 | `/chat/completions` works through VSCode or curl fixture |
+| 8 | done | Add request metadata parser | Yes | 1 | Extracts model, stream flag, and request hash from JSON body |
+| 9 | done | Add real-time SSE tee parser | Yes | 1 | Parses `data:` events and usage from fixtures without delaying writes |
+| 10 | done | Wire SSE tee into chat forwarding | No | 7, 8, 9 | Chat streams to VSCode in real time and capture struct is produced |
+| 11 | done | Add SQLite schema and migration/open logic | Yes | 1 | Creates `store.db` with `requests`, `sessions`, `bodies` tables |
+| 12 | done | Add request writer | Mostly | 10, 11 | Captured chat requests are persisted |
+| 13 | done | Add `stats` query and command | Mostly | 11, 12 | Per-model usage table |
+| 14 | done | Add model catalog loader | Yes | 1 | Embedded `models.json` parses and validates |
+| 15 | done | Add cost calculator | Yes | 14 | Pure function computes input, output, and total estimated list-price cost |
+| 16 | done | Add `cost` command | Mostly | 13, 15 | Cost report labeled as estimated list-price cost |
+| 17 | done | Add sessionizer | Yes | 11 | Assigns 30-minute gap sessions in tests |
+| 18 | done | Add `sessions` and `today` commands | Mostly | 13, 17 | Session and daily reports |
+| 19 | done | Add inline completion routes | No | 6, 8, 9, 12 | `/v1/engines/*` and `/v1/completions` are forwarded and captured when usage is present |
+| 20 | done | Add agent routes | No | 6, 8, 9, 12 | `/agents/*` is forwarded and captured when usage is present |
+| 21 | skip | Add `--store-bodies` | Mostly | 11, 12 | Optional prompt and completion persistence |
+| 22 | todo | Add `--json` output | Mostly | 13, 16, 18 | Machine-readable reports |
+| 23 | todo | Add README quickstart | Yes | 3, 4, 7 | User can configure VSCode and run the proxy |
+| 24 | todo | Add integration tests with local upstream server | No | 6, 9, 12 | Forwarding, streaming, and persistence covered |
+| 25 | todo | Final polish | No | All prior | `go test ./...`, `go vet ./...`, clean README |
 
 ## Detailed Chunks
 
@@ -494,35 +508,29 @@ These tasks should not be parallelized because they depend on real integration b
 
 ## Suggested Work Batches
 
-### Batch A: Runnable skeleton
+### Batch A: Runnable skeleton - DONE
 
-Tasks: 1, 2, 3, 4, 5.
-Result: User can run the binary and configure VSCode, but forwarding is not useful yet.
+Tasks: 1-5.
 
-### Batch B: First useful proxy
+### Batch B: First useful proxy - DONE
 
-Tasks: 6, 7, 8, 9, 10.
-Result: Chat can flow through the proxy and usage can be extracted in memory.
+Tasks: 6-10.
 
-### Batch C: Persistence and first reports
+### Batch C: Persistence and first reports - DONE
 
-Tasks: 11, 12, 13.
-Result: Captured chat usage appears in `stats`.
+Tasks: 11-13.
 
-### Batch D: Cost and session analytics
+### Batch D: Cost and session analytics - DONE
 
-Tasks: 14, 15, 16, 17, 18.
-Result: Estimated list-price cost and sessions are usable.
+Tasks: 14-18.
 
-### Batch E: Broader Copilot coverage
+### Batch E: Broader Copilot coverage - DONE
 
-Tasks: 19, 20.
-Result: Inline completions and agent calls are handled.
+Tasks: 19-20.
 
-### Batch F: Privacy, machine output, docs, integration
+### Batch F: Outstanding
 
-Tasks: 21, 22, 23, 24, 25.
-Result: v1 is ready for daily use.
+Tasks: 22 (`--json`), 23 (README), 24 (integration tests), 25 (final polish).
 
 ## Risk Register
 
@@ -534,6 +542,17 @@ Result: v1 is ready for daily use.
 | SSE parser fails on malformed chunk | Missing usage for one request | Forwarding continues, parser failure is non-fatal |
 | Proxy accidentally binds externally | Local auth headers could be exposed | Default and tests enforce `127.0.0.1` only |
 | Cost numbers are mistaken for actual Copilot bill | Misleading report | Label every cost table as estimated equivalent list-price cost |
+
+## Outstanding Issues
+
+These were observed during real usage and should be addressed before v1:
+
+| Issue | Impact | |
+|---|---|---|
+| Agent metadata routes (`/agents`, `/agents/swe/models`) are persisted without usage | Clutters stats and cost with zero-token rows |
+| `gpt-4o-mini-2024-07-18` not in GitHub Copilot pricing page | Uses lower-confidence provider fallback pricing |
+| Stats column `PROMPT_TOK` is named from the stored field; for Anthropic it means input tokens | Slight naming inconsistency for Anthropic rows |
+| No `--json` flag for machine-readable output | Report output is human-table only |
 
 ## Definition of Done for v1
 
