@@ -16,8 +16,10 @@ vet:
 fmt:
     go fmt ./...
 
+AIR := `go env GOPATH` / "bin" / "air"
+
 watch:
-    air
+    {{AIR}}
 
 clean:
     rm -f copilot-monitor phase0
