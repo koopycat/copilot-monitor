@@ -350,7 +350,7 @@ No cert or key files are written by the proxy.
 
 All dependencies must be available through `go get` with no system packages.
 Static analysis via `go vet` must pass on every change before it is considered complete.
-The `Makefile` provides `make all` which runs `vet`, `test`, and `build` in that order.
+The `justfile` provides `just all` which runs `vet`, `test`, and `build` in that order.
 
 ## Current File Layout
 
@@ -404,7 +404,7 @@ Implemented:
 17. Machine-readable JSON output for `stats`, `cost`, `today`, and `sessions`.
 18. Zero-usage agent metadata filtering.
 19. Colored structured proxy logging with TTY detection.
-20. `Makefile` with `vet`, `test`, and `build` targets.
+20. `justfile` with `vet`, `test`, and `build` recipes.
 
 Not yet implemented:
 
