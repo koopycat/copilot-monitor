@@ -20,6 +20,7 @@ type SessionStats struct {
 	Project      string    `json:"project"`
 	RequestCount int       `json:"request_count"`
 	TokenCount   int       `json:"token_count"`
+	Cost         float64   `json:"cost"`
 }
 
 type CurrentSession struct {
@@ -200,6 +201,10 @@ func (s *Store) CurrentSession(ctx context.Context) (*CurrentSession, error) {
 		Active:        active,
 		Models:        models,
 	}, nil
+}
+
+func (s *Store) SessionModels(ctx context.Context, sessionID int64) ([]ModelStats, error) {
+	return s.sessionModelStats(ctx, sessionID)
 }
 
 func (s *Store) sessionModelStats(ctx context.Context, sessionID int64) ([]ModelStats, error) {

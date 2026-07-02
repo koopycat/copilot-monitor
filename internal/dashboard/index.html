@@ -114,8 +114,8 @@
       <div class="metric-label">projected this month</div>
     </div>
     <div class="metric">
-      <div class="metric-value">{{ latencyText }}</div>
-      <div class="metric-label">avg latency</div>
+      <div class="metric-value">{{ $intl(totalRequests) }}</div>
+      <div class="metric-label">requests, 30d</div>
     </div>
     <div class="live-session" :class="{active: liveSessionActive, pulse: sessionPulse}">
       <div class="live-session-head">
@@ -153,56 +153,38 @@
 
   <h2>Models</h2>
   <table>
-    <thead><tr><th>Model</th><th>Requests</th><th>Input</th><th>Cached</th><th>Write</th><th>Output</th><th>Total</th><th>Latency</th></tr></thead>
+    <thead><tr><th>Model</th><th>Requests</th><th>Cache&nbsp;%</th><th>Total Tokens</th><th>Latency</th><th>Total&nbsp;$</th></tr></thead>
     <tbody>
-      <tr v-for="(s,i) in stats" :key="s.model + s.endpoint">
+      <tr v-for="(s,i) in modelRows" :key="s.model + s.endpoint" :title="s.detail">
         <td>
           <span class="bar-cell">
             <span class="bar-inline" :style="{width: barW(s.total_tokens, maxToken) + 'px', background: modelColor(s.model, i)}"></span>
             {{ s.model }} <span class="tag">{{ s.endpoint }}</span>
+            <span v-if="s.fallback" class="tag fb">fallback</span>
+            <span v-if="s.not_billed" class="tag nb">not billed</span>
           </span>
         </td>
         <td class="num">{{ $intl(s.requests) }}</td>
-        <td class="num">{{ $intl(s.prompt_tokens) }}</td>
-        <td class="num">{{ $intl(s.cached_input_tokens) }}</td>
-        <td class="num">{{ $intl(s.cache_write_tokens) }}</td>
-        <td class="num">{{ $intl(s.completion_tokens) }}</td>
+        <td class="num">{{ s.cache_hit_pct }}%</td>
         <td class="num">{{ $intl(s.total_tokens) }}</td>
         <td class="num">{{ $ms(s.avg_latency_ms) }}</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <h2>Cost Breakdown</h2>
-  <table>
-    <thead><tr><th>Model</th><th>Input $</th><th>Cached $</th><th>Write $</th><th>Output $</th><th>Total $</th></tr></thead>
-    <tbody>
-      <tr v-for="r in costRows" :key="r.model + r.endpoint">
-        <td>
-          {{ r.model }} <span class="tag">{{ r.endpoint }}</span>
-          <span v-if="r.fallback" class="tag fb">fallback</span>
-          <span v-if="r.not_billed" class="tag nb">not billed</span>
-        </td>
-        <td class="num">{{ $usd(r.input_usd) }}</td>
-        <td class="num">{{ $usd(r.cached_input_usd) }}</td>
-        <td class="num">{{ $usd(r.cache_write_usd) }}</td>
-        <td class="num">{{ $usd(r.output_usd) }}</td>
-        <td class="num">{{ $usd(r.total_usd) }}</td>
+        <td class="num">{{ $usd(s.total_usd) }}</td>
       </tr>
     </tbody>
   </table>
 
   <h2>Recent Sessions</h2>
   <table>
-    <thead><tr><th>Start</th><th>Duration</th><th>Project</th><th>Requests</th><th>Tokens</th></tr></thead>
+    <thead><tr><th>Start</th><th>Duration</th><th>Project</th><th>Requests</th><th>Tokens</th><th>Total&nbsp;$</th></tr></thead>
     <tbody>
-      <tr v-if="sessions.length === 0"><td colspan="5" class="empty">No sessions captured yet</td></tr>
+      <tr v-if="sessions.length === 0"><td colspan="6" class="empty">No sessions captured yet</td></tr>
       <tr v-for="s in sessions" :key="s.id">
         <td>{{ new Date(s.started_at).toLocaleString() }}</td>
         <td class="num">{{ $dur((new Date(s.ended_at) - new Date(s.started_at)) / 1000) }}</td>
         <td>{{ s.project || '-' }}</td>
         <td class="num">{{ $intl(s.request_count) }}</td>
         <td class="num">{{ $intl(s.token_count) }}</td>
+        <td class="num">{{ $usd(s.cost) }}</td>
       </tr>
     </tbody>
   </table>

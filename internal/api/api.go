@@ -177,6 +177,18 @@ func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	cat, err := catalog.LoadDefault()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for i := range rows {
+		models, err := h.db.SessionModels(r.Context(), rows[i].ID)
+		if err != nil {
+			continue
+		}
+		rows[i].Cost = costcalc.Calculate(models, cat).TotalUSD
+	}
 	json.NewEncoder(w).Encode(rows)
 }
 

@@ -71,6 +71,31 @@ function App() {
     get maxToken() {
       return Math.max(1, ...this.stats.map(s => s.total_tokens));
     },
+    get totalRequests() {
+      return this.stats.reduce((s, r) => s + r.requests, 0);
+    },
+    get modelRows() {
+      const costMap = new Map();
+      for (const r of this.costRows) {
+        costMap.set(r.model + '|' + r.endpoint, r);
+      }
+      return this.stats.map(s => {
+        const cost = costMap.get(s.model + '|' + s.endpoint) || {};
+        const cacheHit = s.prompt_tokens ? Math.round((s.cached_input_tokens / s.prompt_tokens) * 100) : 0;
+        return {
+          model: s.model,
+          endpoint: s.endpoint,
+          requests: s.requests,
+          total_tokens: s.total_tokens,
+          total_usd: cost.total_usd || 0,
+          fallback: cost.fallback || false,
+          not_billed: cost.not_billed || false,
+          cache_hit_pct: cacheHit,
+          avg_latency_ms: s.avg_latency_ms,
+          detail: 'input ' + intl(s.prompt_tokens) + '  cached ' + intl(s.cached_input_tokens) + '  write ' + intl(s.cache_write_tokens) + '  output ' + intl(s.completion_tokens),
+        };
+      });
+    },
     get projectedText() {
       if (this.cost === null) return '-';
       const days = new Set(this.timeline.map(t => t.date)).size || 1;
