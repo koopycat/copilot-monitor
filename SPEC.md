@@ -11,6 +11,8 @@ Captures usage metadata, token counts, and estimated GitHub Copilot AI-credit co
 | [`docs/api.md`](docs/api.md) | Read-only HTTP API and embedded dashboard |
 | [`docs/statistics.md`](docs/statistics.md) | Planned statistics, visualizations, and timeline queries |
 
+| [`docs/advanced-analytics.md`](docs/advanced-analytics.md) | Planned features: period comparison, live session view |
+
 ## Platform
 
 | Concern | Tool |
@@ -56,6 +58,7 @@ copilot-monitor sessions [--since 30d] [--project x] [--limit 50] [--json]
 
 ```sh
 copilot-monitor configure-vscode
+copilot-monitor export [--format csv|json] [--since 30d] [--db path]
 copilot-monitor version
 ```
 
