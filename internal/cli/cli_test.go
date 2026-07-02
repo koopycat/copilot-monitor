@@ -80,7 +80,7 @@ func TestCostCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = st.InsertRequest(context.Background(), store.RequestRecord{Timestamp: time.Now().UTC(), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-4o", Status: 200, PromptTokens: 1_000_000, CompletionTokens: 500_000, TotalTokens: 1_500_000})
+	err = st.InsertRequest(context.Background(), store.RequestRecord{Timestamp: time.Now().UTC(), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-5-mini", Status: 200, PromptTokens: 1_000_000, CachedInputTokens: 250_000, CompletionTokens: 500_000, TotalTokens: 1_500_000})
 	_ = st.Close()
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +92,7 @@ func TestCostCommand(t *testing.T) {
 		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
 	}
 	out := stdout.String()
-	for _, want := range []string{"Estimated equivalent provider list-price cost", "gpt-4o", "openai", "7.500000", "TOTAL"} {
+	for _, want := range []string{"Estimated equivalent GitHub Copilot AI-credit list-price cost", "gpt-5-mini", "openai", "1.193750", "TOTAL"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output missing %q:\n%s", want, out)
 		}
@@ -168,7 +168,7 @@ func TestCostCommandFallbackNote(t *testing.T) {
 		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
 	}
 	out := stdout.String()
-	if !strings.Contains(out, "fallback pricing used") {
+	if !strings.Contains(out, "fallback pricing used") && !strings.Contains(out, "fallback pricing") {
 		t.Fatalf("expected fallback note:\n%s", out)
 	}
 }

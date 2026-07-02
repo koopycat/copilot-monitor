@@ -218,20 +218,26 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 	}
 	total := costcalc.Calculate(rows, cat)
 
-	fmt.Fprintf(stdout, "Estimated equivalent provider list-price cost (%s). This is not your GitHub Copilot bill.\n", cat.Currency)
+	fmt.Fprintf(stdout, "Estimated equivalent GitHub Copilot AI-credit list-price cost (%s). This is not your GitHub Copilot bill.\n", cat.Currency)
 	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "MODEL\tENDPOINT\tPROVIDER\tREQUESTS\tPROMPT_TOK\tCOMPL_TOK\tINPUT $\tOUTPUT $\tEST. LIST $")
+	fmt.Fprintln(tw, "MODEL\tENDPOINT\tPROVIDER\tREQUESTS\tINPUT_TOK\tCACHED_TOK\tCACHE_WRITE_TOK\tOUTPUT_TOK\tINPUT $\tCACHED $\tCACHE WRITE $\tOUTPUT $\tEST. LIST $")
 	for _, row := range total.Rows {
 		provider := row.Provider
 		if row.Fallback {
 			provider += "*"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%d\t%.6f\t%.6f\t%.6f\n", row.Model, row.Endpoint, provider, row.Requests, row.PromptTokens, row.CompletionTokens, row.InputUSD, row.OutputUSD, row.TotalUSD)
+		if row.NotBilled {
+			provider += " (not billed)"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\n", row.Model, row.Endpoint, provider, row.Requests, row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens, row.CompletionTokens, row.InputUSD, row.CachedInputUSD, row.CacheWriteUSD, row.OutputUSD, row.TotalUSD)
 	}
-	fmt.Fprintf(tw, "TOTAL\t\t\t%d\t%d\t%d\t%.6f\t%.6f\t%.6f\n", total.Requests, total.PromptTokens, total.CompletionTokens, total.InputUSD, total.OutputUSD, total.TotalUSD)
+	fmt.Fprintf(tw, "TOTAL\t\t\t%d\t%d\t%d\t%d\t%d\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\n", total.Requests, total.PromptTokens, total.CachedInputTokens, total.CacheWriteTokens, total.CompletionTokens, total.InputUSD, total.CachedInputUSD, total.CacheWriteUSD, total.OutputUSD, total.TotalUSD)
 	_ = tw.Flush()
 	if total.FallbackCount > 0 {
-		fmt.Fprintf(stdout, "\n* fallback pricing used for %d row(s) at %.6f %s per million input and output tokens.\n", total.FallbackCount, cat.FallbackPerM, cat.Currency)
+		fmt.Fprintf(stdout, "\n* provider or generic fallback pricing used for %d row(s).\n", total.FallbackCount)
+	}
+	if total.NotBilledCount > 0 {
+		fmt.Fprintf(stdout, "Inline code completion rows are shown with zero AI-credit cost because GitHub docs say code completions are not billed in AI credits.\n")
 	}
 	return 0
 }
@@ -317,9 +323,9 @@ func runSessions(args []string, stdout, stderr io.Writer) int {
 
 func printStatsRows(w io.Writer, rows []store.ModelStats) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "MODEL\tENDPOINT\tREQUESTS\tPROMPT_TOK\tCOMPL_TOK\tTOTAL")
+	fmt.Fprintln(tw, "MODEL\tENDPOINT\tREQUESTS\tPROMPT_TOK\tCACHED_TOK\tCACHE_WRITE_TOK\tCOMPL_TOK\tTOTAL")
 	for _, row := range rows {
-		fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\n", row.Model, row.Endpoint, row.Requests, row.PromptTokens, row.CompletionTokens, row.TotalTokens)
+		fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\n", row.Model, row.Endpoint, row.Requests, row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens, row.CompletionTokens, row.TotalTokens)
 	}
 	_ = tw.Flush()
 }

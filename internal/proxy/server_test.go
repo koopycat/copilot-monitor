@@ -132,7 +132,7 @@ func TestHandlerPersistsSSEUsage(t *testing.T) {
 			Header: http.Header{
 				"Content-Type": {"text/event-stream"},
 			},
-			Body: io.NopCloser(strings.NewReader("data: {\"model\":\"gpt-4o\",\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3,\"total_tokens\":10}}\n\n")),
+			Body: io.NopCloser(strings.NewReader("data: {\"model\":\"gpt-4o\",\"usage\":{\"prompt_tokens\":7,\"prompt_tokens_details\":{\"cached_tokens\":2},\"completion_tokens\":3,\"total_tokens\":10}}\n\n")),
 		}, nil
 	})}
 
@@ -153,7 +153,7 @@ func TestHandlerPersistsSSEUsage(t *testing.T) {
 	if len(stats) != 1 {
 		t.Fatalf("stats = %#v", stats)
 	}
-	if stats[0].Model != "gpt-4o" || stats[0].PromptTokens != 7 || stats[0].CompletionTokens != 3 || stats[0].TotalTokens != 10 {
+	if stats[0].Model != "gpt-4o" || stats[0].PromptTokens != 7 || stats[0].CachedInputTokens != 2 || stats[0].CompletionTokens != 3 || stats[0].TotalTokens != 10 {
 		t.Fatalf("stats[0] = %#v", stats[0])
 	}
 }

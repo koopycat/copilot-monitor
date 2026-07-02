@@ -21,21 +21,23 @@ type Store struct {
 }
 
 type RequestRecord struct {
-	Timestamp        time.Time
-	Endpoint         string
-	Method           string
-	Path             string
-	UpstreamHost     string
-	Model            string
-	Stream           bool
-	Status           int
-	Error            string
-	LatencyMS        int64
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
-	Project          string
-	RequestHash      string
+	Timestamp         time.Time
+	Endpoint          string
+	Method            string
+	Path              string
+	UpstreamHost      string
+	Model             string
+	Stream            bool
+	Status            int
+	Error             string
+	LatencyMS         int64
+	PromptTokens      int
+	CachedInputTokens int
+	CacheWriteTokens  int
+	CompletionTokens  int
+	TotalTokens       int
+	Project           string
+	RequestHash       string
 }
 
 type StatsFilter struct {
@@ -45,12 +47,14 @@ type StatsFilter struct {
 }
 
 type ModelStats struct {
-	Model            string
-	Endpoint         string
-	Requests         int
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
+	Model             string
+	Endpoint          string
+	Requests          int
+	PromptTokens      int
+	CachedInputTokens int
+	CacheWriteTokens  int
+	CompletionTokens  int
+	TotalTokens       int
 }
 
 func DefaultPath() string {
@@ -118,8 +122,9 @@ func (s *Store) InsertRequest(ctx context.Context, rec RequestRecord) error {
 	_, err := s.db.ExecContext(ctx, `
 INSERT INTO requests (
   ts, endpoint, method, path, upstream_host, model, stream, status, error,
-  latency_ms, prompt_tokens, completion_tokens, total_tokens, project, request_hash
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  latency_ms, prompt_tokens, cached_input_tokens, cache_write_tokens,
+  completion_tokens, total_tokens, project, request_hash
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		rec.Timestamp.UTC().Format(time.RFC3339Nano),
 		rec.Endpoint,
 		rec.Method,
@@ -131,6 +136,8 @@ INSERT INTO requests (
 		nullString(rec.Error),
 		rec.LatencyMS,
 		nullInt(rec.PromptTokens),
+		nullInt(rec.CachedInputTokens),
+		nullInt(rec.CacheWriteTokens),
 		nullInt(rec.CompletionTokens),
 		nullInt(rec.TotalTokens),
 		nullString(rec.Project),
@@ -149,6 +156,8 @@ SELECT
   endpoint,
   COUNT(*) AS requests,
   COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+  COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens,
+  COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens,
   COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
   COALESCE(SUM(total_tokens), 0) AS total_tokens
 FROM requests
@@ -170,7 +179,7 @@ ORDER BY total_tokens DESC, requests DESC, model ASC, endpoint ASC`
 	var out []ModelStats
 	for rows.Next() {
 		var row ModelStats
-		if err := rows.Scan(&row.Model, &row.Endpoint, &row.Requests, &row.PromptTokens, &row.CompletionTokens, &row.TotalTokens); err != nil {
+		if err := rows.Scan(&row.Model, &row.Endpoint, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens); err != nil {
 			return nil, err
 		}
 		out = append(out, row)

@@ -148,6 +148,7 @@ OpenAI-compatible usage fields map as follows:
 | Upstream field | Stored field |
 |---|---|
 | `prompt_tokens` | `prompt_tokens` |
+| `prompt_tokens_details.cached_tokens` | `cached_input_tokens` |
 | `completion_tokens` | `completion_tokens` |
 | `total_tokens` | `total_tokens` |
 
@@ -156,8 +157,12 @@ Anthropic-compatible usage fields map as follows:
 | Upstream field | Stored field |
 |---|---|
 | `input_tokens` | `prompt_tokens` |
+| `cache_read_input_tokens` | `cached_input_tokens` |
+| `cache_creation_input_tokens` | `cache_write_tokens` |
 | `output_tokens` | `completion_tokens` |
 | derived sum | `total_tokens` when no explicit total exists |
+
+When several streaming usage objects appear for one response, the latest parsed usage object is used for the persisted aggregate because Anthropic streams cumulative usage updates.
 
 A slow parser must never block response delivery beyond normal network backpressure.
 If parsing fails, forwarding continues and the request is stored with missing token fields.
@@ -187,24 +192,21 @@ All report commands are read-only against SQLite.
 
 ## Output Labels
 
-Cost output must be labeled as estimated equivalent provider list-price cost.
+Cost output must be labeled as estimated equivalent GitHub Copilot AI-credit list-price cost.
 It must not claim to be the user's actual GitHub Copilot bill.
 
 Example `cost` output:
 
 ```
-MODEL                      INPUT $   OUTPUT $    EST. LIST $
-claude-sonnet-4            $0.0665    $0.0963       $0.1628
-gpt-4o                     $0.1205    $0.1284       $0.2489
+MODEL              ENDPOINT  PROVIDER   REQUESTS  INPUT_TOK  CACHED_TOK  CACHE_WRITE_TOK  OUTPUT_TOK  INPUT $   CACHED $  CACHE WRITE $  OUTPUT $  EST. LIST $
+claude-sonnet-4.6  chat      anthropic  1         9          0           45915            65          0.000027  0.000000  0.172181       0.000975  0.173183
 ```
 
 Example `stats` output:
 
 ```
-MODEL                      REQUESTS   PROMPT_TOK   COMPL_TOK    TOTAL
-gpt-4o                          142       48,210      12,840    61,050
-claude-sonnet-4                  37       22,150       6,420    28,570
-gemini-2.0-flash                 84       11,330       2,910    14,240
+MODEL              ENDPOINT  REQUESTS  PROMPT_TOK  CACHED_TOK  CACHE_WRITE_TOK  COMPL_TOK  TOTAL
+claude-sonnet-4.6  chat      1         9           0           45915            65         45989
 ```
 
 ## Data Model
@@ -224,9 +226,11 @@ CREATE TABLE requests (
   status            INTEGER NOT NULL,
   error             TEXT,
   latency_ms        INTEGER NOT NULL,
-  prompt_tokens     INTEGER,
-  completion_tokens INTEGER,
-  total_tokens      INTEGER,
+  prompt_tokens       INTEGER,
+  cached_input_tokens INTEGER,
+  cache_write_tokens  INTEGER,
+  completion_tokens   INTEGER,
+  total_tokens        INTEGER,
   project           TEXT,
   session_id        INTEGER,
   request_hash      TEXT
@@ -279,25 +283,26 @@ If a session contains multiple project tags, its session project is stored as `<
 
 ```json
 {
-  "models": {
-    "gpt-4o":               {"provider":"openai",    "input_per_m": 2.50, "output_per_m": 10.00},
-    "gpt-4o-2024-05-13":    {"provider":"openai",    "input_per_m": 2.50, "output_per_m": 10.00},
-    "gpt-4.1":              {"provider":"openai",    "input_per_m": 2.00, "output_per_m":  8.00},
-    "o1":                   {"provider":"openai",    "input_per_m": 15.00, "output_per_m": 60.00},
-    "claude-sonnet-4":      {"provider":"anthropic", "input_per_m": 3.00, "output_per_m": 15.00},
-    "claude-3-5-sonnet":    {"provider":"anthropic", "input_per_m": 3.00, "output_per_m": 15.00},
-    "claude-opus-4":        {"provider":"anthropic", "input_per_m": 15.00, "output_per_m": 75.00},
-    "gemini-2.0-flash":     {"provider":"google",    "input_per_m": 0.10, "output_per_m":  0.40},
-    "gemini-2.5-pro":       {"provider":"google",    "input_per_m": 1.25, "output_per_m":  5.00}
-  },
   "currency": "USD",
-  "fallback_per_m": 5.00
+  "fallback": {"provider":"unknown", "input_per_m":5.0, "cached_input_per_m":0.5, "cache_write_per_m":5.0, "output_per_m":15.0},
+  "provider_fallbacks": {
+    "anthropic": {"provider":"anthropic-fallback", "input_per_m":3.0, "cached_input_per_m":0.3, "cache_write_per_m":3.75, "output_per_m":15.0}
+  },
+  "models": {
+    "claude-sonnet-4.6": {"provider":"anthropic", "input_per_m":3.0, "cached_input_per_m":0.3, "cache_write_per_m":3.75, "output_per_m":15.0},
+    "gpt-5-mini": {"provider":"openai", "input_per_m":0.25, "cached_input_per_m":0.025, "cache_write_per_m":0.25, "output_per_m":2.0}
+  }
 }
 ```
 
-Rates are per million tokens.
-The fallback rate applies to unknown models and must be reported as a fallback in CLI output.
+Rates are GitHub Copilot AI-credit list prices per million tokens from GitHub's models and pricing reference.
+The catalog includes input, cached input, cache write, and output prices where GitHub publishes them.
+Unknown exact models fall back to provider-level pricing when the model name clearly identifies a provider, for example `claude-*`, `gpt-*`, `gemini-*`, `raptor-*`, or `mai-*`.
+If no provider can be inferred, generic fallback pricing is used and must be reported as a fallback in CLI output.
 Editing the JSON and rebuilding the binary recomputes historical estimated list-price cost.
+
+GitHub docs state that code completions and next-edit suggestions are not billed in AI credits.
+Rows whose endpoint is `completions` are therefore shown with zero estimated AI-credit cost even if token counts are present.
 
 ## Privacy
 
@@ -388,10 +393,11 @@ Implemented:
 9. `stats` report grouped by model and endpoint.
 10. Anthropic `/v1/messages` support.
 11. Embedded public list-price model catalog.
-12. `cost` report for estimated equivalent provider list-price cost.
+12. `cost` report for estimated equivalent GitHub Copilot AI-credit list-price cost.
 13. 30-minute gap sessionization.
 14. `today` and `sessions` reports.
 15. Optional usage-only JSONL debug log for pricing research.
+16. Cached input and cache-write token capture for pricing accuracy.
 
 Not yet implemented:
 

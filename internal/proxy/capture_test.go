@@ -32,13 +32,16 @@ func TestFindUsage(t *testing.T) {
 			"prompt_tokens":     float64(10),
 			"completion_tokens": float64(4),
 			"total_tokens":      float64(14),
+			"prompt_tokens_details": map[string]any{
+				"cached_tokens": float64(6),
+			},
 		},
 	}
 	usage, ok := findUsage(value)
 	if !ok {
 		t.Fatal("usage not found")
 	}
-	if usage.PromptTokens != 10 || usage.CompletionTokens != 4 || usage.TotalTokens != 14 {
+	if usage.PromptTokens != 10 || usage.CachedInputTokens != 6 || usage.CompletionTokens != 4 || usage.TotalTokens != 14 {
 		t.Fatalf("usage = %#v", usage)
 	}
 }
@@ -48,8 +51,10 @@ func TestFindAnthropicUsage(t *testing.T) {
 		"type": "message_start",
 		"message": map[string]any{
 			"usage": map[string]any{
-				"input_tokens":  float64(12),
-				"output_tokens": float64(3),
+				"input_tokens":                float64(12),
+				"cache_read_input_tokens":     float64(5),
+				"cache_creation_input_tokens": float64(7),
+				"output_tokens":               float64(3),
 			},
 		},
 	}
@@ -57,7 +62,7 @@ func TestFindAnthropicUsage(t *testing.T) {
 	if !ok {
 		t.Fatal("usage not found")
 	}
-	if usage.PromptTokens != 12 || usage.CompletionTokens != 3 || usage.TotalTokens != 15 {
+	if usage.PromptTokens != 12 || usage.CachedInputTokens != 5 || usage.CacheWriteTokens != 7 || usage.CompletionTokens != 3 || usage.TotalTokens != 27 {
 		t.Fatalf("usage = %#v", usage)
 	}
 }
