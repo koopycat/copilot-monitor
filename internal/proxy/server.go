@@ -1,20 +1,9 @@
 package proxy
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"crypto/tls"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"net"
 	"net/http"
-	"net/url"
-	"sort"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -163,28 +152,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.writeUsageDebug(started, id, route, r, meta, resp, nil)
 }
 
-func (h *Handler) writeUsageDebug(ts time.Time, id uint64, route Route, r *http.Request, meta RequestMetadata, resp *http.Response, observer *SSEObserver) {
-	if h.usageDebug == nil || route.Capture == CaptureNone || route.Capture == CaptureLocal || route.Capture == CaptureTunnel {
-		return
+func streamLogValue(meta RequestMetadata) string {
+	if !meta.HasStream {
+		return "unknown"
 	}
-	record := UsageDebugRecord{
-		Timestamp:       ts,
-		RequestID:       id,
-		Endpoint:        string(route.Endpoint),
-		Path:            r.URL.RequestURI(),
-		RequestModel:    meta.Model,
-		Status:          resp.StatusCode,
-		ContentType:     resp.Header.Get("Content-Type"),
-		ResponseHeaders: SafeHeaders(resp.Header),
+	if meta.Stream {
+		return "true"
 	}
-	if observer != nil {
-		record.ResponseModel = observer.Model
-		record.UsageDetected = observer.UsageSeen
-		record.UsageObjects = append([]json.RawMessage(nil), observer.UsageObjects...)
+	return "false"
+}
+
+func shouldObserveResponse(route Route, contentType string) bool {
+	if route.Capture != CaptureUsage && route.Capture != CaptureMetadata {
+		return false
 	}
-	if err := h.usageDebug.Write(record); err != nil {
-		h.log.Warn("usage_debug_error=%q\n", err.Error())
-	}
+	return strings.Contains(strings.ToLower(contentType), "text/event-stream") || strings.Contains(strings.ToLower(contentType), "json")
 }
 
 func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route, r *http.Request, meta RequestMetadata, status int, latencyMS int64, observer *SSEObserver, errText string) {
@@ -226,253 +208,4 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 	}); err != nil {
 		h.log.Warn("store_error=%q\n", err.Error())
 	}
-}
-
-func streamLogValue(meta RequestMetadata) string {
-	if !meta.HasStream {
-		return "unknown"
-	}
-	if meta.Stream {
-		return "true"
-	}
-	return "false"
-}
-
-func shouldObserveResponse(route Route, contentType string) bool {
-	if route.Capture != CaptureUsage && route.Capture != CaptureMetadata {
-		return false
-	}
-	return strings.Contains(strings.ToLower(contentType), "text/event-stream") || strings.Contains(strings.ToLower(contentType), "json")
-}
-
-func readAndRestoreBody(r *http.Request) ([]byte, error) {
-	if r.Body == nil || r.Body == http.NoBody {
-		r.Body = http.NoBody
-		return nil, nil
-	}
-	body, err := io.ReadAll(r.Body)
-	if closeErr := r.Body.Close(); err == nil && closeErr != nil {
-		err = closeErr
-	}
-	if err != nil {
-		return nil, err
-	}
-	r.Body = io.NopCloser(bytes.NewReader(body))
-	return body, nil
-}
-
-func MakeUpstreamRequest(in *http.Request, route Route, body []byte) (*http.Request, error) {
-	if route.Upstream == "" {
-		return nil, fmt.Errorf("route has no upstream")
-	}
-	outURL := &url.URL{
-		Scheme:     "https",
-		Host:       route.Upstream,
-		Path:       in.URL.Path,
-		RawPath:    in.URL.RawPath,
-		RawQuery:   in.URL.RawQuery,
-		ForceQuery: in.URL.ForceQuery,
-	}
-
-	out, err := http.NewRequestWithContext(in.Context(), in.Method, outURL.String(), bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	out.Header = StripHopByHopHeaders(in.Header)
-	out.Header.Set("Accept-Encoding", "identity")
-	out.Host = route.Upstream
-	out.ContentLength = int64(len(body))
-	if len(body) == 0 {
-		out.Body = http.NoBody
-	}
-	return out, nil
-}
-
-func StripHopByHopHeaders(headers http.Header) http.Header {
-	connectionTokens := map[string]struct{}{}
-	for _, value := range headers.Values("Connection") {
-		for _, rawToken := range strings.Split(value, ",") {
-			token := strings.ToLower(strings.TrimSpace(rawToken))
-			if token != "" {
-				connectionTokens[token] = struct{}{}
-			}
-		}
-	}
-
-	out := make(http.Header, len(headers))
-	for name, values := range headers {
-		lower := strings.ToLower(name)
-		if _, ok := hopByHopHeaders[lower]; ok {
-			continue
-		}
-		if _, ok := connectionTokens[lower]; ok {
-			continue
-		}
-		out[name] = append([]string(nil), values...)
-	}
-	return out
-}
-
-var hopByHopHeaders = map[string]struct{}{
-	"connection":          {},
-	"keep-alive":          {},
-	"proxy-authenticate":  {},
-	"proxy-authorization": {},
-	"proxy-connection":    {},
-	"te":                  {},
-	"trailer":             {},
-	"transfer-encoding":   {},
-	"upgrade":             {},
-}
-
-func copyHeaders(dst, src http.Header) {
-	keys := make([]string, 0, len(src))
-	for key := range src {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		for _, value := range src[key] {
-			dst.Add(key, value)
-		}
-	}
-}
-
-func streamResponse(w http.ResponseWriter, body io.Reader, observer *SSEObserver, preview *ResponsePreview) (int64, error) {
-	flusher, _ := w.(http.Flusher)
-	buf := make([]byte, 32*1024)
-	var total int64
-	defer func() {
-		if observer != nil {
-			observer.Finish()
-		}
-	}()
-	for {
-		n, readErr := body.Read(buf)
-		if n > 0 {
-			chunk := buf[:n]
-			if observer != nil {
-				observer.Observe(chunk)
-			}
-			if preview != nil {
-				preview.Observe(chunk)
-			}
-			written, writeErr := w.Write(chunk)
-			total += int64(written)
-			if writeErr != nil {
-				return total, writeErr
-			}
-			if flusher != nil {
-				flusher.Flush()
-			}
-		}
-		if readErr != nil {
-			if errors.Is(readErr, io.EOF) {
-				return total, nil
-			}
-			return total, readErr
-		}
-	}
-}
-
-func isWebSocketUpgrade(r *http.Request) bool {
-	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket") && headerContainsToken(r.Header.Get("Connection"), "upgrade")
-}
-
-func headerContainsToken(value, token string) bool {
-	for _, part := range strings.Split(value, ",") {
-		if strings.EqualFold(strings.TrimSpace(part), token) {
-			return true
-		}
-	}
-	return false
-}
-
-func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Request, route Route, body []byte) error {
-	if len(body) != 0 {
-		return fmt.Errorf("websocket request unexpectedly had body bytes=%d", len(body))
-	}
-
-	hijacker, ok := w.(http.Hijacker)
-	if !ok {
-		http.Error(w, "websocket hijacking not supported", http.StatusInternalServerError)
-		return fmt.Errorf("response writer does not support hijacking")
-	}
-
-	upstreamConn, err := tls.DialWithDialer(&net.Dialer{}, "tcp", route.Upstream+":443", &tls.Config{ServerName: route.Upstream, MinVersion: tls.VersionTLS12})
-	if err != nil {
-		http.Error(w, "upstream websocket dial failed", http.StatusBadGateway)
-		return err
-	}
-	defer upstreamConn.Close()
-
-	upstreamReq := r.Clone(r.Context())
-	upstreamReq.URL = &url.URL{
-		Scheme:     "https",
-		Host:       route.Upstream,
-		Path:       r.URL.Path,
-		RawPath:    r.URL.RawPath,
-		RawQuery:   r.URL.RawQuery,
-		ForceQuery: r.URL.ForceQuery,
-	}
-	upstreamReq.RequestURI = ""
-	upstreamReq.Host = route.Upstream
-	upstreamReq.Header = cloneHeaders(r.Header)
-	upstreamReq.Body = http.NoBody
-	upstreamReq.ContentLength = 0
-
-	if err := upstreamReq.Write(upstreamConn); err != nil {
-		http.Error(w, "upstream websocket write failed", http.StatusBadGateway)
-		return err
-	}
-
-	br := bufio.NewReader(upstreamConn)
-	upstreamResp, err := http.ReadResponse(br, upstreamReq)
-	if err != nil {
-		http.Error(w, "upstream websocket response failed", http.StatusBadGateway)
-		return err
-	}
-	defer upstreamResp.Body.Close()
-
-	clientConn, clientBuf, err := hijacker.Hijack()
-	if err != nil {
-		return err
-	}
-	defer clientConn.Close()
-
-	if clientBuf.Reader.Buffered() != 0 {
-		h.log.Info("id=%d buffered_client_bytes=%d\n", id, clientBuf.Reader.Buffered())
-	}
-
-	if err := upstreamResp.Write(clientConn); err != nil {
-		return err
-	}
-	h.log.Websocket("id=%d status=%d content_type=%q\n", id, upstreamResp.StatusCode, upstreamResp.Header.Get("Content-Type"))
-	if upstreamResp.StatusCode != http.StatusSwitchingProtocols {
-		return nil
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		_, _ = io.Copy(upstreamConn, clientConn)
-		_ = upstreamConn.Close()
-	}()
-	go func() {
-		defer wg.Done()
-		_, _ = io.Copy(clientConn, br)
-		_ = clientConn.Close()
-	}()
-	wg.Wait()
-	h.log.Websocket("id=%d complete=true\n", id)
-	return nil
-}
-
-func cloneHeaders(headers http.Header) http.Header {
-	out := make(http.Header, len(headers))
-	for name, values := range headers {
-		out[name] = append([]string(nil), values...)
-	}
-	return out
 }

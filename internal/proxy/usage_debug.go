@@ -77,3 +77,27 @@ func isSensitiveHeader(name string) bool {
 		strings.Contains(lower, "secret") ||
 		strings.Contains(lower, "credential")
 }
+
+func (h *Handler) writeUsageDebug(ts time.Time, id uint64, route Route, r *http.Request, meta RequestMetadata, resp *http.Response, observer *SSEObserver) {
+	if h.usageDebug == nil || route.Capture == CaptureNone || route.Capture == CaptureLocal || route.Capture == CaptureTunnel {
+		return
+	}
+	record := UsageDebugRecord{
+		Timestamp:       ts,
+		RequestID:       id,
+		Endpoint:        string(route.Endpoint),
+		Path:            r.URL.RequestURI(),
+		RequestModel:    meta.Model,
+		Status:          resp.StatusCode,
+		ContentType:     resp.Header.Get("Content-Type"),
+		ResponseHeaders: SafeHeaders(resp.Header),
+	}
+	if observer != nil {
+		record.ResponseModel = observer.Model
+		record.UsageDetected = observer.UsageSeen
+		record.UsageObjects = append([]json.RawMessage(nil), observer.UsageObjects...)
+	}
+	if err := h.usageDebug.Write(record); err != nil {
+		h.log.Warn("usage_debug_error=%q\n", err.Error())
+	}
+}
