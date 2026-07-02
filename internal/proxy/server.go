@@ -18,11 +18,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"copilot-monitoring/internal/log"
 	"copilot-monitoring/internal/store"
 )
 
 type Handler struct {
-	log        io.Writer
+	log        *log.Writer
 	client     *http.Client
 	store      *store.Store
 	project    string
@@ -30,15 +31,15 @@ type Handler struct {
 	nextID     atomic.Uint64
 }
 
-func NewHandler(log io.Writer) *Handler {
+func NewHandler(log *log.Writer) *Handler {
 	return NewHandlerWithStore(log, nil, "")
 }
 
-func NewHandlerWithStore(log io.Writer, st *store.Store, project string) *Handler {
+func NewHandlerWithStore(log *log.Writer, st *store.Store, project string) *Handler {
 	return NewHandlerWithStoreAndUsageDebug(log, st, project, nil)
 }
 
-func NewHandlerWithStoreAndUsageDebug(log io.Writer, st *store.Store, project string, usageDebug *UsageDebugLogger) *Handler {
+func NewHandlerWithStoreAndUsageDebug(log *log.Writer, st *store.Store, project string, usageDebug *UsageDebugLogger) *Handler {
 	return &Handler{
 		log:        log,
 		store:      st,
@@ -56,13 +57,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	started := time.Now().UTC()
 	route, ok := RoutePath(r.URL.Path)
 	if !ok {
-		fmt.Fprintf(h.log, "request id=%d ts=%s method=%s path=%q route=unknown status=502\n", id, started.Format(time.RFC3339Nano), r.Method, r.URL.RequestURI())
+		h.log.Error("id=%d path=%q route=unknown status=502\n", id, r.URL.RequestURI())
 		http.Error(w, "unknown Copilot path", http.StatusBadGateway)
 		return
 	}
 
 	if route.Local && route.Endpoint == EndpointPing {
-		fmt.Fprintf(h.log, "request id=%d ts=%s method=%s path=%q endpoint=%s status=200\n", id, started.Format(time.RFC3339Nano), r.Method, r.URL.RequestURI(), route.Endpoint)
+		h.log.Ping("id=%d path=%q endpoint=%s\n", id, r.URL.RequestURI(), route.Endpoint)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 		return
@@ -70,37 +71,33 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	body, err := readAndRestoreBody(r)
 	if err != nil {
-		fmt.Fprintf(h.log, "request id=%d read_body_error=%q status=400\n", id, err.Error())
+		h.log.Error("id=%d read_body_error=%q\n", id, err.Error())
 		http.Error(w, "failed to read request body", http.StatusBadRequest)
 		return
 	}
 	meta := ParseRequestMetadata(body)
 
-	fmt.Fprintf(
-		h.log,
-		"request id=%d ts=%s method=%s path=%q endpoint=%s upstream=%s capture=%s auth_present=%t model=%q stream=%s\n",
+	h.log.Request("id=%d method=%s path=%q endpoint=%s upstream=%s capture=%s model=%q stream=%s\n",
 		id,
-		started.Format(time.RFC3339Nano),
 		r.Method,
 		r.URL.RequestURI(),
 		route.Endpoint,
 		route.Upstream,
 		route.Capture,
-		r.Header.Get("Authorization") != "",
 		meta.Model,
 		streamLogValue(meta),
 	)
 
 	if isWebSocketUpgrade(r) {
 		if err := h.proxyWebSocket(id, w, r, route, body); err != nil {
-			fmt.Fprintf(h.log, "request id=%d websocket_error=%q\n", id, err.Error())
+			h.log.Error("id=%d websocket_error=%q\n", id, err.Error())
 		}
 		return
 	}
 
 	outReq, err := MakeUpstreamRequest(r, route, body)
 	if err != nil {
-		fmt.Fprintf(h.log, "request id=%d build_upstream_error=%q status=502\n", id, err.Error())
+		h.log.Error("id=%d build_upstream_error=%q\n", id, err.Error())
 		http.Error(w, "failed to build upstream request", http.StatusBadGateway)
 		return
 	}
@@ -108,10 +105,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.client.Do(outReq)
 	if err != nil {
 		if r.Context().Err() != nil {
-			fmt.Fprintf(h.log, "request id=%d client_disconnected=true error=%q\n", id, err.Error())
+			h.log.Info("id=%d client_disconnected=true\n", id)
 			return
 		}
-		fmt.Fprintf(h.log, "request id=%d upstream_error=%q status=502\n", id, err.Error())
+		h.log.Error("id=%d upstream_error=%q\n", id, err.Error())
 		http.Error(w, "upstream request failed", http.StatusBadGateway)
 		return
 	}
@@ -130,10 +127,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	bytesWritten, err := streamResponse(w, resp.Body, observer, preview)
 	if err != nil {
 		if r.Context().Err() != nil {
-			fmt.Fprintf(h.log, "response id=%d client_disconnected=true bytes=%d error=%q\n", id, bytesWritten, err.Error())
+			h.log.Info("id=%d client_disconnected=true bytes=%d\n", id, bytesWritten)
 			return
 		}
-		fmt.Fprintf(h.log, "response id=%d stream_error=%q bytes=%d\n", id, err.Error(), bytesWritten)
+		h.log.Error("id=%d stream_error=%q bytes=%d\n", id, err.Error(), bytesWritten)
 		return
 	}
 	latencyMS := time.Since(started).Milliseconds()
@@ -142,9 +139,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		previewText = preview.String()
 	}
 	if observer != nil {
-		fmt.Fprintf(
-			h.log,
-			"response id=%d status=%d bytes=%d latency_ms=%d usage_detected=%t prompt_tokens=%d cached_input_tokens=%d cache_write_tokens=%d completion_tokens=%d total_tokens=%d response_model=%q parse_errors=%d error_preview=%q\n",
+		h.log.Response("id=%d status=%d latency_ms=%d bytes=%d prompt_tokens=%d cached=%d cache_write=%d completions=%d total=%d model=%q parse_errors=%d\n",
 			id,
 			resp.StatusCode,
 			bytesWritten,
@@ -163,7 +158,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.writeUsageDebug(started, id, route, r, meta, resp, observer)
 		return
 	}
-	fmt.Fprintf(h.log, "response id=%d status=%d bytes=%d latency_ms=%d error_preview=%q\n", id, resp.StatusCode, bytesWritten, latencyMS, previewText)
+	h.log.Info("id=%d status=%d bytes=%d latency_ms=%d error_preview=%q\n", id, resp.StatusCode, bytesWritten, latencyMS, previewText)
 	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, nil, previewText)
 	h.writeUsageDebug(started, id, route, r, meta, resp, nil)
 }
@@ -188,7 +183,7 @@ func (h *Handler) writeUsageDebug(ts time.Time, id uint64, route Route, r *http.
 		record.UsageObjects = append([]json.RawMessage(nil), observer.UsageObjects...)
 	}
 	if err := h.usageDebug.Write(record); err != nil {
-		fmt.Fprintf(h.log, "usage_debug_error=%q\n", err.Error())
+		h.log.Warn("usage_debug_error=%q\n", err.Error())
 	}
 }
 
@@ -229,7 +224,7 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 		Project:           h.project,
 		RequestHash:       meta.RequestHash,
 	}); err != nil {
-		fmt.Fprintf(h.log, "store_error=%q\n", err.Error())
+		h.log.Warn("store_error=%q\n", err.Error())
 	}
 }
 
@@ -446,13 +441,13 @@ func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Reque
 	defer clientConn.Close()
 
 	if clientBuf.Reader.Buffered() != 0 {
-		fmt.Fprintf(h.log, "websocket id=%d buffered_client_bytes=%d\n", id, clientBuf.Reader.Buffered())
+		h.log.Info("id=%d buffered_client_bytes=%d\n", id, clientBuf.Reader.Buffered())
 	}
 
 	if err := upstreamResp.Write(clientConn); err != nil {
 		return err
 	}
-	fmt.Fprintf(h.log, "websocket id=%d status=%d content_type=%q\n", id, upstreamResp.StatusCode, upstreamResp.Header.Get("Content-Type"))
+	h.log.Websocket("id=%d status=%d content_type=%q\n", id, upstreamResp.StatusCode, upstreamResp.Header.Get("Content-Type"))
 	if upstreamResp.StatusCode != http.StatusSwitchingProtocols {
 		return nil
 	}
@@ -470,7 +465,7 @@ func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Reque
 		_ = clientConn.Close()
 	}()
 	wg.Wait()
-	fmt.Fprintf(h.log, "websocket id=%d complete=true\n", id)
+	h.log.Websocket("id=%d complete=true\n", id)
 	return nil
 }
 

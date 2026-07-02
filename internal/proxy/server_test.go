@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"copilot-monitoring/internal/log"
 	"copilot-monitoring/internal/store"
 )
 
@@ -80,7 +81,7 @@ func TestStripHopByHopHeadersAlsoStripsConnectionTokens(t *testing.T) {
 
 func TestHandlerPing(t *testing.T) {
 	var logs bytes.Buffer
-	h := NewHandler(&logs)
+	h := NewHandler(log.NewWriter(&logs))
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/_ping", nil)
 	rr := httptest.NewRecorder()
 
@@ -100,7 +101,7 @@ func TestHandlerPing(t *testing.T) {
 
 func TestHandlerUnknownPath(t *testing.T) {
 	var logs bytes.Buffer
-	h := NewHandler(&logs)
+	h := NewHandler(log.NewWriter(&logs))
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/nope", nil)
 	rr := httptest.NewRecorder()
 
@@ -122,7 +123,7 @@ func TestHandlerPersistsSSEUsage(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithStore(&logs, st, "test-project")
+	h := NewHandlerWithStore(log.NewWriter(&logs), st, "test-project")
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.URL.Host != GitHubCopilotAPIHost {
 			t.Fatalf("host = %q, want %q", req.URL.Host, GitHubCopilotAPIHost)
@@ -166,7 +167,7 @@ func TestHandlerWritesUsageDebugRecord(t *testing.T) {
 	}
 
 	var logs bytes.Buffer
-	h := NewHandlerWithStoreAndUsageDebug(&logs, nil, "", usageDebug)
+	h := NewHandlerWithStoreAndUsageDebug(log.NewWriter(&logs), nil, "", usageDebug)
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -216,7 +217,7 @@ func TestHandlerDoesNotPersistZeroUsageAgentRoutes(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithStore(&logs, st, "")
+	h := NewHandlerWithStore(log.NewWriter(&logs), st, "")
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -248,7 +249,7 @@ func TestHandlerPrefersRequestModelOverResponseModel(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithStore(&logs, st, "")
+	h := NewHandlerWithStore(log.NewWriter(&logs), st, "")
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,

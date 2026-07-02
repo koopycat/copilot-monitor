@@ -14,6 +14,7 @@ import (
 
 	"copilot-monitoring/internal/catalog"
 	costcalc "copilot-monitoring/internal/cost"
+	"copilot-monitoring/internal/log"
 	"copilot-monitoring/internal/proxy"
 	"copilot-monitoring/internal/store"
 )
@@ -129,7 +130,8 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 	defer usageDebug.Close()
 
-	handler := proxy.NewHandlerWithStoreAndUsageDebug(stderr, st, *project, usageDebug)
+	logWriter := log.NewWriter(stderr)
+	handler := proxy.NewHandlerWithStoreAndUsageDebug(logWriter, st, *project, usageDebug)
 	server := &http.Server{
 		Addr:              *addr,
 		Handler:           handler,
