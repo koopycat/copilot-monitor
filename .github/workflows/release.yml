@@ -1,0 +1,79 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build-${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-amd64
+            goos: linux
+            goarch: amd64
+            archive: tar.gz
+            binary: copilot-monitor
+          - target: linux-arm64
+            goos: linux
+            goarch: arm64
+            archive: tar.gz
+            binary: copilot-monitor
+          - target: darwin-amd64
+            goos: darwin
+            goarch: amd64
+            archive: tar.gz
+            binary: copilot-monitor
+          - target: darwin-arm64
+            goos: darwin
+            goarch: arm64
+            archive: tar.gz
+            binary: copilot-monitor
+          - target: windows-amd64
+            goos: windows
+            goarch: amd64
+            archive: zip
+            binary: copilot-monitor.exe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+          check-latest: true
+      - name: Verify
+        run: |
+          go vet ./...
+          go test ./...
+        shell: bash
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w" -o "dist/${{ matrix.binary }}" ./cmd/copilot-monitor
+      - name: Archive
+        shell: bash
+        run: |
+          cd dist
+          if [ "${{ matrix.archive }}" = "tar.gz" ]; then
+            tar -czf "copilot-monitor-${{ matrix.target }}.tar.gz" "${{ matrix.binary }}" README.md
+          else
+            zip -q "copilot-monitor-${{ matrix.target }}.zip" "${{ matrix.binary }}" README.md
+          fi
+      - name: Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/copilot-monitor-${{ matrix.target }}.tar.gz
+            dist/copilot-monitor-${{ matrix.target }}.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
