@@ -1,0 +1,14 @@
+root = "."
+test_cmd_name = "go test ./..."
+build_cmd = "go build -o ./copilot-monitor ./cmd/copilot-monitor"
+run_cmd = "./copilot-monitor serve --addr 127.0.0.1:7734 --db ~/.local/share/copilot-monitor/dev.db"
+
+include_ext = ["go", "html", "js", "css"]
+exclude_dir = [".git", ".devenv", ".firecrawl", "phase0", "vendor"]
+
+[log]
+main_only = false
+silent = false
+
+[misc]
+clean_on_exit = true

@@ -16,5 +16,8 @@ vet:
 fmt:
     go fmt ./...
 
+watch:
+    air
+
 clean:
     rm -f copilot-monitor phase0
