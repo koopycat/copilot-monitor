@@ -41,6 +41,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleToday(w, r)
 	case "/api/sessions":
 		h.handleSessions(w, r)
+	case "/api/stats/timeline":
+		h.handleTimeline(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -133,6 +135,26 @@ func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(rows)
+}
+
+func (h *Handler) handleTimeline(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	since := parseSinceParam(r)
+	granularity := r.URL.Query().Get("granularity")
+	if granularity != "hour" {
+		granularity = "day"
+	}
+	filter := store.StatsFilter{
+		Since:    since,
+		Project:  r.URL.Query().Get("project"),
+		Endpoint: r.URL.Query().Get("endpoint"),
+	}
+	buckets, err := h.db.Timeline(r.Context(), filter, granularity)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(buckets)
 }
 
 func parseSinceParam(r *http.Request) time.Time {

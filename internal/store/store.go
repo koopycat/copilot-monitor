@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"embed"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -46,14 +47,25 @@ type StatsFilter struct {
 }
 
 type ModelStats struct {
-	Model             string `json:"model"`
-	Endpoint          string `json:"endpoint"`
-	Requests          int    `json:"requests"`
-	PromptTokens      int    `json:"prompt_tokens"`
-	CachedInputTokens int    `json:"cached_input_tokens"`
-	CacheWriteTokens  int    `json:"cache_write_tokens"`
-	CompletionTokens  int    `json:"completion_tokens"`
-	TotalTokens       int    `json:"total_tokens"`
+	Model             string  `json:"model"`
+	Endpoint          string  `json:"endpoint"`
+	Requests          int     `json:"requests"`
+	PromptTokens      int     `json:"prompt_tokens"`
+	CachedInputTokens int     `json:"cached_input_tokens"`
+	CacheWriteTokens  int     `json:"cache_write_tokens"`
+	CompletionTokens  int     `json:"completion_tokens"`
+	TotalTokens       int     `json:"total_tokens"`
+	AvgLatencyMS      float64 `json:"avg_latency_ms"`
+}
+
+type TimelineBucket struct {
+	Date             string `json:"date"`
+	Hour             int    `json:"hour,omitempty"`
+	Model            string `json:"model"`
+	Requests         int    `json:"requests"`
+	PromptTokens     int    `json:"prompt_tokens"`
+	CompletionTokens int    `json:"completion_tokens"`
+	TotalTokens      int    `json:"total_tokens"`
 }
 
 func DefaultPath() string {
@@ -158,7 +170,8 @@ SELECT
   COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens,
   COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens,
   COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
-  COALESCE(SUM(total_tokens), 0) AS total_tokens
+  COALESCE(SUM(total_tokens), 0) AS total_tokens,
+  COALESCE(AVG(latency_ms), 0) AS avg_latency_ms
 FROM requests
 WHERE (? = '' OR ts >= ?)
   AND (? = '' OR project = ?)
@@ -178,7 +191,59 @@ ORDER BY total_tokens DESC, requests DESC, model ASC, endpoint ASC`
 	var out []ModelStats
 	for rows.Next() {
 		var row ModelStats
-		if err := rows.Scan(&row.Model, &row.Endpoint, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens); err != nil {
+		if err := rows.Scan(&row.Model, &row.Endpoint, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens, &row.AvgLatencyMS); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) Timeline(ctx context.Context, filter StatsFilter, granularity string) ([]TimelineBucket, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("nil store")
+	}
+	since := ""
+	if !filter.Since.IsZero() {
+		since = filter.Since.UTC().Format(time.RFC3339Nano)
+	}
+
+	var groupExpr, dateExpr string
+	switch granularity {
+	case "hour":
+		groupExpr = "strftime('%Y-%m-%d', ts), strftime('%H', ts)"
+		dateExpr = "strftime('%Y-%m-%d', ts) AS date, CAST(strftime('%H', ts) AS INTEGER) AS hour"
+	default:
+		groupExpr = "strftime('%Y-%m-%d', ts)"
+		dateExpr = "strftime('%Y-%m-%d', ts) AS date, 0 AS hour"
+	}
+
+	query := fmt.Sprintf(`
+SELECT
+  %s,
+  COALESCE(NULLIF(model, ''), '<unknown>') AS model,
+  COUNT(*) AS requests,
+  COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+  COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+  COALESCE(SUM(total_tokens), 0) AS total_tokens
+FROM requests
+WHERE (? = '' OR ts >= ?)
+  AND (? = '' OR project = ?)
+  AND (? = '' OR endpoint = ?)
+  AND model IS NOT NULL AND model != ''
+GROUP BY %s, model
+ORDER BY date ASC, hour ASC, model ASC`, dateExpr, groupExpr)
+
+	rows, err := s.db.QueryContext(ctx, query, since, since, filter.Project, filter.Project, filter.Endpoint, filter.Endpoint)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []TimelineBucket
+	for rows.Next() {
+		var row TimelineBucket
+		if err := rows.Scan(&row.Date, &row.Hour, &row.Model, &row.Requests, &row.PromptTokens, &row.CompletionTokens, &row.TotalTokens); err != nil {
 			return nil, err
 		}
 		out = append(out, row)
