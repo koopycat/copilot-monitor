@@ -265,3 +265,53 @@ func TestUnknownCommand(t *testing.T) {
 		t.Fatalf("unexpected stderr: %s", stderr.String())
 	}
 }
+
+func TestExportCommandCSV(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "store.db")
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = st.InsertRequest(context.Background(), store.RequestRecord{Timestamp: time.Now().UTC(), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-4o", Status: 200, PromptTokens: 10, CachedInputTokens: 5, CompletionTokens: 2, TotalTokens: 12, Project: "demo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.InsertRequest(context.Background(), store.RequestRecord{Timestamp: time.Now().UTC(), Endpoint: "agent", Method: "POST", Path: "/agents", UpstreamHost: "api.githubcopilot.com", Model: "<unknown>", Status: 200}); err != nil {
+		t.Fatal(err)
+	}
+	_ = st.Close()
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"export", "--db", dbPath, "--since", "all"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected header + at least 1 row, got:\n%s", out)
+	}
+	header := lines[0]
+	for _, want := range []string{"ts", "endpoint", "model", "prompt_tokens", "cached_input_tokens", "total_tokens", "project"} {
+		if !strings.Contains(header, want) {
+			t.Fatalf("header missing %q: %s", want, header)
+		}
+	}
+	if !strings.Contains(out, "gpt-4o") {
+		t.Fatalf("expected row referencing gpt-4o, got:\n%s", out)
+	}
+	if !strings.Contains(out, ",demo") {
+		t.Fatalf("expected demo project in a row, got:\n%s", out)
+	}
+	if strings.Contains(out, "<unknown>,agent,200") {
+		t.Fatalf("row with empty model should be excluded, got:\n%s", out)
+	}
+}
+
+func TestExportCommandInvalidDB(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"export", "--db", "/nonexistent/dir/store.db"}, &stdout, &stderr)
+	if code == 0 {
+		t.Fatalf("expected non-zero exit code, got 0")
+	}
+}

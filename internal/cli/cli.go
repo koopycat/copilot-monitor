@@ -73,7 +73,7 @@ Usage:
   copilot-monitor today [--db path] [--project name] [--endpoint chat]
   copilot-monitor sessions [--db path] [--since 30d] [--project name] [--limit 50]
   copilot-monitor serve [--addr 127.0.0.1:7734] [--db path]
-  copilot-monitor export [--format csv|json] [--since 30d] [--db path]
+  copilot-monitor export [--since 30d] [--db path]
   copilot-monitor version
 
 Commands:
