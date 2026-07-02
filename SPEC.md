@@ -22,6 +22,7 @@ Captures usage metadata, token counts, and estimated GitHub Copilot AI-credit co
 | Test | `just test` |
 | Static analysis | `go vet`, `staticcheck`, `govulncheck` (`just vet`) |
 | All checks | `just all` |
+| Hot reload | `just watch` (uses air) |
 
 ## CLI
 

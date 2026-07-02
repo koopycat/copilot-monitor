@@ -23,6 +23,18 @@ Run all checks:
 just all
 ```
 
+## Development
+
+Hot reload (server rebuilds on every `.go`, `.html`, or `.js` change):
+
+```sh
+just watch
+```
+
+Requires [air](https://github.com/cosmtrek/air) (`brew install air`).
+
+Live dashboard URL: `http://127.0.0.1:7734/`
+
 Print VSCode settings:
 
 ```sh
