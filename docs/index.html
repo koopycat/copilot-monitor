@@ -21,6 +21,9 @@
     --faint: #7d8590;
     --accent: #58a6ff;
     --accent-soft: rgba(88, 166, 255, 0.12);
+    --cta-dl: #1f6deb;
+    --cta-dl-hover: #2d7af0;
+    --link-hover: #79b8ff;
     --success: #3fb950;
     --success-soft: rgba(63, 185, 80, 0.1);
     --warning: #d29922;
@@ -43,6 +46,9 @@
       --faint: #6e7681;
       --accent: #0969da;
       --accent-soft: rgba(9, 105, 218, 0.08);
+      --cta-dl: #0969da;
+      --cta-dl-hover: #0550ae;
+      --link-hover: #0550ae;
       --success-soft: rgba(15, 81, 50, 0.1);
       --code-bg: #f6f8fa;
     }
@@ -60,7 +66,7 @@
   }
   .wrap { max-width: var(--max); margin: 0 auto; padding: 3rem 1.5rem; }
   a { color: var(--accent); text-decoration: none; transition: color 150ms; }
-  a:hover { color: #79b8ff; }
+  a:hover { color: var(--link-hover); }
 
   /* Hero */
   .hero { padding: 4rem 0 3rem; border-bottom: 1px solid var(--border); }
@@ -128,10 +134,9 @@
     border: 1px solid transparent;
     transition: background 150ms, border-color 150ms, color 150ms;
   }
-  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .btn.primary:hover { background: #4391ec; border-color: #4391ec; }
   .btn.ghost { background: transparent; color: var(--ink); border-color: var(--border); }
   .btn.ghost:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .btn.ghost:active { background: var(--accent-soft); }
 
   /* Sections */
   section { padding: 3.5rem 0; border-bottom: 1px solid var(--border); }
@@ -144,7 +149,7 @@
     text-wrap: balance;
   }
   section h2 + p { margin-top: 0; }
-  section h3 { font-size: 1.05rem; margin: 0 0 0.5rem; font-weight: 600; color: var(--ink-strong); }
+  section h3 { font-size: 1.05rem; margin: 0 0 0.5rem; font-weight: 600; color: var(--ink-strong); text-wrap: balance; }
   section p { margin: 0 0 1rem; color: var(--muted); }
   section p:last-child { margin-bottom: 0; }
   section p strong, section li strong { color: var(--ink-strong); font-weight: 600; }
@@ -322,37 +327,37 @@
     color: var(--ink-strong);
   }
 
-  /* Download */
-  .download-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1.5rem; }
-  @media (max-width: 720px) { .download-grid { grid-template-columns: 1fr; } }
-  .download-card {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1.25rem;
-    background: var(--surface);
+  /* Hero download */
+  .hero-download {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin: 2rem 0 1.25rem;
   }
-  .download-card h3 {
-    font-size: 0.95rem;
-    margin: 0 0 0.85rem;
-    color: var(--ink-strong);
+  @media (max-width: 720px) { .hero-download { grid-template-columns: 1fr; } }
+  .hero-dl-btn {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.45rem;
-  }
-  .download-card h3 svg { flex-shrink: 0; color: var(--muted); }
-  .dl-link {
-    display: block;
-    padding: 0.45rem 0.65rem;
-    margin-bottom: 0.45rem;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    color: var(--accent);
+    gap: 0.5rem;
+    padding: 1rem 0.75rem 0.85rem;
+    background: var(--cta-dl);
+    color: #fff;
+    border-radius: var(--radius);
     text-decoration: none;
-    transition: background 150ms, color 150ms;
+    font-weight: 550;
+    font-size: 0.925rem;
+    transition: background 150ms, transform 150ms;
   }
-  .dl-link:hover { background: var(--accent-soft); color: var(--accent-strong, var(--accent)); }
-  .dl-link:last-child { margin-bottom: 0; }
-  .dl-ext { color: var(--muted); font-size: 0.8rem; }
+  .hero-dl-btn:hover { background: var(--cta-dl-hover); transform: translateY(-1px); }
+  .hero-dl-btn:active { transform: translateY(0); }
+  .hero-dl-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius); }
+  .hero-dl-btn svg { opacity: 0.9; }
+  .hero-dl-sub {
+    font-size: 0.72rem;
+    font-weight: 400;
+    opacity: 0.72;
+  }
 
   /* Footer */
   footer { padding: 2.5rem 0 1rem; color: var(--faint); font-size: 0.8125rem; }
@@ -379,20 +384,42 @@
       No prompts, completions, source code, or auth headers are ever written to disk.
     </p>
 
-    <pre class="install"><span class="comment"># run the proxy</span>
-<span class="cmd">./copilot-monitor run</span><span class="arrow"> &amp;</span>
-
-<span class="comment"># start the dashboard API</span>
-<span class="cmd">./copilot-monitor serve</span>
-<span class="comment"># open http://127.0.0.1:7734</span></pre>
+    <div class="hero-download">
+      <a class="hero-dl-btn" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-arm64.tar.gz">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 2c1.93 0 3.5 1.57 3.5 3.5S10.43 9 8.5 9 5 7.43 5 5.5 6.57 2 8.5 2Z"/></svg>
+        Download for macOS
+        <span class="hero-dl-sub">Apple Silicon</span>
+      </a>
+      <a class="hero-dl-btn" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-amd64.tar.gz">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="m6 16 6-12 6 12"/><path d="M8 12h8"/></svg>
+        Download for Linux
+        <span class="hero-dl-sub">x86_64</span>
+      </a>
+      <a class="hero-dl-btn" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-windows-amd64.zip">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+        Download for Windows
+        <span class="hero-dl-sub">x86_64</span>
+      </a>
+    </div>
 
     <div class="actions">
-      <a class="btn primary" href="https://github.com/koopycat/copilot-monitor">View on GitHub <span aria-hidden="true">&rarr;</span></a>
+      <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor/releases">View all releases &rarr;</a>
+      <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor">GitHub <span aria-hidden="true">&rarr;</span></a>
       <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor/blob/main/README.md#quickstart">Quickstart</a>
       <a class="btn ghost" href="./architecture">Architecture</a>
       <a class="btn ghost" href="./api">API reference</a>
     </div>
   </header>
+
+  <section>
+    <h2>What it looks like</h2>
+    <p>Real screenshot of the local dashboard at <code>http://127.0.0.1:7734</code>, taken against seeded sample data. Your numbers, your view.</p>
+    <figure class="screenshot">
+      <a href="./assets/dashboard.png" target="_blank" rel="noopener">
+        <img src="./assets/dashboard.png" alt="Screenshot of the Copilot Monitor dashboard showing $8.42 estimated AI-credit cost over 30 days, 974 requests, a live session panel, a stacked usage chart, and a per-model breakdown with claude-3.5-sonnet leading at 286,303 tokens." width="1280" height="1100" loading="lazy">
+      </a>
+    </figure>
+  </section>
 
   <section>
     <h2>Why it exists</h2>
@@ -406,16 +433,6 @@
       estimated cost, and 30-minute session groupings. Local dashboard with a period selector
       (today / yesterday / 7d / 30d / 90d / 365d) and a JSON API for your own scripts.
     </p>
-  </section>
-
-  <section>
-    <h2>What it looks like</h2>
-    <p>Real screenshot of the local dashboard at <code>http://127.0.0.1:7734</code>, taken against seeded sample data. Your numbers, your view.</p>
-    <figure class="screenshot">
-      <a href="./assets/dashboard.png" target="_blank" rel="noopener">
-        <img src="./assets/dashboard.png" alt="Screenshot of the Copilot Monitor dashboard showing $8.42 estimated AI-credit cost over 30 days, 974 requests, a live session panel, a stacked usage chart, and a per-model breakdown with claude-3.5-sonnet leading at 286,303 tokens." width="1280" height="1100" loading="lazy">
-      </a>
-    </figure>
   </section>
 
   <section>
@@ -566,37 +583,6 @@
         <p>Every endpoint returns JSON. Every CLI command has <code>--json</code>. Queries are SQL against a SQLite file you own.</p>
       </div>
     </div>
-  </section>
-
-  <section>
-    <h2>Download</h2>
-    <p>Pre-built binaries for every platform. Pick your OS and architecture, extract, and run. No dependencies needed.</p>
-    <div class="download-grid">
-      <div class="download-card">
-        <h3>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="m6 16 6-12 6 12"/><path d="M8 12h8"/></svg>
-          Linux
-        </h3>
-        <a class="dl-link" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-amd64.tar.gz">x86_64 <span class="dl-ext">.tar.gz</span></a>
-        <a class="dl-link" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-arm64.tar.gz">ARM64 <span class="dl-ext">.tar.gz</span></a>
-      </div>
-      <div class="download-card">
-        <h3>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 2c1.93 0 3.5 1.57 3.5 3.5S10.43 9 8.5 9 5 7.43 5 5.5 6.57 2 8.5 2Z"/></svg>
-          macOS
-        </h3>
-        <a class="dl-link" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-arm64.tar.gz">Apple Silicon <span class="dl-ext">.tar.gz</span></a>
-        <a class="dl-link" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-amd64.tar.gz">Intel <span class="dl-ext">.tar.gz</span></a>
-      </div>
-      <div class="download-card">
-        <h3>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
-          Windows
-        </h3>
-        <a class="dl-link" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-windows-amd64.zip">x86_64 <span class="dl-ext">.zip</span></a>
-      </div>
-    </div>
-    <p style="margin-top: 1.25rem;"><a href="https://github.com/koopycat/copilot-monitor/releases">View all releases &rarr;</a></p>
   </section>
 
   <section>
