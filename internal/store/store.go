@@ -60,13 +60,13 @@ type ModelStats struct {
 }
 
 type TimelineBucket struct {
-	Date             string `json:"date"`
-	Hour             int    `json:"hour,omitempty"`
-	Model            string `json:"model"`
-	Requests         int    `json:"requests"`
-	PromptTokens     int    `json:"prompt_tokens"`
-	CompletionTokens int    `json:"completion_tokens"`
-	TotalTokens      int    `json:"total_tokens"`
+	Date             string  `json:"date"`
+	Hour             int     `json:"hour,omitempty"`
+	Model            string  `json:"model"`
+	Requests         int     `json:"requests"`
+	PromptTokens     int     `json:"prompt_tokens"`
+	CompletionTokens int     `json:"completion_tokens"`
+	TotalTokens      int     `json:"total_tokens"`
 	Cost             float64 `json:"cost"`
 }
 
