@@ -202,7 +202,7 @@ JSON output for machine processing:
 ./copilot-monitor sessions --since 7d --json
 ```
 
-`live` prints the current active session: status, project, duration, request count, total tokens, and per-model cost.
+`live` prints the current active session: status, project, duration, request count, total tokens, and a per-model overview with cache hit rate and cost.
 This is the same data the dashboard's "Live Session" panel shows, so you can check what is happening right now without opening a browser.
 
 ## Flags

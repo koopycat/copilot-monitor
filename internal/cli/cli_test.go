@@ -264,6 +264,57 @@ func TestRenderLiveCompact(t *testing.T) {
 	}
 }
 
+func TestRenderLiveModelOverview(t *testing.T) {
+	now := time.Now().UTC()
+	cat, err := catalog.LoadDefault()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := &store.CurrentSession{
+		StartedAt:     now.Add(-5 * time.Minute),
+		LastRequestAt: now.Add(-1 * time.Minute),
+		Project:       "p",
+		RequestCount:  6,
+		TokenCount:    9000,
+		Status:        "active",
+		Active:        true,
+		Models: []store.ModelStats{
+			{Model: "claude-3.5-sonnet", Endpoint: "chat/completions", Requests: 4, PromptTokens: 1000, CachedInputTokens: 100, CompletionTokens: 500},
+			{Model: "claude-3.5-sonnet", Endpoint: "responses", Requests: 1, PromptTokens: 500, CachedInputTokens: 0, CompletionTokens: 200},
+			{Model: "gpt-4.1", Endpoint: "chat/completions", Requests: 1, PromptTokens: 300, CachedInputTokens: 200, CompletionTokens: 100},
+		},
+	}
+	costResult := costcalc.Calculate(current.Models, cat)
+
+	var buf bytes.Buffer
+	renderLive(&buf, current, costResult)
+	out := buf.String()
+	// Model overview header
+	for _, want := range []string{
+		"MODEL",
+		"REQUESTS",
+		"CACHE HIT",
+		"COST",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("live overview missing %q:\n%s", want, out)
+		}
+	}
+	// claude-3.5-sonnet should be aggregated (4+1=5 req, not 4+1 separately)
+	// and should appear exactly once in the model section
+	if got := strings.Count(out, "claude-3.5-sonnet"); got != 1 {
+		t.Fatalf("claude-3.5-sonnet should appear once (aggregated), got %d:\n%s", got, out)
+	}
+	// TOTAL row should be present
+	if !strings.Contains(out, "TOTAL ") {
+		t.Fatalf("live overview missing TOTAL row:\n%s", out)
+	}
+	// Cache hit percent for claude-3.5-sonnet: 100/(1000+100+500+0) = 100/1600 ≈ 6%
+	if !strings.Contains(out, "6%") {
+		t.Fatalf("live overview missing 6%% cache hit for claude-3.5-sonnet:\n%s", out)
+	}
+}
+
 func TestLiveCommandJSON(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "store.db")
 	st, err := store.Open(dbPath)

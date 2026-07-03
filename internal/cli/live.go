@@ -123,17 +123,30 @@ func renderLive(w io.Writer, current *store.CurrentSession, costResult costcalc.
 		return
 	}
 
+	overview := aggregateByModel(costResult.Rows)
+
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "\nMODEL\tENDPOINT\tREQUESTS\tINPUT\tCACHED\tOUTPUT\tCOST")
-	for _, row := range costResult.Rows {
-		fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%s\t%s\t%s\n",
-			row.Model,
-			row.Endpoint,
-			row.Requests,
-			intComma(row.PromptTokens),
-			intComma(row.CachedInputTokens),
-			intComma(row.CompletionTokens),
-			formatUSD(row.TotalUSD),
+	fmt.Fprintln(tw, "\nMODEL\tREQUESTS\tINPUT\tCACHED\tCACHE HIT\tOUTPUT\tCOST")
+	for _, m := range overview {
+		fmt.Fprintf(tw, "%s\t%d\t%s\t%s\t%s\t%s\t%s\n",
+			m.model,
+			m.requests,
+			intComma(m.input),
+			intComma(m.cached),
+			m.cacheHit(),
+			intComma(m.output),
+			formatUSD(m.cost),
+		)
+	}
+	if len(overview) > 1 {
+		totals := modelTotals(overview)
+		fmt.Fprintf(tw, "TOTAL\t%d\t%s\t%s\t%s\t%s\t%s\n",
+			totals.requests,
+			intComma(totals.input),
+			intComma(totals.cached),
+			totals.cacheHit(),
+			intComma(totals.output),
+			formatUSD(totals.cost),
 		)
 	}
 	_ = tw.Flush()
@@ -141,6 +154,73 @@ func renderLive(w io.Writer, current *store.CurrentSession, costResult costcalc.
 	if costResult.FallbackCount > 0 || costResult.NotBilledCount > 0 {
 		fmt.Fprintf(w, "\n* provider or generic fallback pricing used for %d row(s). Code-completion rows are not billed in AI credits.\n", costResult.FallbackCount)
 	}
+}
+
+// modelSummary is a per-model rollup of cost rows.
+type modelSummary struct {
+	model    string
+	requests int
+	input    int
+	cached   int
+	output   int
+	cost     float64
+}
+
+func (m modelSummary) cacheHit() string {
+	total := m.input + m.cached
+	if total == 0 {
+		return "—"
+	}
+	pct := float64(m.cached) / float64(total) * 100
+	return fmt.Sprintf("%.0f%%", pct)
+}
+
+// aggregateByModel collapses per-endpoint rows into per-model rows, sorted by cost desc.
+func aggregateByModel(rows []costcalc.Row) []modelSummary {
+	byModel := make(map[string]*modelSummary)
+	order := []string{}
+	for _, r := range rows {
+		if m, ok := byModel[r.Model]; ok {
+			m.requests += r.Requests
+			m.input += r.PromptTokens
+			m.cached += r.CachedInputTokens
+			m.output += r.CompletionTokens
+			m.cost += r.TotalUSD
+		} else {
+			byModel[r.Model] = &modelSummary{
+				model:    r.Model,
+				requests: r.Requests,
+				input:    r.PromptTokens,
+				cached:   r.CachedInputTokens,
+				output:   r.CompletionTokens,
+				cost:     r.TotalUSD,
+			}
+			order = append(order, r.Model)
+		}
+	}
+	out := make([]modelSummary, 0, len(byModel))
+	for _, model := range order {
+		out = append(out, *byModel[model])
+	}
+	// sort by cost desc, stable to keep insertion order on ties
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0 && out[j].cost > out[j-1].cost; j-- {
+			out[j], out[j-1] = out[j-1], out[j]
+		}
+	}
+	return out
+}
+
+func modelTotals(rows []modelSummary) modelSummary {
+	var t modelSummary
+	for _, m := range rows {
+		t.requests += m.requests
+		t.input += m.input
+		t.cached += m.cached
+		t.output += m.output
+		t.cost += m.cost
+	}
+	return t
 }
 
 // renderLiveCompact writes a 3-line summary suitable for periodic refresh in a terminal.
@@ -157,7 +237,6 @@ func renderLiveCompact(current *store.CurrentSession, costResult costcalc.Total)
 	if project == "" {
 		project = "(mixed)"
 	}
-	top := topModels(costResult.Rows, 3)
 	header := fmt.Sprintf("Live session  %s   %s   %d req   %s tok   %s   project %s",
 		liveStatus(current),
 		duration,
@@ -166,23 +245,22 @@ func renderLiveCompact(current *store.CurrentSession, costResult costcalc.Total)
 		formatUSD(costResult.TotalUSD),
 		project,
 	)
+	overview := aggregateByModel(costResult.Rows)
+	top := topModelSummaries(overview, 3)
 	models := "  " + strings.Join(top, ", ")
 	return strings.TrimRight(header+"\n"+models, "\n")
 }
 
-func topModels(rows []costcalc.Row, n int) []string {
-	if len(rows) == 0 {
-		return nil
-	}
+func topModelSummaries(models []modelSummary, n int) []string {
 	out := make([]string, 0, n)
-	for _, r := range rows {
-		if r.Requests == 0 {
+	for _, m := range models {
+		if m.requests == 0 {
 			continue
 		}
-		out = append(out, fmt.Sprintf("%s %d", r.Model, r.Requests))
-	}
-	if len(out) > n {
-		out = out[:n]
+		out = append(out, fmt.Sprintf("%s %d", m.model, m.requests))
+		if len(out) >= n {
+			break
+		}
 	}
 	return out
 }
