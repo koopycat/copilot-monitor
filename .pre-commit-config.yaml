@@ -33,9 +33,15 @@ repos:
         language: system
         types: [go]
         pass_filenames: false
+      - id: dashboard-check
+        name: dashboard svelte-check
+        entry: bash -c 'cd dashboard && pnpm check'
+        language: system
+        files: ^dashboard/.*\.(svelte|ts|js)$
+        pass_filenames: false
       - id: e2e-eslint
         name: e2e eslint
-        entry: bash -c 'cd internal/e2e && npm run lint --silent'
+        entry: bash -c 'cd internal/e2e && pnpm lint'
         language: system
         files: ^internal/e2e/.*\.(js|json)$
         pass_filenames: false

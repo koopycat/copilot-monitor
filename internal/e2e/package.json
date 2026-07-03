@@ -6,7 +6,7 @@
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",
-    "seed": "go run ./seed/main.go ../testdata.db",
+    "seed": "go run ./seed/main.go ../../testdata.db",
     "lint": "eslint tests/ *.config.js",
     "lint:fix": "eslint tests/ *.config.js --fix"
   },
@@ -18,5 +18,6 @@
     "@playwright/test": "^1.61.1",
     "eslint": "^9.0.0",
     "globals": "^15.0.0"
-  }
+  },
+  "packageManager": "pnpm@10.17.1"
 }

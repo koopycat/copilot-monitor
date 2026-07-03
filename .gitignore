@@ -35,3 +35,8 @@ internal/e2e/screenshots/
 internal/e2e/test-results/
 internal/e2e/playwright-report/
 /testdata.db*
+
+# Dashboard (Vite + Svelte)
+dashboard/dist/
+dashboard/.svelte-kit/
+dashboard/node_modules/

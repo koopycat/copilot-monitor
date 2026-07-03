@@ -14,19 +14,31 @@ export default defineConfig({
   reporter: 'list',
   globalSetup: './setup/global-setup.js',
   use: {
-    baseURL: 'http://127.0.0.1:7739',
+    baseURL: 'http://127.0.0.1:5173',
     viewport: { width: 1440, height: 900 },
     screenshot: 'only-on-failure',
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
-  webServer: {
-    command: `go run ../../cmd/copilot-monitor serve --db ${DB_PATH} --addr 127.0.0.1:7739`,
-    url: 'http://127.0.0.1:7739/api/health',
-    timeout: 30_000,
-    reuseExistingServer: false, // always start fresh against the seeded DB
-    stdout: 'ignore',
-    stderr: 'pipe',
-  },
+  webServer: [
+    {
+      // Go API server (backend)
+      command: `go run ../../cmd/copilot-monitor serve --db ${DB_PATH} --addr 127.0.0.1:7739`,
+      url: 'http://127.0.0.1:7739/api/health',
+      timeout: 30_000,
+      reuseExistingServer: false,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      // Vite dev server (dashboard with API proxy)
+      command: 'pnpm --dir ../../dashboard dev',
+      url: 'http://127.0.0.1:5173',
+      timeout: 30_000,
+      reuseExistingServer: false,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  ],
 });

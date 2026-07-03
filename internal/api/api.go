@@ -6,19 +6,16 @@ import (
 	"strings"
 	"time"
 
-	"copilot-monitoring/internal/dashboard"
 	"copilot-monitoring/internal/store"
 )
 
 type Handler struct {
-	db        *store.Store
-	dashboard http.Handler
+	db *store.Store
 }
 
 func NewHandler(db *store.Store) *Handler {
 	return &Handler{
-		db:        db,
-		dashboard: dashboard.DashboardHandler(),
+		db: db,
 	}
 }
 
@@ -41,7 +38,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/export":
 		h.handleExport(w, r)
 	default:
-		h.dashboard.ServeHTTP(w, r)
+		http.NotFound(w, r)
 	}
 }
 
