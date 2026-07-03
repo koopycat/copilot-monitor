@@ -205,6 +205,14 @@ JSON output for machine processing:
 `live` prints the current active session: status, project, duration, request count, total tokens, and a per-model overview with cache hit rate and cost.
 This is the same data the dashboard's "Live Session" panel shows, so you can check what is happening right now without opening a browser.
 
+Add `--watch` to keep it refreshing on screen (like `watch` on Unix):
+
+```sh
+./copilot-monitor live --watch
+```
+
+Press `Ctrl+C` to stop.
+
 ## Flags
 
 | Flag | Default | Description |

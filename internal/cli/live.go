@@ -6,7 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"text/tabwriter"
 	"time"
 
@@ -20,6 +23,7 @@ func runLive(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
 	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
+	watchFlag := fs.Bool("watch", false, "refresh every 2s (Ctrl+C to stop)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -30,6 +34,10 @@ func runLive(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	defer st.Close()
+
+	if *watchFlag {
+		return runLiveWatch(stdout, st)
+	}
 
 	current, costResult, err := loadLiveSession(context.Background(), st)
 	if err != nil {
@@ -263,6 +271,44 @@ func topModelSummaries(models []modelSummary, n int) []string {
 		}
 	}
 	return out
+}
+
+// runLiveWatch continuously refreshes the full live view, clearing the screen before each render.
+func runLiveWatch(w io.Writer, st *store.Store) int {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		// Clear whole screen, move to home, render.
+		fmt.Fprint(w, "\x1b[2J\x1b[H")
+
+		current, costResult, err := loadLiveSession(context.Background(), st)
+		if err != nil {
+			// Sleep briefly then retry.
+			select {
+			case <-sigCh:
+				return 0
+			case <-ticker.C:
+				continue
+			}
+		}
+		if current == nil {
+			fmt.Fprintf(w, "No sessions captured yet.\n")
+			fmt.Fprintf(w, "Ctrl+C to stop\n")
+		} else {
+			renderLive(w, current, costResult)
+			fmt.Fprintf(w, "\nCtrl+C to stop")
+		}
+
+		select {
+		case <-sigCh:
+			return 0
+		case <-ticker.C:
+		}
+	}
 }
 
 func liveStatus(current *store.CurrentSession) string {
