@@ -20,7 +20,6 @@ The reporting endpoints are read-only, but the session endpoints rebuild derived
 | `GET` | `/api/sessions` | `?since=&project=&limit=50` | `[]SessionStats` |
 | `GET` | `/api/stats/timeline` | `?since=&granularity=day|hour` | `[]TimelineBucket` |
 | `GET` | `/api/export` | `?since=` | CSV dump of captured request metadata |
-| `GET` | `/api/compare` | `?a=YYYY-MM&b=YYYY-MM` or `?periods=2&bucket=month` | Two-period comparison with totals |
 | `GET` | `/` | none | HTML dashboard |
 
 ## Dashboard

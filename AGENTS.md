@@ -27,7 +27,7 @@ Follow standard Go style: tabs via `gofmt`, small packages, explicit error handl
 - `SPEC.md` is an index. Normative requirements live in `specs/`.
 - `specs/` contains implementation-independent requirements. Do not include code paths, file paths, package names, or implementation plans there.
 - `docs/` contains durable documentation for the current implementation, such as architecture, API behavior, operations, and troubleshooting.
-- `plan/` contains active planning artifacts that need to be kept. Delete obsolete or completed plans unless they preserve still-relevant rationale.
+
 - `PRODUCT.md` contains product intent, audience, and design principles.
 - Do not add temporary output, such as ad hoc implementation notes or scratch plans, to `docs/` or `specs/`.
 - Clean up temporary outputs after finishing a task.

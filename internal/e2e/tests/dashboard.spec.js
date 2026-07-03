@@ -1,12 +1,12 @@
 import { test, expect } from './fixtures.js';
 
 const PERIODS = [
-  { key: 'Today', label: 'today', showsCompare: false },
-  { key: 'Yesterday', label: 'yesterday', showsCompare: false },
-  { key: '7d', label: '7d', showsCompare: true },
-  { key: '30d', label: '30d', showsCompare: true },
-  { key: '90d', label: '90d', showsCompare: true },
-  { key: '365d', label: '365d', showsCompare: true },
+  { key: 'Today', label: 'today' },
+  { key: 'Yesterday', label: 'yesterday' },
+  { key: '7d', label: '7d' },
+  { key: '30d', label: '30d' },
+  { key: '90d', label: '90d' },
+  { key: '365d', label: '365d' },
 ];
 
 test.describe('Initial Load', () => {
@@ -18,30 +18,22 @@ test.describe('Initial Load', () => {
     await expect(page.locator('.metric-label').first()).toContainText('30d');
   });
 
-  test('chart, model table, live session, compare panel', async ({ loadedPage: page }) => {
+  test('chart, model table, and live session', async ({ loadedPage: page }) => {
     await expect(page.locator('#chart')).toBeVisible();
     await expect(page.locator('table tbody tr').first()).toBeVisible();
     await expect(page.locator('.live-session')).toBeVisible();
-    await expect(page.locator('.compare-grid')).toBeVisible();
   });
 });
 
 test.describe('Period Switching', () => {
   for (const period of PERIODS) {
-    test(`switches to ${period.key} and updates all sections`, async ({ loadedPage: page }) => {
+    test(`switches to ${period.key}`, async ({ loadedPage: page }) => {
       await page.locator(`.period-btn:has-text("${period.key}")`).click();
 
       await expect(page.locator('.period-btn.active')).toHaveText(period.key);
       await expect(page.locator('.metric-label').first()).toContainText(period.label);
       await expect(page.locator('#chart')).toBeVisible();
       await expect(page.locator('table tbody tr').first()).toBeVisible();
-
-      const compare = page.locator('.compare-grid');
-      if (period.showsCompare) {
-        await expect(compare).toBeVisible();
-      } else {
-        await expect(compare).toBeHidden();
-      }
     });
   }
 });

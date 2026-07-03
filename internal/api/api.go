@@ -40,8 +40,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleTimeline(w, r)
 	case "/api/export":
 		h.handleExport(w, r)
-	case "/api/compare":
-		h.handleCompare(w, r)
 	default:
 		h.dashboard.ServeHTTP(w, r)
 	}

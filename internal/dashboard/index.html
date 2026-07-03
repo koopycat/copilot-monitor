@@ -57,16 +57,6 @@
   <div class="chart-wrap"><canvas id="chart" role="img" aria-label="Usage chart"></canvas></div>
   <div class="legend" id="chart-legend"></div>
 
-  <h2 v-if="showCompare">Compare</h2>
-  <div v-if="showCompare" class="compare-grid">
-    <div class="compare-card" v-for="(p,i) in comparePeriods" :key="p.label || i">
-      <div class="compare-title">{{ compareLabel(p) }}</div>
-      <div class="compare-line"><span>Total cost</span><strong>{{ $usd(p.total_cost || 0) }}</strong></div>
-      <div class="compare-line"><span>Total tokens</span><strong>{{ $intl(p.total_tokens || 0) }}</strong></div>
-      <div class="compare-line"><span>Top model</span><strong>{{ topModel(p) }}</strong></div>
-    </div>
-  </div>
-
   <h2>Models</h2>
   <table>
     <thead><tr><th>Model</th><th>Requests</th><th>Cache&nbsp;%</th><th>Total Tokens</th><th>Latency</th><th>Total&nbsp;$</th></tr></thead>

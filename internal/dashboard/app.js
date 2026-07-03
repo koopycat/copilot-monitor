@@ -31,21 +31,6 @@ async function safeFetch(url) {
   }
 }
 
-function monthLabel(date) {
-  return date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0');
-}
-function currentMonthLabel() { return monthLabel(new Date()); }
-function previousMonthLabel() {
-  const now = new Date();
-  return monthLabel(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)));
-}
-function comparePeriodRank(period) {
-  if (!period || !period.label) return 2;
-  if (period.label === currentMonthLabel()) return 0;
-  if (period.label === previousMonthLabel()) return 1;
-  return 2;
-}
-
 function midnightToday() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -106,11 +91,9 @@ function App() {
     costRows: [],
     sessions: [],
     timeline: [],
-    compare: [],
     currentSession: null,
     currentSessionModels: [],
     sessionPulse: false,
-    showCompare: true,
     exportHref: '/api/export?since=30d',
     _lastSessionID: null,
     _lastSessionCount: null,
@@ -173,7 +156,6 @@ function App() {
       let href = '/api/export?since=' + encodeURIComponent(pq.since);
       if (pq.until) href += '&until=' + encodeURIComponent(pq.until);
       this.exportHref = href;
-      this.showCompare = this.period !== 'today' && this.period !== 'yesterday';
     },
     get liveSessionActive() {
       return !!(this.currentSession && this.currentSession.active);
@@ -195,13 +177,6 @@ function App() {
     get sessionModelsText() {
       if (!this.currentSessionModels.length) return '-';
       return this.currentSessionModels.map(m => m.model+' ('+intl(m.requests)+')').join(', ');
-    },
-    get comparePeriods() {
-      const periods = this.compare.length ? this.compare : [
-        { label: currentMonthLabel(), total_cost: 0, total_tokens: 0, models: [] },
-        { label: previousMonthLabel(), total_cost: 0, total_tokens: 0, models: [] },
-      ];
-      return periods.slice().sort((a, b) => comparePeriodRank(a) - comparePeriodRank(b));
     },
 
     switchPeriod(p) {
@@ -225,16 +200,6 @@ function App() {
       const pct = max ? val / max : 0;
       return Math.max(1, Math.round(pct * 60));
     },
-    compareLabel(period) {
-      if (!period || !period.label) return '-';
-      if (period.label === currentMonthLabel()) return 'This Month';
-      if (period.label === previousMonthLabel()) return 'Last Month';
-      return period.label;
-    },
-    topModel(period) {
-      const models = period && period.models ? period.models : [];
-      return models.length ? models[0].model : '-';
-    },
 
     async load() {
       try {
@@ -249,11 +214,8 @@ function App() {
           safeFetch('/api/cost?' + sinceParam),
           safeFetch('/api/sessions?' + sinceParam + '&limit=20'),
           safeFetch('/api/stats/timeline?' + timelineParams),
+          safeFetch('/api/session/current'),
         ];
-        if (this.showCompare) {
-          fetches.push(safeFetch('/api/compare'));
-        }
-        fetches.push(safeFetch('/api/session/current'));
 
         const results = await Promise.all(fetches);
         let idx = 0;
@@ -263,12 +225,6 @@ function App() {
         this.costRows = cost.rows || [];
         this.sessions = results[idx++] || [];
         this.timeline = results[idx++] || [];
-        if (this.showCompare) {
-          const comp = results[idx++] || {};
-          this.compare = comp.periods || [];
-        } else {
-          this.compare = [];
-        }
         const current = results[idx++] || {};
 
         this.updateCurrentSession(current);

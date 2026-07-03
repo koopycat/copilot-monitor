@@ -32,4 +32,6 @@ usage-debug*.jsonl
 /node_modules/
 internal/e2e/node_modules/
 internal/e2e/screenshots/
+internal/e2e/test-results/
+internal/e2e/playwright-report/
 /testdata.db*

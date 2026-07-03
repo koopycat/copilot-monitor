@@ -22,9 +22,3 @@ Documentation describes how the current project works or how contributors use it
 | [`docs/api.md`](docs/api.md) | Current read-only HTTP API and embedded dashboard reference |
 | [`AGENTS.md`](AGENTS.md) | Contributor and agent workflow rules |
 | [`PRODUCT.md`](PRODUCT.md) | Product intent, audience, and design principles |
-
-## Planning
-
-Planning documents are not normative requirements. Keep active planning in
-`plan/` only when it describes work that is still intended. Delete completed or
-obsolete plans instead of preserving stale history.

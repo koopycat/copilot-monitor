@@ -69,18 +69,7 @@ type TimelineBucket struct {
 	Cost             float64 `json:"cost"`
 }
 
-type CompareResult struct {
-	Periods []ComparePeriod `json:"periods"`
-}
 
-type ComparePeriod struct {
-	Label       string       `json:"label"`
-	Start       time.Time    `json:"start"`
-	End         time.Time    `json:"end"`
-	Models      []ModelStats `json:"models"`
-	Requests    int          `json:"requests"`
-	TotalTokens int          `json:"total_tokens"`
-}
 
 type ExportRow struct {
 	Timestamp         string `json:"ts"`
@@ -233,42 +222,6 @@ func (s *Store) queryModelStats(ctx context.Context, query string, args ...any) 
 		out = append(out, row)
 	}
 	return out, rows.Err()
-}
-
-func (s *Store) CompareStats(ctx context.Context, aStart, aEnd, bStart, bEnd time.Time) (CompareResult, error) {
-	if s == nil || s.db == nil {
-		return CompareResult{}, errors.New("nil store")
-	}
-	a, err := s.statsPeriod(ctx, aStart, aEnd)
-	if err != nil {
-		return CompareResult{}, err
-	}
-	b, err := s.statsPeriod(ctx, bStart, bEnd)
-	if err != nil {
-		return CompareResult{}, err
-	}
-	return CompareResult{Periods: []ComparePeriod{a, b}}, nil
-}
-
-func (s *Store) statsPeriod(ctx context.Context, start, end time.Time) (ComparePeriod, error) {
-	models, err := s.Stats(ctx, StatsFilter{Since: start, Until: end})
-	if err != nil {
-		return ComparePeriod{}, err
-	}
-	if models == nil {
-		models = []ModelStats{}
-	}
-	period := ComparePeriod{
-		Label:  start.UTC().Format("2006-01"),
-		Start:  start.UTC(),
-		End:    end.UTC(),
-		Models: models,
-	}
-	for _, row := range models {
-		period.Requests += row.Requests
-		period.TotalTokens += row.TotalTokens
-	}
-	return period, nil
 }
 
 func (s *Store) Timeline(ctx context.Context, filter StatsFilter, granularity string) ([]TimelineBucket, error) {

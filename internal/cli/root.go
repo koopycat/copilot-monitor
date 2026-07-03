@@ -29,8 +29,6 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runStats(args[1:], stdout, stderr)
 	case "cost":
 		return runCost(args[1:], stdout, stderr)
-	case "compare":
-		return runCompare(args[1:], stdout, stderr)
 	case "today":
 		return runToday(args[1:], stdout, stderr)
 	case "sessions":
@@ -54,7 +52,6 @@ Usage:
   copilot-monitor configure-vscode [--addr 127.0.0.1:7733]
   copilot-monitor stats [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
-  copilot-monitor compare [--db path] [--a 2026-06] [--b 2026-07]
   copilot-monitor today [--db path] [--project name] [--endpoint chat]
   copilot-monitor sessions [--db path] [--since 30d] [--project name] [--limit 50]
   copilot-monitor serve [--addr 127.0.0.1:7734] [--db path]
@@ -67,7 +64,6 @@ Commands:
   serve             Start the read-only HTTP API and dashboard.
   stats             Print captured usage grouped by model and endpoint.
   cost              Print estimated equivalent provider list-price cost.
-  compare           Compare estimated cost and tokens for two months.
   today             Print today's captured usage.
   sessions          Print captured sessions using a 30-minute inactivity gap.
   export            Export captured request metadata to CSV.
