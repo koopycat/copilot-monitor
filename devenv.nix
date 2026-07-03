@@ -9,9 +9,15 @@
     package = pkgs.nodejs_24;
   };
 
+  packages = with pkgs; [
+    pre-commit
+    gotools
+  ];
+
   enterShell = ''
     echo "go $(go version | cut -d' ' -f3)"
     echo "node $(node --version)"
+    echo "pre-commit $(pre-commit --version | cut -d' ' -f2)"
     echo "→ just all"
   '';
 }

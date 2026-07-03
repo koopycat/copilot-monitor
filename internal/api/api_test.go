@@ -81,5 +81,3 @@ func TestCurrentSessionEndpointEmptyDB(t *testing.T) {
 		t.Fatalf("models = %#v, want empty", response.Models)
 	}
 }
-
-

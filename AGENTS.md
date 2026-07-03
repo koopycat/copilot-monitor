@@ -15,6 +15,8 @@ Use the `justfile` as the main task runner:
 - `just fmt` formats Go code with `go fmt ./...`.
 - `just watch` starts hot reload with `air` for Go, HTML, and JavaScript changes.
 
+Pre-commit hooks (configured in `.pre-commit-config.yaml`) run automatically on `git commit` and on every PR via CI. They enforce formatting (`gofmt`, `goimports`), `go mod tidy`, `go vet`, `go test ./...`, and ESLint on the e2e tests. Install once with `pre-commit install`; bypass only with a strong reason and `git commit --no-verify`.
+
 For local use, run `./copilot-monitor serve` for the dashboard API or `./copilot-monitor run` for the proxy.
 
 ## Coding Style & Naming Conventions

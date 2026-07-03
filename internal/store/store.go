@@ -69,8 +69,6 @@ type TimelineBucket struct {
 	Cost             float64 `json:"cost"`
 }
 
-
-
 type ExportRow struct {
 	Timestamp         string `json:"ts"`
 	Endpoint          string `json:"endpoint"`
