@@ -16,6 +16,8 @@ func main() {
 		dbPath = os.Args[1]
 	}
 	os.Remove(dbPath)
+	os.Remove(dbPath + "-shm")
+	os.Remove(dbPath + "-wal")
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
