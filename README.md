@@ -1,7 +1,52 @@
 # Copilot Monitor
 
-Local HTTP reverse proxy for GitHub Copilot model API calls in VSCode.
-Captures usage metadata, token counts, and estimated GitHub Copilot AI-credit cost for every model interaction.
+**Know exactly what GitHub Copilot is doing on your machine.**
+
+A local HTTP reverse proxy that sits between VSCode and `api.githubcopilot.com`,
+recording per-request metadata, token counts, latency, and an estimated
+AI-credit cost. Everything is stored in a SQLite database on your machine.
+No cloud. No telemetry. No prompts, completions, source code, or auth headers
+are ever written to disk.
+
+```sh
+# run the proxy
+./copilot-monitor run &
+
+# start the dashboard API
+./copilot-monitor serve
+# → open http://127.0.0.1:7734
+```
+
+## Why
+
+GitHub Copilot picks models automatically, charges AI credits invisibly, and
+exposes usage summaries only on github.com with a 24-hour delay. You don't
+know which model handled your last prompt, whether you got a cache hit, or
+what that refactor session actually cost you.
+
+Copilot Monitor gives you the raw numbers from your own machine:
+**per-model token counts**, **latency**, **estimated cost**,
+and **30-minute session groupings** — all in a local dashboard with a
+period selector (today / yesterday / 7d / 30d / 90d / 365d) and a JSON API
+for your own scripts.
+
+## What it looks like
+
+```text
+est. AI-credit cost, 30d        Live Session
+$8.42   projected this month    ● active  $0.13   24 reqs   44,602 tok
+974 requests, 30d
+
+USAGE  [Day | Hour]  [Tokens | Requests]
+  ▆▅▆▇█▆▇█▅▆▇█▇█▆▇▆▇█▆▇▇█▆▇▆▇
+  claude-3.5-sonnet  gpt-4.1  o3  gpt-4.1-mini
+
+MODELS
+  claude-3.5-sonnet  113 req   286k tok   2.5s   $2.95
+  gpt-4.1            209 req   372k tok   2.4s   $2.85
+  o3                  102 req   320k tok   2.7s   $2.35
+  gpt-4.1-mini        110 req   147k tok   2.6s   $0.27
+```
 
 ## Quickstart
 

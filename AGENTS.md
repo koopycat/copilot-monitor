@@ -28,7 +28,9 @@ Follow standard Go style: tabs via `gofmt`, small packages, explicit error handl
 - `README.md` is for user-facing setup, smoke tests, and common commands.
 - `SPEC.md` is an index. Normative requirements live in `specs/`.
 - `specs/` contains implementation-independent requirements. Do not include code paths, file paths, package names, or implementation plans there.
-- `docs/` contains durable documentation for the current implementation, such as architecture, API behavior, operations, and troubleshooting.
+- `docs/` contains durable documentation for the current implementation, such as architecture, API behavior, operations, and troubleshooting. `docs/index.html` is the GitHub Pages landing page; `docs/api.md` and `docs/architecture.md` are linked from it.
+
+GitHub Pages is served from `/docs` on the default branch. To enable: repo Settings → Pages → Source → "Deploy from a branch" → `main` / `/docs`. No build step — `docs/index.html` is the static landing page.
 
 - `PRODUCT.md` contains product intent, audience, and design principles.
 - Do not add temporary output, such as ad hoc implementation notes or scratch plans, to `docs/` or `specs/`.

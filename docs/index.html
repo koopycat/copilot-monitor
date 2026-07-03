@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Copilot Monitor — Know exactly what GitHub Copilot is doing on your machine</title>
+<meta name="description" content="A local HTTP reverse proxy for GitHub Copilot. Captures per-model token counts, latency, and estimated AI-credit cost. SQLite on your machine. No cloud. No telemetry. No prompts stored.">
+<style>
+  *,*::before,*::after { box-sizing: border-box; }
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c2129;
+    --border: #30363d;
+    --ink: #c9d1d9;
+    --muted: #8b949e;
+    --faint: #6e7681;
+    --accent: #58a6ff;
+    --success: #3fb950;
+    --warning: #d29922;
+    --danger: #f85149;
+    --purple: #bc8cff;
+    --code-bg: #0b0e13;
+    --radius: 8px;
+    --max: 880px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --surface: #f6f8fa;
+      --surface-2: #eef1f4;
+      --border: #d0d7de;
+      --ink: #1f2328;
+      --muted: #59636e;
+      --faint: #818b98;
+      --accent: #0969da;
+      --code-bg: #f6f8fa;
+    }
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 3rem 1.5rem; }
+
+  /* Hero */
+  .hero { padding: 4rem 0 3rem; border-bottom: 1px solid var(--border); }
+  .badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--success);
+    background: rgba(63, 185, 80, 0.1);
+    border: 1px solid rgba(63, 185, 80, 0.3);
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    margin-bottom: 1.25rem;
+    letter-spacing: 0.02em;
+  }
+  h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+    line-height: 1.1;
+    margin: 0 0 1rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  h1 .accent { color: var(--accent); }
+  .lede {
+    font-size: 1.15rem;
+    color: var(--muted);
+    margin: 0 0 2rem;
+    max-width: 60ch;
+  }
+  .install {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.875rem;
+    line-height: 1.7;
+    color: var(--ink);
+  }
+  .install .comment { color: var(--faint); }
+  .install .cmd { color: var(--success); }
+  .actions { margin-top: 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 150ms, border-color 150ms, color 150ms;
+  }
+  .btn.primary { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
+  .btn.primary:hover { background: #4391ec; border-color: #4391ec; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--border); }
+  .btn.ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Sections */
+  section { padding: 3rem 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2 {
+    font-size: 1.5rem;
+    margin: 0 0 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  h3 { font-size: 1.05rem; margin: 0 0 0.5rem; font-weight: 600; color: var(--ink); }
+  p { margin: 0 0 1rem; color: var(--muted); }
+  p strong, li strong { color: var(--ink); }
+
+  /* Feature grid */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.5rem;
+  }
+  .feature {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+  }
+  .feature .icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: rgba(88, 166, 255, 0.12);
+    color: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin-bottom: 0.75rem;
+  }
+  .feature p { font-size: 0.9rem; margin: 0; }
+
+  /* Mock dashboard */
+  .mock {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.8rem;
+    overflow-x: auto;
+  }
+  .mock .row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .mock .metric { min-width: 140px; }
+  .mock .metric .label { color: var(--faint); font-size: 0.7rem; margin-top: 0.15rem; }
+  .mock .metric .value { color: var(--accent); font-size: 1.5rem; font-weight: 600; }
+  .mock .chart { display: flex; gap: 2px; align-items: end; height: 60px; margin: 1rem 0; }
+  .mock .chart .bar { flex: 1; background: var(--accent); border-radius: 2px 2px 0 0; min-width: 4px; }
+  .mock .chart .bar.alt { background: var(--success); }
+  .mock .chart .bar.dim { background: var(--purple); }
+  .mock .chart .bar.warn { background: var(--warning); }
+  .mock .legend { color: var(--faint); font-size: 0.7rem; margin-top: 0.5rem; }
+  .mock table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  .mock th, .mock td { padding: 0.3rem 0.5rem; text-align: right; border-bottom: 1px solid var(--border); color: var(--ink); }
+  .mock th { color: var(--faint); font-weight: 500; text-align: left; font-size: 0.7rem; }
+  .mock td:first-child, .mock th:first-child { text-align: left; }
+  .mock .pill { display: inline-block; padding: 0.05rem 0.4rem; border-radius: 3px; font-size: 0.65rem; border: 1px solid var(--border); color: var(--muted); }
+
+  /* Privacy */
+  .privacy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  @media (max-width: 600px) { .privacy-grid { grid-template-columns: 1fr; } }
+  .privacy-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    background: var(--surface);
+  }
+  .privacy-card h4 {
+    margin: 0 0 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .privacy-card.stored h4 { color: var(--success); }
+  .privacy-card.not-stored h4 { color: var(--danger); }
+  .privacy-card ul { margin: 0; padding-left: 1.25rem; color: var(--ink); }
+  .privacy-card li { margin: 0.25rem 0; font-size: 0.9rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface); padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.85em; }
+
+  /* Persona */
+  .personas { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1rem; }
+  .persona { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+  .persona h3 { font-size: 0.95rem; }
+  .persona p { font-size: 0.85rem; margin: 0; }
+
+  /* Footer */
+  footer { padding: 2rem 0; color: var(--faint); font-size: 0.85rem; }
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+  .footer-grid { display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: space-between; }
+  .footer-links { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="badge">● Local-only · No telemetry · Single binary</span>
+    <h1>Know exactly what <span class="accent">GitHub Copilot</span> is doing on your machine.</h1>
+    <p class="lede">
+      A local HTTP reverse proxy that records per-request metadata, token counts, latency, and an
+      estimated AI-credit cost. Everything is stored in SQLite on your machine.
+      No cloud. No telemetry. No prompts, completions, source code, or auth headers are ever written to disk.
+    </p>
+
+    <pre class="install"><span class="comment"># run the proxy</span>
+<span class="cmd">./copilot-monitor run</span> &amp;
+
+<span class="comment"># start the dashboard API</span>
+<span class="cmd">./copilot-monitor serve</span>
+<span class="comment"># → open http://127.0.0.1:7734</span></pre>
+
+    <div class="actions">
+      <a class="btn primary" href="https://github.com/koopycat/copilot-monitor">View on GitHub →</a>
+      <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor#quickstart">Quickstart</a>
+      <a class="btn ghost" href="./architecture">Architecture</a>
+      <a class="btn ghost" href="./api">API reference</a>
+    </div>
+  </header>
+
+  <section>
+    <h2>Why</h2>
+    <p>
+      GitHub Copilot picks models automatically, charges AI credits invisibly, and exposes usage summaries
+      only on <code>github.com</code> with a 24-hour delay. You don't know which model handled your last
+      prompt, whether you got a cache hit, or what that refactor session actually cost you.
+    </p>
+    <p>
+      Copilot Monitor gives you the raw numbers from your own machine: <strong>per-model token counts</strong>,
+      <strong>latency</strong>, <strong>estimated cost</strong>, and <strong>30-minute session groupings</strong>.
+      All in a local dashboard with a period selector (today / yesterday / 7d / 30d / 90d / 365d) and a JSON
+      API for your own scripts.
+    </p>
+  </section>
+
+  <section>
+    <h2>What it looks like</h2>
+    <div class="mock">
+      <div class="row">
+        <div class="metric">
+          <div class="value">$8.42</div>
+          <div class="label">est. AI-credit cost, 30d</div>
+        </div>
+        <div class="metric">
+          <div class="value">$0.13</div>
+          <div class="label">live session</div>
+        </div>
+        <div class="metric">
+          <div class="value">974</div>
+          <div class="label">requests, 30d</div>
+        </div>
+        <div class="metric">
+          <div class="value">2.5s</div>
+          <div class="label">avg latency</div>
+        </div>
+      </div>
+
+      <div class="chart" aria-hidden="true">
+        <div class="bar" style="height: 30%"></div>
+        <div class="bar alt" style="height: 45%"></div>
+        <div class="bar" style="height: 55%"></div>
+        <div class="bar alt" style="height: 70%"></div>
+        <div class="bar warn" style="height: 50%"></div>
+        <div class="bar" style="height: 80%"></div>
+        <div class="bar alt" style="height: 60%"></div>
+        <div class="bar dim" style="height: 40%"></div>
+        <div class="bar alt" style="height: 90%"></div>
+        <div class="bar warn" style="height: 55%"></div>
+        <div class="bar" style="height: 70%"></div>
+        <div class="bar alt" style="height: 85%"></div>
+        <div class="bar dim" style="height: 50%"></div>
+        <div class="bar alt" style="height: 75%"></div>
+        <div class="bar" style="height: 100%"></div>
+        <div class="bar alt" style="height: 65%"></div>
+        <div class="bar warn" style="height: 60%"></div>
+        <div class="bar alt" style="height: 90%"></div>
+        <div class="bar" style="height: 70%"></div>
+        <div class="bar dim" style="height: 45%"></div>
+        <div class="bar alt" style="height: 80%"></div>
+        <div class="bar" style="height: 55%"></div>
+        <div class="bar alt" style="height: 75%"></div>
+        <div class="bar warn" style="height: 65%"></div>
+      </div>
+      <div class="legend">stacked: claude-3.5-sonnet · gpt-4.1 · o3 · gpt-4.1-mini</div>
+
+      <table>
+        <thead><tr><th>Model</th><th>Requests</th><th>Cache&nbsp;%</th><th>Total Tokens</th><th>Latency</th><th>Total&nbsp;$</th></tr></thead>
+        <tbody>
+          <tr><td>claude-3.5-sonnet <span class="pill">chat</span></td><td>113</td><td>8%</td><td>286,303</td><td>2.5s</td><td>$2.95</td></tr>
+          <tr><td>gpt-4.1 <span class="pill">chat</span></td><td>89</td><td>5%</td><td>168,521</td><td>2.3s</td><td>$1.55</td></tr>
+          <tr><td>o3 <span class="pill">chat</span></td><td>102</td><td>15%</td><td>320,452</td><td>2.7s</td><td>$2.35</td></tr>
+          <tr><td>gpt-4.1-mini <span class="pill">chat</span></td><td>110</td><td>2%</td><td>147,403</td><td>2.6s</td><td>$0.27</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>What you get</h2>
+    <div class="features">
+      <div class="feature">
+        <div class="icon">$</div>
+        <h3>Real cost estimates</h3>
+        <p>Per-model AI-credit list-price estimates, broken down by prompt, cached input, cache write, and output tokens. Clearly labeled as estimates — never your actual bill.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">⌘</div>
+        <h3>CLI + JSON API</h3>
+        <p><code>stats</code>, <code>cost</code>, <code>today</code>, <code>sessions</code>, and <code>export</code> for shell scripts. Every endpoint also serves JSON for your own tooling.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">⏱</div>
+        <h3>Live session view</h3>
+        <p>Requests are grouped into sessions using a 30-minute inactivity gap. See the model mix, cost, and duration of the session you're in right now.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">📅</div>
+        <h3>Period drill-down</h3>
+        <p>Toggle between today, yesterday, 7d, 30d, 90d, and 365d in the dashboard. Every section — model distribution, sessions, cost — filters to the same window.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🔒</div>
+        <h3>Local-only by design</h3>
+        <p>Binds to <code>127.0.0.1</code>. SQLite lives at <code>~/.local/share/copilot-monitor/store.db</code>. No external requests. No analytics. No background uploads.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">✓</div>
+        <h3>Inspectable</h3>
+        <p>Single Go binary. The schema is <code>internal/store/schema.sql</code>. Read the source, audit the captures, trust what you see.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What is and isn't stored</h2>
+    <div class="privacy-grid">
+      <div class="privacy-card stored">
+        <h4>✓ Stored</h4>
+        <ul>
+          <li>Timestamp, endpoint, HTTP status</li>
+          <li>Model name (when known)</li>
+          <li>Latency (ms)</li>
+          <li>Token counts: input, cached input, cache write, output</li>
+          <li>Project label (optional)</li>
+          <li>Session grouping (derived)</li>
+        </ul>
+      </div>
+      <div class="privacy-card not-stored">
+        <h4>✗ Never stored</h4>
+        <ul>
+          <li>Prompt text</li>
+          <li>Completion text</li>
+          <li>Source code or repository paths</li>
+          <li>Auth headers, cookies, API keys</li>
+          <li>Anything from request or response bodies</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top: 1.5rem; font-size: 0.9rem;">
+      See <a href="https://github.com/koopycat/copilot-monitor/blob/main/SPEC.md">SPEC.md</a> for the full privacy contract.
+    </p>
+  </section>
+
+  <section>
+    <h2>Who it's for</h2>
+    <div class="personas">
+      <div class="persona">
+        <h3>Daily Copilot users</h3>
+        <p>You use Copilot Pro or Business every day and want to know which models you're actually calling, and what your prompts cost.</p>
+      </div>
+      <div class="persona">
+        <h3>Prompt optimizers</h3>
+        <p>You're tuning prompts for cache hit rate. Copilot Monitor exposes cached-input vs. uncached tokens per session so you can see what works.</p>
+      </div>
+      <div class="persona">
+        <h3>Privacy-sensitive devs</h3>
+        <p>You don't trust cloud-side telemetry. Read the schema, inspect the source, verify nothing leaves <code>127.0.0.1</code>.</p>
+      </div>
+      <div class="persona">
+        <h3>Tooling authors</h3>
+        <p>You want to pipe Copilot usage into your own dashboards. Every endpoint returns JSON; queries are SQL on a SQLite file you own.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Get started</h2>
+    <p>Clone the repo and use the devenv shell for the expected Go toolchain:</p>
+    <pre class="install"><span class="comment"># enter the dev shell</span>
+<span class="cmd">devenv shell</span>
+
+<span class="comment"># build</span>
+<span class="cmd">just build</span>
+
+<span class="comment"># run the proxy + dashboard</span>
+<span class="cmd">./copilot-monitor run</span> &amp;
+<span class="cmd">./copilot-monitor serve</span>
+
+<span class="comment"># in another terminal</span>
+<span class="cmd">./copilot-monitor configure-vscode</span>  <span class="comment"># paste into VSCode settings.json</span></pre>
+    <p>Open <a href="http://127.0.0.1:7734">http://127.0.0.1:7734</a> for the dashboard.</p>
+  </section>
+
+  <footer>
+    <div class="footer-grid">
+      <div>
+        Single-user local utility. Source available on
+        <a href="https://github.com/koopycat/copilot-monitor">GitHub</a>.
+      </div>
+      <div class="footer-links">
+        <a href="./api">API</a>
+        <a href="./architecture">Architecture</a>
+        <a href="https://github.com/koopycat/copilot-monitor/blob/main/SPEC.md">SPEC</a>
+        <a href="https://github.com/koopycat/copilot-monitor/blob/main/PRODUCT.md">Product</a>
+      </div>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>
