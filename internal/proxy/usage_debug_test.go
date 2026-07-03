@@ -24,7 +24,6 @@ func TestUsageDebugLoggerWritesJSONL(t *testing.T) {
 		RequestModel:  "gpt-5-mini",
 		Status:        200,
 		UsageDetected: true,
-		UsageObjects:  []json.RawMessage{json.RawMessage(`{"prompt_tokens":10,"completion_tokens":2}`)},
 	})
 	if closeErr := logger.Close(); err == nil {
 		err = closeErr
@@ -46,7 +45,7 @@ func TestUsageDebugLoggerWritesJSONL(t *testing.T) {
 	if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
 		t.Fatal(err)
 	}
-	if record.RequestModel != "gpt-5-mini" || !record.UsageDetected || len(record.UsageObjects) != 1 {
+	if record.RequestModel != "gpt-5-mini" || !record.UsageDetected {
 		t.Fatalf("record = %#v", record)
 	}
 }

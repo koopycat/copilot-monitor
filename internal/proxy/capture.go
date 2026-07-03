@@ -2,16 +2,13 @@ package proxy
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 )
 
 type RequestMetadata struct {
-	Model       string
-	Stream      bool
-	HasStream   bool
-	RequestHash string
+	Model     string
+	Stream    bool
+	HasStream bool
 }
 
 type Usage struct {
@@ -28,9 +25,6 @@ func ParseRequestMetadata(body []byte) RequestMetadata {
 	if len(trimmed) == 0 {
 		return meta
 	}
-
-	hash := sha256.Sum256(trimmed)
-	meta.RequestHash = hex.EncodeToString(hash[:])
 
 	var value any
 	if err := json.Unmarshal(trimmed, &value); err != nil {
@@ -113,26 +107,6 @@ func findUsage(value any) (Usage, bool) {
 		}
 	}
 	return Usage{}, false
-}
-
-func findRawUsageObjects(value any) []json.RawMessage {
-	var out []json.RawMessage
-	switch typed := value.(type) {
-	case map[string]any:
-		if raw, ok := typed["usage"]; ok {
-			if encoded, err := json.Marshal(raw); err == nil {
-				out = append(out, encoded)
-			}
-		}
-		for _, v := range typed {
-			out = append(out, findRawUsageObjects(v)...)
-		}
-	case []any:
-		for _, item := range typed {
-			out = append(out, findRawUsageObjects(item)...)
-		}
-	}
-	return out
 }
 
 func parseUsageObject(value any) (Usage, bool) {

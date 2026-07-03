@@ -105,15 +105,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	copyHeaders(w.Header(), StripHopByHopHeaders(resp.Header))
 	w.WriteHeader(resp.StatusCode)
-	var observer *SSEObserver
-	if shouldObserveResponse(route, resp.Header.Get("Content-Type")) {
-		observer = NewSSEObserver()
-	}
-	var preview *ResponsePreview
-	if resp.StatusCode >= 400 {
-		preview = NewResponsePreview(2048)
-	}
-	bytesWritten, err := streamResponse(w, resp.Body, observer, preview)
+	observer := newResponseObserver(route, resp.Header.Get("Content-Type"))
+	bytesWritten, err := streamResponse(w, resp.Body, observer)
 	if err != nil {
 		if r.Context().Err() != nil {
 			h.log.Info("id=%d client_disconnected=true bytes=%d\n", id, bytesWritten)
@@ -123,16 +116,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	latencyMS := time.Since(started).Milliseconds()
-	previewText := ""
-	if preview != nil {
-		previewText = preview.String()
-	}
 	if observer != nil {
-		h.log.Response("id=%d status=%d latency_ms=%d bytes=%d prompt_tokens=%d cached=%d cache_write=%d completions=%d total=%d model=%q parse_errors=%d\n",
+		h.log.Response("id=%d status=%d latency_ms=%d bytes=%d usage_seen=%t prompt_tokens=%d cached=%d cache_write=%d completions=%d total=%d model=%q parse_errors=%d\n",
 			id,
 			resp.StatusCode,
-			bytesWritten,
 			latencyMS,
+			bytesWritten,
 			observer.UsageSeen,
 			observer.Usage.PromptTokens,
 			observer.Usage.CachedInputTokens,
@@ -141,14 +130,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			observer.Usage.TotalTokens,
 			observer.Model,
 			observer.ParseErrors,
-			previewText,
 		)
-		h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, observer, previewText)
+		h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, observer)
 		h.writeUsageDebug(started, id, route, r, meta, resp, observer)
 		return
 	}
-	h.log.Info("id=%d status=%d bytes=%d latency_ms=%d error_preview=%q\n", id, resp.StatusCode, bytesWritten, latencyMS, previewText)
-	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, nil, previewText)
+	h.log.Info("id=%d status=%d bytes=%d latency_ms=%d\n", id, resp.StatusCode, bytesWritten, latencyMS)
+	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, nil)
 	h.writeUsageDebug(started, id, route, r, meta, resp, nil)
 }
 
@@ -162,18 +150,26 @@ func streamLogValue(meta RequestMetadata) string {
 	return "false"
 }
 
-func shouldObserveResponse(route Route, contentType string) bool {
+func newResponseObserver(route Route, contentType string) *SSEObserver {
 	if route.Capture != CaptureUsage && route.Capture != CaptureMetadata {
-		return false
+		return nil
 	}
-	return strings.Contains(strings.ToLower(contentType), "text/event-stream") || strings.Contains(strings.ToLower(contentType), "json")
+	contentType = strings.ToLower(contentType)
+	switch {
+	case strings.Contains(contentType, "text/event-stream"):
+		return NewSSEObserver()
+	case strings.Contains(contentType, "json"):
+		return NewJSONObserver()
+	default:
+		return nil
+	}
 }
 
-func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route, r *http.Request, meta RequestMetadata, status int, latencyMS int64, observer *SSEObserver, errText string) {
+func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route, r *http.Request, meta RequestMetadata, status int, latencyMS int64, observer *SSEObserver) {
 	if h.store == nil || route.Capture == CaptureNone || route.Capture == CaptureLocal || route.Capture == CaptureTunnel {
 		return
 	}
-	if errText == "" && route.Capture == CaptureUsage && (observer == nil || !observer.UsageSeen) {
+	if route.Capture == CaptureUsage && (observer == nil || !observer.UsageSeen) {
 		return
 	}
 	model := meta.Model
@@ -196,7 +192,6 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 		Model:             model,
 		Stream:            meta.Stream,
 		Status:            status,
-		Error:             errText,
 		LatencyMS:         latencyMS,
 		PromptTokens:      usage.PromptTokens,
 		CachedInputTokens: usage.CachedInputTokens,
@@ -204,7 +199,6 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 		CompletionTokens:  usage.CompletionTokens,
 		TotalTokens:       usage.TotalTokens,
 		Project:           h.project,
-		RequestHash:       meta.RequestHash,
 	}); err != nil {
 		h.log.Warn("store_error=%q\n", err.Error())
 	}

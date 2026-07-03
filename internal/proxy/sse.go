@@ -7,22 +7,33 @@ import (
 )
 
 type SSEObserver struct {
-	buf          []byte
-	Bytes        int64
-	Usage        Usage
-	UsageSeen    bool
-	UsageObjects []json.RawMessage
-	Model        string
-	ParseErrors  int
+	buf         []byte
+	plainJSON   bool
+	Bytes       int64
+	Usage       Usage
+	UsageSeen   bool
+	Model       string
+	ParseErrors int
 }
 
 func NewSSEObserver() *SSEObserver {
 	return &SSEObserver{}
 }
 
+func NewJSONObserver() *SSEObserver {
+	return &SSEObserver{plainJSON: true}
+}
+
 func (o *SSEObserver) Observe(chunk []byte) {
 	o.Bytes += int64(len(chunk))
 	o.buf = append(o.buf, chunk...)
+	if o.plainJSON {
+		if len(o.buf) > 4*1024*1024 {
+			o.buf = nil
+			o.ParseErrors++
+		}
+		return
+	}
 
 	for {
 		idx := bytes.IndexByte(o.buf, '\n')
@@ -45,6 +56,11 @@ func (o *SSEObserver) Finish() {
 		o.buf = nil
 		return
 	}
+	if o.plainJSON {
+		o.processJSON(o.buf)
+		o.buf = nil
+		return
+	}
 	line := append([]byte(nil), o.buf...)
 	o.buf = nil
 	o.processLine(line)
@@ -62,13 +78,16 @@ func (o *SSEObserver) processLine(line []byte) {
 		return
 	}
 
+	o.processJSON([]byte(data))
+}
+
+func (o *SSEObserver) processJSON(data []byte) {
 	var value any
-	if err := json.Unmarshal([]byte(data), &value); err != nil {
+	if err := json.Unmarshal(data, &value); err != nil {
 		o.ParseErrors++
 		return
 	}
 
-	o.UsageObjects = append(o.UsageObjects, findRawUsageObjects(value)...)
 	if usage, ok := findUsage(value); ok {
 		o.Usage = usage
 		o.UsageSeen = true

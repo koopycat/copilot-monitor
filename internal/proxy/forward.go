@@ -104,7 +104,7 @@ func copyHeaders(dst, src http.Header) {
 	}
 }
 
-func streamResponse(w http.ResponseWriter, body io.Reader, observer *SSEObserver, preview *ResponsePreview) (int64, error) {
+func streamResponse(w http.ResponseWriter, body io.Reader, observer *SSEObserver) (int64, error) {
 	flusher, _ := w.(http.Flusher)
 	buf := make([]byte, 32*1024)
 	var total int64
@@ -119,9 +119,6 @@ func streamResponse(w http.ResponseWriter, body io.Reader, observer *SSEObserver
 			chunk := buf[:n]
 			if observer != nil {
 				observer.Observe(chunk)
-			}
-			if preview != nil {
-				preview.Observe(chunk)
 			}
 			written, writeErr := w.Write(chunk)
 			total += int64(written)

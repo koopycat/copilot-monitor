@@ -25,7 +25,6 @@ type UsageDebugRecord struct {
 	Status          int                 `json:"status"`
 	ContentType     string              `json:"content_type,omitempty"`
 	UsageDetected   bool                `json:"usage_detected"`
-	UsageObjects    []json.RawMessage   `json:"usage_objects,omitempty"`
 	ResponseHeaders map[string][]string `json:"response_headers,omitempty"`
 }
 
@@ -95,7 +94,6 @@ func (h *Handler) writeUsageDebug(ts time.Time, id uint64, route Route, r *http.
 	if observer != nil {
 		record.ResponseModel = observer.Model
 		record.UsageDetected = observer.UsageSeen
-		record.UsageObjects = append([]json.RawMessage(nil), observer.UsageObjects...)
 	}
 	if err := h.usageDebug.Write(record); err != nil {
 		h.log.Warn("usage_debug_error=%q\n", err.Error())

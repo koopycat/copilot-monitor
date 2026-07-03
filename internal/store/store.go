@@ -37,7 +37,6 @@ type RequestRecord struct {
 	CompletionTokens  int
 	TotalTokens       int
 	Project           string
-	RequestHash       string
 }
 
 type StatsFilter struct {
@@ -163,8 +162,8 @@ func (s *Store) InsertRequest(ctx context.Context, rec RequestRecord) error {
 INSERT INTO requests (
   ts, endpoint, method, path, upstream_host, model, stream, status, error,
   latency_ms, prompt_tokens, cached_input_tokens, cache_write_tokens,
-  completion_tokens, total_tokens, project, request_hash
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  completion_tokens, total_tokens, project
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		rec.Timestamp.UTC().Format(time.RFC3339Nano),
 		rec.Endpoint,
 		rec.Method,
@@ -181,7 +180,6 @@ INSERT INTO requests (
 		nullInt(rec.CompletionTokens),
 		nullInt(rec.TotalTokens),
 		nullString(rec.Project),
-		nullString(rec.RequestHash),
 	)
 	return err
 }

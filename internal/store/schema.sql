@@ -16,8 +16,7 @@ CREATE TABLE IF NOT EXISTS requests (
   completion_tokens   INTEGER,
   total_tokens        INTEGER,
   project             TEXT,
-  session_id          INTEGER,
-  request_hash        TEXT
+  session_id          INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS sessions (

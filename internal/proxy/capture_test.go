@@ -10,18 +10,15 @@ func TestParseRequestMetadata(t *testing.T) {
 	if !meta.HasStream || !meta.Stream {
 		t.Fatalf("stream = %t, hasStream = %t", meta.Stream, meta.HasStream)
 	}
-	if meta.RequestHash == "" {
-		t.Fatal("request hash was empty")
-	}
 }
 
-func TestParseRequestMetadataInvalidJSONStillHashes(t *testing.T) {
+func TestParseRequestMetadataInvalidJSONReturnsEmptyMetadata(t *testing.T) {
 	meta := ParseRequestMetadata([]byte(`not json`))
 	if meta.Model != "" {
 		t.Fatalf("model = %q, want empty", meta.Model)
 	}
-	if meta.RequestHash == "" {
-		t.Fatal("request hash was empty")
+	if meta.HasStream || meta.Stream {
+		t.Fatalf("stream = %t, hasStream = %t, want empty", meta.Stream, meta.HasStream)
 	}
 }
 

@@ -157,6 +157,100 @@ func TestHandlerPersistsSSEUsage(t *testing.T) {
 	if stats[0].Model != "gpt-4o" || stats[0].PromptTokens != 7 || stats[0].CachedInputTokens != 2 || stats[0].CompletionTokens != 3 || stats[0].TotalTokens != 10 {
 		t.Fatalf("stats[0] = %#v", stats[0])
 	}
+	if strings.Contains(logs.String(), "%!") {
+		t.Fatalf("response log has formatting artifact: %s", logs.String())
+	}
+	for _, want := range []string{"usage_seen=true", "prompt_tokens=7", "total=10"} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("response log missing %q: %s", want, logs.String())
+		}
+	}
+}
+
+func TestHandlerPersistsJSONUsage(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	var logs bytes.Buffer
+	h := NewHandlerWithStore(log.NewWriter(&logs), st, "test-project")
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": {"application/json"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"model":"gpt-4o","usage":{"prompt_tokens":7,"prompt_tokens_details":{"cached_tokens":2},"completion_tokens":3,"total_tokens":10}}`)),
+		}, nil
+	})}
+
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-4o","stream":false}`))
+	req.Header.Set("Authorization", "Bearer secret")
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	stats, err := st.Stats(context.Background(), store.StatsFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("stats = %#v", stats)
+	}
+	if stats[0].Model != "gpt-4o" || stats[0].PromptTokens != 7 || stats[0].CachedInputTokens != 2 || stats[0].CompletionTokens != 3 || stats[0].TotalTokens != 10 {
+		t.Fatalf("stats[0] = %#v", stats[0])
+	}
+}
+
+func TestHandlerDoesNotRetainUpstreamErrorBody(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	const sensitive = "do not keep this prompt text"
+	var logs bytes.Buffer
+	h := NewHandlerWithStore(log.NewWriter(&logs), st, "")
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Header: http.Header{
+				"Content-Type": {"application/json"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"error":"` + sensitive + `"}`)),
+		}, nil
+	})}
+
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-4o","stream":false}`))
+	req.Header.Set("Authorization", "Bearer secret")
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+	if !strings.Contains(rr.Body.String(), sensitive) {
+		t.Fatalf("proxied response body = %q, want upstream body", rr.Body.String())
+	}
+	if strings.Contains(logs.String(), sensitive) {
+		t.Fatalf("logs retained upstream body: %s", logs.String())
+	}
+	stats, err := st.Stats(context.Background(), store.StatsFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 0 {
+		t.Fatalf("expected no persisted usage row for error body without usage, got: %#v", stats)
+	}
 }
 
 func TestHandlerWritesUsageDebugRecord(t *testing.T) {
@@ -201,7 +295,7 @@ func TestHandlerWritesUsageDebugRecord(t *testing.T) {
 	if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
 		t.Fatal(err)
 	}
-	if record.RequestModel != "gpt-5-mini" || record.ResponseModel != "gpt-5-mini" || !record.UsageDetected || len(record.UsageObjects) != 1 {
+	if record.RequestModel != "gpt-5-mini" || record.ResponseModel != "gpt-5-mini" || !record.UsageDetected {
 		t.Fatalf("record = %#v", record)
 	}
 	if record.ResponseHeaders["X-Request-Id"][0] != "abc" {
