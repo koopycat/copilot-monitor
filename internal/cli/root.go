@@ -70,7 +70,7 @@ Commands:
   compare           Compare estimated cost and tokens for two months.
   today             Print today's captured usage.
   sessions          Print captured sessions using a 30-minute inactivity gap.
-  export            Export raw request data to CSV or JSON.
+  export            Export captured request metadata to CSV.
   version           Print the version.
 `)+"\n")
 }

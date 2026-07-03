@@ -3,7 +3,7 @@
 This project is a small Go CLI around two local services:
 
 - `copilot-monitor run` starts the loopback reverse proxy that observes Copilot traffic.
-- `copilot-monitor serve` starts the read-only API and embedded dashboard over the captured SQLite data.
+- `copilot-monitor serve` starts the local reporting API and embedded dashboard over the captured SQLite data.
 
 The entry point is `cmd/copilot-monitor/main.go`, which delegates to `internal/cli.Run`.
 Normative behavior is defined in `specs/product-requirements.md` and
@@ -31,8 +31,8 @@ Capture behavior is centralized in `RoutePath`:
 - `internal/cli`: command parsing and user-facing commands (`run`, `serve`, `stats`, `cost`, `today`, `compare`, `sessions`, `export`, `configure-vscode`).
 - `internal/proxy`: routing, forwarding, SSE/JSON usage parsing, WebSocket tunneling, persistence calls, and optional usage debug logging.
 - `internal/store`: SQLite initialization, schema access, inserts, stats queries, exports, and session reconstruction.
-- `internal/api`: read-only HTTP API used by the dashboard.
-- `internal/dashboard`: embedded HTML, CSS, and dependency-light JavaScript dashboard.
+- `internal/api`: HTTP API used by the dashboard; session endpoints rebuild derived session state before responding.
+- `internal/dashboard`: embedded HTML, CSS, and JavaScript dashboard that loads Petite-Vue from `unpkg` at runtime.
 - `internal/cost`: converts aggregated token stats into estimated provider list-price costs.
 - `internal/catalog`: embedded model pricing catalog and fallback lookup logic.
 - `internal/log`: terminal log formatting.

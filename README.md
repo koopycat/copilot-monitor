@@ -5,7 +5,8 @@ Captures usage metadata, token counts, and estimated GitHub Copilot AI-credit co
 
 ## Quickstart
 
-Use the devenv shell for the expected Go toolchain. `devenv.nix` currently provides Go 1.26; `go.mod` declares the module language version as Go 1.25.0.
+Use the devenv shell for the expected Go toolchain. The project baseline is Go
+1.26, and CI/release builds use patched Go 1.26.4.
 
 Enter the devenv shell:
 
@@ -74,6 +75,7 @@ just watch
 Requires [air](https://github.com/air-verse/air) (`go install github.com/air-verse/air@latest`).
 
 Live dashboard URL: `http://127.0.0.1:7734/`
+The dashboard loads Petite-Vue from `unpkg` at runtime, so that page needs network access for the reactive runtime.
 
 Print VSCode settings:
 
