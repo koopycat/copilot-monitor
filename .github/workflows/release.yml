@@ -59,21 +59,19 @@ jobs:
           CGO_ENABLED: 0
         run: |
           mkdir -p dist
-          go build -trimpath -ldflags="-s -w" -o "dist/${{ matrix.binary }}" ./cmd/copilot-monitor
+          go build -trimpath -ldflags="-s -w -X copilot-monitoring/internal/cli.version=${{ github.ref_name }}" -o "dist/${{ matrix.binary }}" ./cmd/copilot-monitor
       - name: Archive
         shell: bash
         run: |
-          cd dist
+          cp README.md dist/README.md
           if [ "${{ matrix.archive }}" = "tar.gz" ]; then
-            tar -czf "copilot-monitor-${{ matrix.target }}.tar.gz" "${{ matrix.binary }}" README.md
+            tar -C dist -czf "dist/copilot-monitor-${{ matrix.target }}.tar.gz" "${{ matrix.binary }}" README.md
           else
-            zip -q "copilot-monitor-${{ matrix.target }}.zip" "${{ matrix.binary }}" README.md
+            (cd dist && zip -q "copilot-monitor-${{ matrix.target }}.zip" "${{ matrix.binary }}" README.md)
           fi
       - name: Upload
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/copilot-monitor-${{ matrix.target }}.tar.gz
-            dist/copilot-monitor-${{ matrix.target }}.zip
+          files: dist/copilot-monitor-${{ matrix.target }}.${{ matrix.archive }}
           generate_release_notes: true
           fail_on_unmatched_files: true

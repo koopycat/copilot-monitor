@@ -10,6 +10,8 @@
 *.db
 *.db-shm
 *.db-wal
+/tmp/
+/build-errors.log
 usage-debug*.jsonl
 
 # devenv

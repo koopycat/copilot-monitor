@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const version = "0.1.0-dev"
+var version = "0.1.0-dev"
 
 func Run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
