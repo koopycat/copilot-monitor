@@ -290,6 +290,10 @@
   .privacy-card.not-stored h4::before { background: var(--danger); }
   .privacy-card ul { margin: 0; padding-left: 1.25rem; color: var(--ink); }
   .privacy-card li { margin: 0.3rem 0; font-size: 0.875rem; }
+  .guarantees { list-style: none; padding: 0; margin: 1.25rem 0 0; }
+  .guarantees li { padding: 0.5rem 0 0.5rem 1rem; border-left: 2px solid var(--border-strong); margin: 0 0 0.5rem 0; font-size: 0.9375rem; color: var(--ink); }
+  .guarantees li:last-child { margin-bottom: 0; }
+  .guarantees strong { color: var(--ink-strong); font-weight: 600; }
 
   /* Personas: fewer, more substantive */
   .personas { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
@@ -317,6 +321,38 @@
     font-size: 0.85em;
     color: var(--ink-strong);
   }
+
+  /* Download */
+  .download-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1.5rem; }
+  @media (max-width: 720px) { .download-grid { grid-template-columns: 1fr; } }
+  .download-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    background: var(--surface);
+  }
+  .download-card h3 {
+    font-size: 0.95rem;
+    margin: 0 0 0.85rem;
+    color: var(--ink-strong);
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .download-card h3 svg { flex-shrink: 0; color: var(--muted); }
+  .dl-link {
+    display: block;
+    padding: 0.45rem 0.65rem;
+    margin-bottom: 0.45rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    color: var(--accent);
+    text-decoration: none;
+    transition: background 150ms, color 150ms;
+  }
+  .dl-link:hover { background: var(--accent-soft); color: var(--accent-strong, var(--accent)); }
+  .dl-link:last-child { margin-bottom: 0; }
+  .dl-ext { color: var(--muted); font-size: 0.8rem; }
 
   /* Footer */
   footer { padding: 2.5rem 0 1rem; color: var(--faint); font-size: 0.8125rem; }
@@ -474,7 +510,7 @@
 
   <section>
     <h2>What is and isn't stored</h2>
-    <p>The privacy contract is enforced by the schema, not by policy.</p>
+    <p>The privacy contract is enforced by the schema, not by policy. No prompt, completion, source code, or auth material is ever written to disk.</p>
     <div class="privacy-grid">
       <div class="privacy-card">
         <h4>Stored</h4>
@@ -498,7 +534,11 @@
         </ul>
       </div>
     </div>
-    <p>See <a href="https://github.com/koopycat/copilot-monitor/blob/main/SPEC.md">SPEC.md</a> for the full contract.</p>
+    <ul class="guarantees">
+      <li><strong>Loopback only.</strong> The proxy binds to <code>127.0.0.1</code> and the dashboard binds to <code>127.0.0.1</code>. Nothing is reachable from another machine.</li>
+      <li><strong>No external network calls.</strong> The binary never phones home, never updates itself, and never sends analytics. Verified by reading the source.</li>
+      <li><strong>Local file only.</strong> SQLite lives at <code>~/.local/share/copilot-monitor/store.db</code> on your machine. If you delete the file, every trace is gone.</li>
+    </ul>
   </section>
 
   <section>
@@ -529,7 +569,38 @@
   </section>
 
   <section>
-    <h2>Get started</h2>
+    <h2>Download</h2>
+    <p>Pre-built binaries for every platform. Pick your OS and architecture, extract, and run. No dependencies needed.</p>
+    <div class="download-grid">
+      <div class="download-card">
+        <h3>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="m6 16 6-12 6 12"/><path d="M8 12h8"/></svg>
+          Linux
+        </h3>
+        <a class="dl-link" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-amd64.tar.gz">x86_64 <span class="dl-ext">.tar.gz</span></a>
+        <a class="dl-link" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-arm64.tar.gz">ARM64 <span class="dl-ext">.tar.gz</span></a>
+      </div>
+      <div class="download-card">
+        <h3>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 2c1.93 0 3.5 1.57 3.5 3.5S10.43 9 8.5 9 5 7.43 5 5.5 6.57 2 8.5 2Z"/></svg>
+          macOS
+        </h3>
+        <a class="dl-link" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-arm64.tar.gz">Apple Silicon <span class="dl-ext">.tar.gz</span></a>
+        <a class="dl-link" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-amd64.tar.gz">Intel <span class="dl-ext">.tar.gz</span></a>
+      </div>
+      <div class="download-card">
+        <h3>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+          Windows
+        </h3>
+        <a class="dl-link" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-windows-amd64.zip">x86_64 <span class="dl-ext">.zip</span></a>
+      </div>
+    </div>
+    <p style="margin-top: 1.25rem;"><a href="https://github.com/koopycat/copilot-monitor/releases">View all releases &rarr;</a></p>
+  </section>
+
+  <section>
+    <h2>Build from source</h2>
     <p>Clone, build, run. The devenv shell provides the Go toolchain.</p>
     <pre class="install"><span class="comment"># clone and enter the dev shell</span>
 <span class="cmd">git clone https://github.com/koopycat/copilot-monitor</span>
@@ -556,8 +627,6 @@
       <div class="footer-links">
         <a href="./api">API</a>
         <a href="./architecture">Architecture</a>
-        <a href="https://github.com/koopycat/copilot-monitor/blob/main/SPEC.md">SPEC</a>
-        <a href="https://github.com/koopycat/copilot-monitor/blob/main/PRODUCT.md">Product</a>
       </div>
     </div>
   </footer>
