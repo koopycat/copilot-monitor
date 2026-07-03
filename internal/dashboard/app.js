@@ -112,8 +112,11 @@ function App() {
     _timer: null,
     _ro: null,
     _abort: null,
+    _initDone: false,
 
     init() {
+      if (this._initDone) return;
+      this._initDone = true;
       this.gran = periodGran(this.period);
       this._syncPeriodDerived();
       this.load();
@@ -125,7 +128,6 @@ function App() {
         });
         this._ro.observe(chartWrap);
       }
-      return () => this.stopTimer();
     },
     get maxToken() {
       return Math.max(1, ...this.stats.map(s => s.total_tokens));
@@ -310,3 +312,16 @@ document.addEventListener('alpine:init', () => {
   Alpine.magic('modelColor', () => modelColor);
 });
 Alpine.start();
+
+// Initialize the dashboard component after Alpine has set up reactivity.
+// Avoid x-init here because Alpine 3.14.9 evaluates x-init expressions twice,
+// and a returned cleanup function is invoked immediately which aborts the
+// initial in-flight data fetch.
+document.addEventListener('alpine:initialized', () => {
+  const root = document.getElementById('app');
+  if (root && root._x_dataStack) root._x_dataStack[0].init();
+});
+window.addEventListener('beforeunload', () => {
+  const root = document.getElementById('app');
+  if (root && root._x_dataStack) root._x_dataStack[0].stopTimer();
+});
