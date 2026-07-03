@@ -1,5 +1,11 @@
 # Copilot Monitor
 
+[![CI](https://github.com/koopycat/copilot-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/koopycat/copilot-monitor/actions/workflows/ci.yml)
+[![Go 1.26](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/)
+[![Release](https://img.shields.io/github/v/release/koopycat/copilot-monitor)](https://github.com/koopycat/copilot-monitor/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Go Report Card](https://goreportcard.com/badge/github.com/koopycat/copilot-monitor)](https://goreportcard.com/report/github.com/koopycat/copilot-monitor)
+
 **Know exactly what GitHub Copilot is doing on your machine.**
 
 A local HTTP reverse proxy that sits between VSCode and `api.githubcopilot.com`,
@@ -18,6 +24,31 @@ are ever written to disk.
 ```
 
 Project site: <https://koopycat.github.io/copilot-monitor/>
+
+## Download
+
+Prebuilt binaries for the latest release.
+The links below always resolve to whatever is currently the newest tag, so the table stays useful after every release.
+
+| OS | Architecture | Binary |
+| --- | --- | --- |
+| Linux | x86_64 | [copilot-monitor-linux-amd64.tar.gz](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-amd64.tar.gz) |
+| Linux | ARM64 | [copilot-monitor-linux-arm64.tar.gz](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-arm64.tar.gz) |
+| macOS | Intel | [copilot-monitor-darwin-amd64.tar.gz](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-amd64.tar.gz) |
+| macOS | Apple Silicon | [copilot-monitor-darwin-arm64.tar.gz](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-arm64.tar.gz) |
+| Windows | x86_64 | [copilot-monitor-windows-amd64.zip](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-windows-amd64.zip) |
+
+Extract and run:
+
+```sh
+tar -xzf copilot-monitor-linux-amd64.tar.gz
+./copilot-monitor run &
+./copilot-monitor serve
+# → open http://127.0.0.1:7734
+```
+
+Verify the binary matches the release on the [releases page](https://github.com/koopycat/copilot-monitor/releases) if you care about supply-chain integrity.
+For a reproducible build from source, see [Quickstart](#quickstart) below.
 
 ## Why
 
