@@ -152,87 +152,23 @@
   section li { margin: 0.2rem 0; }
   section li strong { color: var(--ink-strong); }
 
-  /* Mock dashboard: one authentic-looking window, not a metric row */
-  .mock {
-    background: var(--surface);
+  /* Real screenshot of the dashboard */
+  .screenshot {
+    margin: 1.5rem 0 0;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    margin-top: 1.5rem;
     overflow: hidden;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.8125rem;
-    color: var(--ink);
+    background: var(--surface);
   }
-  .mock-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.65rem 1rem;
-    border-bottom: 1px solid var(--border);
-    color: var(--faint);
-    font-size: 0.75rem;
+  .screenshot a {
+    display: block;
+    line-height: 0;
   }
-  .mock-bar .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong); }
-  .mock-bar .dot.r { background: #f85149; }
-  .mock-bar .dot.y { background: #d29922; }
-  .mock-bar .dot.g { background: #3fb950; }
-  .mock-bar .url { margin-left: auto; color: var(--faint); }
-  .mock-body { padding: 1.25rem 1.5rem; }
-  .mock-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.5rem 1rem;
-    margin-bottom: 1rem;
+  .screenshot img {
+    display: block;
+    width: 100%;
+    height: auto;
   }
-  .mock-head h3 { font-family: inherit; font-size: 0.95rem; margin: 0; }
-  .mock-head .period {
-    font-family: inherit;
-    font-size: 0.75rem;
-    color: var(--faint);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 0.15rem 0.65rem;
-  }
-  .mock-summary {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem 1.5rem;
-    padding: 1rem 0;
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  }
-  .mock-summary div { display: flex; flex-direction: column; }
-  .mock-summary dt { color: var(--faint); font-size: 0.75rem; margin: 0; font-weight: 400; }
-  .mock-summary dd { margin: 0; color: var(--ink-strong); font-size: 0.95rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .mock-section { margin-top: 1.25rem; }
-  .mock-section h4 {
-    margin: 0 0 0.6rem;
-    font-family: inherit;
-    font-size: 0.75rem;
-    color: var(--faint);
-    font-weight: 500;
-  }
-  .mock-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.4rem 0;
-    font-size: 0.8125rem;
-  }
-  .mock-row .name { color: var(--ink-strong); min-width: 130px; }
-  .mock-row .bar-track {
-    flex: 1;
-    height: 4px;
-    background: var(--border);
-    border-radius: 2px;
-    overflow: hidden;
-    min-width: 60px;
-  }
-  .mock-row .bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
-  .mock-row .num { color: var(--faint); font-size: 0.75rem; min-width: 90px; text-align: right; font-variant-numeric: tabular-nums; }
 
   /* How it works: data flow */
   .flow {
@@ -438,32 +374,12 @@
 
   <section>
     <h2>What it looks like</h2>
-    <p>A real local dashboard, served at <code>http://127.0.0.1:7734</code>:</p>
-    <div class="mock" role="img" aria-label="Dashboard showing $8.42 estimated AI-credit cost over 30 days across 974 requests, with claude-3.5-sonnet leading at 286,303 tokens.">
-      <div class="mock-bar" aria-hidden="true">
-        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-        <span class="url">127.0.0.1:7734</span>
-      </div>
-      <div class="mock-body">
-        <div class="mock-head">
-          <h3>Copilot Monitor</h3>
-          <span class="period">30 days</span>
-        </div>
-        <dl class="mock-summary">
-          <div><dt>est. AI-credit cost</dt><dd>$8.42</dd></div>
-          <div><dt>requests</dt><dd>974</dd></div>
-          <div><dt>live session cost</dt><dd>$0.13</dd></div>
-          <div><dt>avg latency</dt><dd>2.5s</dd></div>
-        </dl>
-        <div class="mock-section">
-          <h4>Models</h4>
-          <div class="mock-row"><span class="name">claude-3.5-sonnet</span><span class="bar-track"><span class="bar-fill" style="width:100%"></span></span><span class="num">286,303 tok</span></div>
-          <div class="mock-row"><span class="name">gpt-4.1</span><span class="bar-track"><span class="bar-fill" style="width:68%"></span></span><span class="num">168,521 tok</span></div>
-          <div class="mock-row"><span class="name">o3</span><span class="bar-track"><span class="bar-fill" style="width:59%"></span></span><span class="num">320,452 tok</span></div>
-          <div class="mock-row"><span class="name">gpt-4.1-mini</span><span class="bar-track"><span class="bar-fill" style="width:36%"></span></span><span class="num">147,403 tok</span></div>
-        </div>
-      </div>
-    </div>
+    <p>Real screenshot of the local dashboard at <code>http://127.0.0.1:7734</code>, taken against seeded sample data. Your numbers, your view.</p>
+    <figure class="screenshot">
+      <a href="./assets/dashboard.png" target="_blank" rel="noopener">
+        <img src="./assets/dashboard.png" alt="Screenshot of the Copilot Monitor dashboard showing $8.42 estimated AI-credit cost over 30 days, 974 requests, a live session panel, a stacked usage chart, and a per-model breakdown with claude-3.5-sonnet leading at 286,303 tokens." width="1280" height="1100" loading="lazy">
+      </a>
+    </figure>
   </section>
 
   <section>
