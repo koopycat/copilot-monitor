@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is a Go CLI and local proxy for monitoring GitHub Copilot API usage. The executable entry point is `cmd/copilot-monitor/main.go`; application code lives under `internal/`. Key packages are `internal/cli` for commands, `internal/proxy` for forwarding and capture, `internal/api` for the dashboard API, `internal/store` for SQLite persistence, `internal/cost` and `internal/catalog` for pricing/model data, and `internal/log` for terminal output. Dashboard assets live in `internal/dashboard/`; the schema is `internal/store/schema.sql`. Project docs are in `docs/`.
+This is a Go CLI and local proxy for monitoring GitHub Copilot API usage. The executable entry point is `cmd/copilot-monitor/main.go`; application code lives under `internal/`. Key packages are `internal/cli` for commands, `internal/proxy` for forwarding and capture, `internal/api` for the dashboard API, `internal/store` for SQLite persistence, `internal/cost` and `internal/catalog` for pricing/model data, and `internal/log` for terminal output. Dashboard assets live in `internal/dashboard/`; the schema is `internal/store/schema.sql`.
 
 ## Build, Test, and Development Commands
 
@@ -23,11 +23,15 @@ Follow standard Go style: tabs via `gofmt`, small packages, explicit error handl
 
 ## Agentic Workflows
 
-- Do not add temporary output, such as implementation plans, to the docs folders.
-- Use a dedicated `plan` folder for planning artifacts.
+- `README.md` is for user-facing setup, smoke tests, and common commands.
+- `SPEC.md` is an index. Normative requirements live in `specs/`.
+- `specs/` contains implementation-independent requirements. Do not include code paths, file paths, package names, or implementation plans there.
+- `docs/` contains durable documentation for the current implementation, such as architecture, API behavior, operations, and troubleshooting.
+- `plan/` contains active planning artifacts that need to be kept. Delete obsolete or completed plans unless they preserve still-relevant rationale.
+- `PRODUCT.md` contains product intent, audience, and design principles.
+- Do not add temporary output, such as ad hoc implementation notes or scratch plans, to `docs/` or `specs/`.
 - Clean up temporary outputs after finishing a task.
-- `docs` contains long-term documentation.
-- `specs` contains specifications without references to the actual implementation.
+- When behavior changes, update requirements, durable docs, and active plans only when each is actually affected.
 
 ## Testing Guidelines
 

@@ -6,6 +6,9 @@ This project is a small Go CLI around two local services:
 - `copilot-monitor serve` starts the read-only API and embedded dashboard over the captured SQLite data.
 
 The entry point is `cmd/copilot-monitor/main.go`, which delegates to `internal/cli.Run`.
+Normative behavior is defined in `specs/product-requirements.md` and
+`specs/privacy-requirements.md`; this document maps those requirements to the
+current implementation.
 
 ## Request Lifecycle
 
@@ -67,3 +70,16 @@ When changing persisted data:
 - Change session behavior: look at `internal/store/sessions.go` and the `sessions` command/API handlers.
 
 Run `just test` for ordinary changes and `just all` before submitting broader work.
+
+## Requirement Traceability
+
+| Requirement Area | Primary Implementation | Test Focus |
+|---|---|---|
+| `PROD-002`, `ROUTE-*` supported proxy routing | `internal/proxy/router.go` | `internal/proxy/router_test.go` |
+| `PROD-003`, `QUAL-001` forwarding behavior | `internal/proxy/forward.go`, `internal/proxy/server.go`, `internal/proxy/websocket.go` | `internal/proxy/*_test.go` |
+| `PROD-004`, `PRIV-001` through `PRIV-005` capture and privacy boundaries | `internal/proxy/capture.go`, `internal/proxy/sse.go`, `internal/proxy/server.go`, `internal/proxy/usage_debug.go` | `internal/proxy/*_test.go` |
+| `PROD-006`, `REPORT-*` CLI reports | `internal/cli/` | `internal/cli/cli_test.go` |
+| `PROD-007`, `REPORT-004` read-only API and dashboard | `internal/api/`, `internal/dashboard/` | `internal/api/api_test.go` |
+| `PROD-008` pricing estimates | `internal/catalog/`, `internal/cost/` | `internal/catalog/*_test.go`, `internal/cost/*_test.go` |
+| `PROD-010` sessions | `internal/store/sessions.go` | `internal/store/sessions_test.go` |
+| `PRIV-006` through `PRIV-010` locality, export, and sensitive derived data | `internal/store/`, `internal/cli/export.go`, `internal/api/export.go` | `internal/store/*_test.go`, `internal/cli/cli_test.go`, `internal/api/api_test.go` |

@@ -96,7 +96,9 @@ Reload VSCode:
 Cmd+Shift+P > Developer: Reload Window
 ```
 
-Use Copilot normally. The proxy stores every model API request in SQLite.
+Use Copilot normally. The proxy stores captured metadata and token counts in
+SQLite for routes configured for persistence; it does not store prompts,
+completions, source code, or auth material.
 
 ## Commands
 

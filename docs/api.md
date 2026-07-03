@@ -27,7 +27,8 @@ All endpoints are read-only. All support `?since=30d` and `?project=` filters un
 
 Embedded single-page HTML dashboard served by the API server.
 Petite-Vue for reactivity, canvas chart for timeline.
-No build step, no CDN (petite-vue loaded via import map from unpkg).
+No build step. Petite-Vue is loaded by an import map from `unpkg`, so the
+dashboard currently has a CDN dependency for the reactive runtime.
 
 Features:
 
@@ -40,7 +41,7 @@ Features:
 - Recent sessions table
 - Manual refresh button
 - Auto-refresh every 30 seconds
-- Export links (CSV and JSON)
+- CSV export link
 
 ## Files
 
@@ -53,7 +54,3 @@ internal/
 │   ├── app.js           # Petite-Vue app, state, fetch
 │   └── chart.js         # Canvas stacked bar chart
 ```
-
-## Planned
-
-See [`docs/advanced-analytics.md`](advanced-analytics.md) for period comparison and live session view plans.

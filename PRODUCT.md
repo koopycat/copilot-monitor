@@ -35,7 +35,7 @@ Three words: **data-first, developer, quiet.**
 2. **Developer aesthetic.** Dark terminal-inspired palette. Monospace-compatible. No marketing language.
 3. **Single screen, no chrome.** Everything visible without scrolling when possible. No sidebars, no tabs, no modals.
 4. **Honest numbers.** Cost estimates are clearly labeled as estimates. Fallbacks are tagged. Zero-billed items are marked.
-5. **Fast feedback.** Auto-refresh every 30 seconds. First paint in under 100ms (embedded, no CDN).
+5. **Fast feedback.** Auto-refresh every 30 seconds. Keep first paint fast and avoid a frontend build step.
 
 ## Accessibility & Inclusion
 
