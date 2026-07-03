@@ -28,7 +28,7 @@ Capture behavior is centralized in `RoutePath`:
 
 ## Package Map
 
-- `internal/cli`: command parsing and user-facing commands (`run`, `serve`, `stats`, `cost`, `today`, `sessions`, `export`, `configure-vscode`).
+- `internal/cli`: command parsing and user-facing commands (`run`, `serve`, `stats`, `cost`, `today`, `sessions`, `live`, `export`, `configure-vscode`).
 - `internal/proxy`: routing, forwarding, SSE/JSON usage parsing, WebSocket tunneling, persistence calls, and optional usage debug logging.
 - `internal/store`: SQLite initialization, schema access, inserts, stats queries, exports, and session reconstruction.
 - `internal/api`: HTTP API used by the dashboard; session endpoints rebuild derived session state before responding.
