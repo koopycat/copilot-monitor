@@ -56,10 +56,9 @@ know which model handled your last prompt, whether you got a cache hit, or
 what that refactor session actually cost you.
 
 Copilot Monitor gives you the raw numbers from your own machine:
-**per-model token counts**, **latency**, **estimated cost**,
-and **30-minute session groupings** — all in a local dashboard with a
-period selector (today / yesterday / 7d / 30d / 90d / 365d) and a JSON API
-for your own scripts.
+per-model token counts, latency, estimated cost, and 30-minute session
+groupings, all in a local dashboard with a period selector (today /
+yesterday / 7d / 30d / 90d / 365d) and a JSON API for your own scripts.
 
 ## What it looks like
 
