@@ -82,21 +82,3 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 	}
 	return 0
 }
-
-func formatDollars(value float64) string {
-	return fmt.Sprintf("$%.2f", value)
-}
-
-func formatTokens(value int) string {
-	return fmt.Sprintf("%d", value)
-}
-
-func formatDelta(from, to float64) string {
-	if from == 0 {
-		if to == 0 {
-			return "0%"
-		}
-		return "+100%"
-	}
-	return fmt.Sprintf("%+.0f%%", ((to-from)/from)*100)
-}
