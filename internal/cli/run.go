@@ -43,7 +43,15 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 	defer usageDebug.Close()
 
+	// The request log goes to stderr by default. When the live view is active
+	// (TTY + not --no-live), the log writer is silenced so the two streams
+	// don't interleave and corrupt the live display. Users who need the log
+	// can re-run with --no-live.
 	logWriter := log.NewWriter(stderr)
+	if !*noLive && log.IsTerminal(stderr) {
+		logWriter = log.Disabled()
+	}
+
 	handler := proxy.NewHandlerWithStoreAndUsageDebug(logWriter, st, *project, usageDebug)
 	server := &http.Server{
 		Addr:              *addr,

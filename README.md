@@ -169,7 +169,8 @@ Start the proxy:
 ```
 
 While the proxy runs, a live session tail refreshes every 2 seconds in your terminal: status, duration, request count, tokens, and estimated cost for the current session.
-Pass `--no-live` to disable it (useful when stderr is redirected to a log file).
+When the tail is active, the per-request log is suppressed so the two streams do not interleave and corrupt the live display.
+Pass `--no-live` to disable the tail and keep the full request log (also useful when stderr is redirected to a log file).
 
 Reload VSCode:
 
