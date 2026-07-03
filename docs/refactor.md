@@ -1,6 +1,10 @@
-# File Size Analysis & Refactor Plan
+# Historical File Size Analysis & Refactor Plan
 
 Sizes as of 2026-07-02. Tests excluded from split goals (they belong with their packages).
+
+This document is historical planning context. Some listed refactors have already
+been completed; verify the current tree with `rg --files internal/cli
+internal/proxy` before using this as an implementation plan.
 
 ## Largest files
 

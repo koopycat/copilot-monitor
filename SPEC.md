@@ -8,16 +8,16 @@ Captures usage metadata, token counts, and estimated GitHub Copilot AI-credit co
 | Document | Content |
 |---|---|
 | [`SPEC.md`](SPEC.md) | Core proxy architecture, routing, persistence, CLI (this file) |
+| [`docs/architecture.md`](docs/architecture.md) | Contributor request flow, package map, persistence rules |
 | [`docs/api.md`](docs/api.md) | Read-only HTTP API and embedded dashboard |
 | [`docs/statistics.md`](docs/statistics.md) | Planned statistics, visualizations, and timeline queries |
-
 | [`docs/advanced-analytics.md`](docs/advanced-analytics.md) | Planned features: period comparison, live session view |
 
 ## Platform
 
 | Concern | Tool |
 |---|---|
-| Language | Go 1.26+ (managed via [devenv](https://devenv.sh/)) |
+| Language | Go 1.25.0 module language version; Go 1.26 toolchain via [devenv](https://devenv.sh/) |
 | Build | `just build` |
 | Test | `just test` |
 | Static analysis | `go vet`, `staticcheck`, `govulncheck` (`just vet`) |
@@ -122,6 +122,7 @@ copilot_monitoring/
 │   ├── proxy/                  # HTTP reverse proxy (core)
 │   └── store/                  # SQLite persistence
 ├── docs/
+│   ├── architecture.md
 │   ├── api.md
 │   └── statistics.md
 ├── devenv.nix

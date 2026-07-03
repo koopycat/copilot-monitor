@@ -5,6 +5,8 @@ Captures usage metadata, token counts, and estimated GitHub Copilot AI-credit co
 
 ## Quickstart
 
+Use the devenv shell for the expected Go toolchain. `devenv.nix` currently provides Go 1.26; `go.mod` declares the module language version as Go 1.25.0.
+
 Enter the devenv shell:
 
 ```sh
@@ -22,6 +24,44 @@ Run all checks:
 ```sh
 just all
 ```
+
+## Contributor Smoke Test
+
+For a first local verification after checkout or before a small change:
+
+```sh
+devenv shell
+just test
+just build
+./copilot-monitor version
+```
+
+In one terminal, start the dashboard API:
+
+```sh
+./copilot-monitor serve --addr 127.0.0.1:7734
+```
+
+In another terminal, verify it responds:
+
+```sh
+curl http://127.0.0.1:7734/api/health
+```
+
+Then start the proxy:
+
+```sh
+./copilot-monitor run --addr 127.0.0.1:7733
+```
+
+And verify the local ping endpoint:
+
+```sh
+curl http://127.0.0.1:7733/_ping
+```
+
+Stop long-running processes with `Ctrl+C` when finished.
+Run `just all` before submitting changes.
 
 ## Development
 
@@ -84,6 +124,10 @@ JSON output for machine processing:
 | `--db` | `~/.local/share/copilot-monitor/store.db` | SQLite database path |
 | `--project` | none | optional project label for reporting |
 | `--usage-debug-log` | none | optional JSONL path for pricing research |
+
+`--usage-debug-log` is for local pricing research only. It should remain
+metadata-only: no prompts, completions, source code, auth headers, cookies, or
+API keys.
 
 ## What is stored
 
