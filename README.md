@@ -17,6 +17,8 @@ are ever written to disk.
 # → open http://127.0.0.1:7734
 ```
 
+Project site: <https://koopycat.github.io/copilot-monitor/>
+
 ## Why
 
 GitHub Copilot picks models automatically, charges AI credits invisibly, and

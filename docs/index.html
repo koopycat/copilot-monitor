@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Copilot Monitor - Know exactly what GitHub Copilot is doing on your machine</title>
+<meta name="description" content="A local HTTP reverse proxy for GitHub Copilot. Captures per-model token counts, latency, and estimated AI-credit cost. SQLite on your machine. No cloud. No telemetry. No prompts stored.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230d1117'/%3E%3Ctext x='8' y='11.5' font-family='ui-monospace,monospace' font-size='11' font-weight='600' text-anchor='middle' fill='%2358a6ff'%3E%24%3C/text%3E%3C/svg%3E">
+<style>
+  *,*::before,*::after { box-sizing: border-box; }
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c2129;
+    --border: #30363d;
+    --border-strong: #424a53;
+    --ink: #c9d1d9;
+    --ink-strong: #e6edf3;
+    --muted: #8b949e;
+    --faint: #7d8590;
+    --accent: #58a6ff;
+    --accent-soft: rgba(88, 166, 255, 0.12);
+    --success: #3fb950;
+    --success-soft: rgba(63, 185, 80, 0.1);
+    --warning: #d29922;
+    --danger: #f85149;
+    --code-bg: #0b0e13;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --max: 880px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --surface: #f6f8fa;
+      --surface-2: #eef1f4;
+      --border: #d0d7de;
+      --border-strong: #afb8c1;
+      --ink: #1f2328;
+      --ink-strong: #0d1117;
+      --muted: #59636e;
+      --faint: #6e7681;
+      --accent: #0969da;
+      --accent-soft: rgba(9, 105, 218, 0.08);
+      --success-soft: rgba(15, 81, 50, 0.1);
+      --code-bg: #f6f8fa;
+    }
+  }
+  html { scroll-behavior: smooth; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 3rem 1.5rem; }
+  a { color: var(--accent); text-decoration: none; transition: color 150ms; }
+  a:hover { color: #79b8ff; }
+
+  /* Hero */
+  .hero { padding: 4rem 0 3rem; border-bottom: 1px solid var(--border); }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--success);
+    background: var(--success-soft);
+    border: 1px solid color-mix(in oklab, var(--success) 30%, transparent);
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    margin-bottom: 1.5rem;
+  }
+  .badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+  }
+  h1 {
+    font-size: clamp(1.875rem, 4.5vw, 3rem);
+    line-height: 1.1;
+    margin: 0 0 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    text-wrap: balance;
+  }
+  h1 .accent { color: var(--accent); font-style: normal; }
+  .lede {
+    font-size: 1.125rem;
+    line-height: 1.55;
+    color: var(--muted);
+    margin: 0 0 2rem;
+    max-width: 60ch;
+  }
+  .install {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.875rem;
+    line-height: 1.7;
+    color: var(--ink-strong);
+    margin: 0;
+  }
+  .install .comment { color: var(--faint); }
+  .install .cmd { color: var(--success); }
+  .install .arrow { color: var(--faint); }
+  .actions { margin-top: 1.75rem; display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border: 1px solid transparent;
+    transition: background 150ms, border-color 150ms, color 150ms;
+  }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.primary:hover { background: #4391ec; border-color: #4391ec; }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--border); }
+  .btn.ghost:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+  /* Sections */
+  section { padding: 3.5rem 0; border-bottom: 1px solid var(--border); }
+  section:last-of-type { border-bottom: none; }
+  section h2 {
+    font-size: 1.5rem;
+    margin: 0 0 0.5rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  section h2 + p { margin-top: 0; }
+  section h3 { font-size: 1.05rem; margin: 0 0 0.5rem; font-weight: 600; color: var(--ink-strong); }
+  section p { margin: 0 0 1rem; color: var(--muted); }
+  section p:last-child { margin-bottom: 0; }
+  section p strong, section li strong { color: var(--ink-strong); font-weight: 600; }
+  section ul { color: var(--muted); padding-left: 1.25rem; margin: 0 0 1rem; }
+  section li { margin: 0.2rem 0; }
+  section li strong { color: var(--ink-strong); }
+
+  /* Mock dashboard: one authentic-looking window, not a metric row */
+  .mock {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-top: 1.5rem;
+    overflow: hidden;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.8125rem;
+    color: var(--ink);
+  }
+  .mock-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--faint);
+    font-size: 0.75rem;
+  }
+  .mock-bar .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong); }
+  .mock-bar .dot.r { background: #f85149; }
+  .mock-bar .dot.y { background: #d29922; }
+  .mock-bar .dot.g { background: #3fb950; }
+  .mock-bar .url { margin-left: auto; color: var(--faint); }
+  .mock-body { padding: 1.25rem 1.5rem; }
+  .mock-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .mock-head h3 { font-family: inherit; font-size: 0.95rem; margin: 0; }
+  .mock-head .period {
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--faint);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.15rem 0.65rem;
+  }
+  .mock-summary {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem 1.5rem;
+    padding: 1rem 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  .mock-summary div { display: flex; flex-direction: column; }
+  .mock-summary dt { color: var(--faint); font-size: 0.75rem; margin: 0; font-weight: 400; }
+  .mock-summary dd { margin: 0; color: var(--ink-strong); font-size: 0.95rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .mock-section { margin-top: 1.25rem; }
+  .mock-section h4 {
+    margin: 0 0 0.6rem;
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--faint);
+    font-weight: 500;
+  }
+  .mock-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.4rem 0;
+    font-size: 0.8125rem;
+  }
+  .mock-row .name { color: var(--ink-strong); min-width: 130px; }
+  .mock-row .bar-track {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    min-width: 60px;
+  }
+  .mock-row .bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+  .mock-row .num { color: var(--faint); font-size: 0.75rem; min-width: 90px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* How it works: data flow */
+  .flow {
+    margin-top: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    padding: 1.5rem;
+  }
+  .flow .flow-caption {
+    font-size: 0.8125rem;
+    color: var(--faint);
+    margin: 0 0 1.5rem;
+    text-align: center;
+  }
+  .flow .flow-caption .flow-step {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .flow svg { display: block; width: 100%; height: auto; }
+  .flow text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; fill: var(--ink); }
+  .flow .label { fill: var(--faint); }
+  .flow .box { fill: var(--surface-2); stroke: var(--border-strong); stroke-width: 1; }
+  .flow .box.proxy { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+  .flow .arrow { stroke: var(--border-strong); stroke-width: 1.5; fill: none; }
+  .flow .arrowhead { fill: var(--border-strong); }
+
+  /* Features: varied layout, not identical cards */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+  .feature {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    grid-column: span 2;
+  }
+  .feature.wide { grid-column: span 6; }
+  .feature.wide-inner {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 1.5rem;
+    align-items: center;
+  }
+  .feature.wide-inner > .icon { grid-row: span 2; align-self: start; }
+  .feature.wide-inner > h3, .feature.wide-inner > p, .feature.wide-inner > .terminal { grid-column: 2; }
+  .feature.wide-inner > .terminal { grid-column: 2; margin-top: 0; }
+  @media (max-width: 720px) {
+    .features { grid-template-columns: 1fr; }
+    .feature, .feature.wide { grid-column: span 1; }
+    .feature.wide-inner { grid-template-columns: 1fr; }
+    .feature.wide-inner > .icon { grid-row: auto; }
+    .feature.wide-inner > h3, .feature.wide-inner > p, .feature.wide-inner > .terminal { grid-column: 1; }
+  }
+  .feature h3 { font-size: 1rem; margin: 0 0 0.4rem; color: var(--ink-strong); }
+  .feature p { font-size: 0.875rem; margin: 0; }
+  .feature .icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 7px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 0.65rem;
+  }
+  .feature .terminal {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    line-height: 1.7;
+    color: var(--ink);
+    overflow-x: auto;
+  }
+  .feature .terminal .prompt { color: var(--success); user-select: none; }
+  .feature .terminal .out { color: var(--faint); }
+  .feature .terminal .num { color: var(--accent); }
+
+  /* Privacy: present, not bannered */
+  .privacy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+  @media (max-width: 600px) { .privacy-grid { grid-template-columns: 1fr; } }
+  .privacy-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    background: var(--surface);
+  }
+  .privacy-card h4 {
+    margin: 0 0 0.75rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--ink-strong);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .privacy-card h4::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+  }
+  .privacy-card.not-stored h4::before { background: var(--danger); }
+  .privacy-card ul { margin: 0; padding-left: 1.25rem; color: var(--ink); }
+  .privacy-card li { margin: 0.3rem 0; font-size: 0.875rem; }
+
+  /* Personas: fewer, more substantive */
+  .personas { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
+  @media (max-width: 720px) { .personas { grid-template-columns: 1fr; } }
+  .persona { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; background: var(--surface); }
+  .persona h3 { font-size: 0.95rem; margin: 0 0 0.5rem; color: var(--ink-strong); }
+  .persona p { font-size: 0.875rem; margin: 0 0 0.5rem; }
+  .persona p:last-child { margin-bottom: 0; }
+  .persona .signal {
+    display: inline-block;
+    color: var(--accent);
+    background: var(--accent-soft);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+  }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--surface);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.85em;
+    color: var(--ink-strong);
+  }
+
+  /* Footer */
+  footer { padding: 2.5rem 0 1rem; color: var(--faint); font-size: 0.8125rem; }
+  footer a { color: var(--muted); transition: color 150ms; }
+  footer a:hover { color: var(--accent); }
+  .footer-grid { display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+  .footer-links { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,*::before,*::after { transition: none !important; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="badge">Local-only proxy</span>
+    <h1>Know exactly what <span class="accent">GitHub Copilot</span> is doing on your machine.</h1>
+    <p class="lede">
+      A local HTTP reverse proxy that records per-request metadata, token counts, latency, and an
+      estimated AI-credit cost. Stored in SQLite on your machine. No cloud. No telemetry.
+      No prompts, completions, source code, or auth headers are ever written to disk.
+    </p>
+
+    <pre class="install"><span class="comment"># run the proxy</span>
+<span class="cmd">./copilot-monitor run</span><span class="arrow"> &amp;</span>
+
+<span class="comment"># start the dashboard API</span>
+<span class="cmd">./copilot-monitor serve</span>
+<span class="comment"># open http://127.0.0.1:7734</span></pre>
+
+    <div class="actions">
+      <a class="btn primary" href="https://github.com/koopycat/copilot-monitor">View on GitHub <span aria-hidden="true">&rarr;</span></a>
+      <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor/blob/main/README.md#quickstart">Quickstart</a>
+      <a class="btn ghost" href="./architecture">Architecture</a>
+      <a class="btn ghost" href="./api">API reference</a>
+    </div>
+  </header>
+
+  <section>
+    <h2>Why it exists</h2>
+    <p>
+      GitHub Copilot picks models automatically, charges AI credits invisibly, and exposes usage summaries
+      only on <code>github.com</code> with a 24-hour delay. You don't know which model handled your last
+      prompt, whether you got a cache hit, or what that refactor session actually cost you.
+    </p>
+    <p>
+      Copilot Monitor gives you the raw numbers from your own machine: per-model token counts, latency,
+      estimated cost, and 30-minute session groupings. Local dashboard with a period selector
+      (today / yesterday / 7d / 30d / 90d / 365d) and a JSON API for your own scripts.
+    </p>
+  </section>
+
+  <section>
+    <h2>What it looks like</h2>
+    <p>A real local dashboard, served at <code>http://127.0.0.1:7734</code>:</p>
+    <div class="mock" role="img" aria-label="Dashboard showing $8.42 estimated AI-credit cost over 30 days across 974 requests, with claude-3.5-sonnet leading at 286,303 tokens.">
+      <div class="mock-bar" aria-hidden="true">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="url">127.0.0.1:7734</span>
+      </div>
+      <div class="mock-body">
+        <div class="mock-head">
+          <h3>Copilot Monitor</h3>
+          <span class="period">30 days</span>
+        </div>
+        <dl class="mock-summary">
+          <div><dt>est. AI-credit cost</dt><dd>$8.42</dd></div>
+          <div><dt>requests</dt><dd>974</dd></div>
+          <div><dt>live session cost</dt><dd>$0.13</dd></div>
+          <div><dt>avg latency</dt><dd>2.5s</dd></div>
+        </dl>
+        <div class="mock-section">
+          <h4>Models</h4>
+          <div class="mock-row"><span class="name">claude-3.5-sonnet</span><span class="bar-track"><span class="bar-fill" style="width:100%"></span></span><span class="num">286,303 tok</span></div>
+          <div class="mock-row"><span class="name">gpt-4.1</span><span class="bar-track"><span class="bar-fill" style="width:68%"></span></span><span class="num">168,521 tok</span></div>
+          <div class="mock-row"><span class="name">o3</span><span class="bar-track"><span class="bar-fill" style="width:59%"></span></span><span class="num">320,452 tok</span></div>
+          <div class="mock-row"><span class="name">gpt-4.1-mini</span><span class="bar-track"><span class="bar-fill" style="width:36%"></span></span><span class="num">147,403 tok</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>How it works</h2>
+    <p>A reverse proxy sits between VSCode and the Copilot API, capturing metadata on the way through. Output goes to a local SQLite file and a dashboard on loopback.</p>
+    <div class="flow" aria-label="Data flow diagram: VSCode requests go through the local copilot-monitor proxy, which forwards them to the Copilot API and persists metadata to a local SQLite database. The dashboard reads from that database.">
+      <p class="flow-caption"><span class="flow-step">request</span> &rarr; <strong>copilot-monitor</strong> &rarr; <span class="flow-step">response</span> &nbsp;&middot;&nbsp; metadata &rarr; SQLite &nbsp;&middot;&nbsp; dashboard reads SQLite</p>
+      <svg viewBox="0 0 720 180" xmlns="http://www.w3.org/2000/svg" role="presentation">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" class="arrowhead"/>
+          </marker>
+        </defs>
+
+        <!-- Row 1: client -> proxy -> upstream -->
+        <rect class="box" x="20" y="20" width="110" height="40" rx="6"/>
+        <text x="75" y="45" text-anchor="middle">VSCode</text>
+
+        <rect class="box proxy" x="280" y="10" width="160" height="60" rx="6"/>
+        <text x="360" y="38" text-anchor="middle" fill="var(--ink-strong)" font-weight="600">copilot-monitor</text>
+        <text x="360" y="56" text-anchor="middle" class="label">run &middot; :7733</text>
+
+        <rect class="box" x="590" y="20" width="110" height="40" rx="6"/>
+        <text x="645" y="45" text-anchor="middle">api.githubcopilot.com</text>
+
+        <line class="arrow" x1="130" y1="40" x2="278" y2="40" marker-end="url(#arr)"/>
+        <line class="arrow" x1="440" y1="40" x2="588" y2="40" marker-end="url(#arr)"/>
+
+        <!-- Row 2: proxy -> sqlite / dashboard -->
+        <rect class="box" x="170" y="115" width="180" height="50" rx="6"/>
+        <text x="260" y="135" text-anchor="middle">SQLite</text>
+        <text x="260" y="153" text-anchor="middle" class="label">store.db</text>
+
+        <rect class="box" x="430" y="115" width="200" height="50" rx="6"/>
+        <text x="530" y="135" text-anchor="middle">Dashboard</text>
+        <text x="530" y="153" text-anchor="middle" class="label">127.0.0.1:7734</text>
+
+        <line class="arrow" x1="320" y1="70" x2="260" y2="113" marker-end="url(#arr)"/>
+        <line class="arrow" x1="400" y1="70" x2="530" y2="113" marker-end="url(#arr)"/>
+      </svg>
+    </div>
+  </section>
+
+  <section>
+    <h2>What you get</h2>
+    <div class="features">
+
+      <div class="feature wide">
+        <div class="wide-inner">
+          <div class="icon" aria-hidden="true">$</div>
+          <h3>Per-model cost estimates, not a bill</h3>
+          <p>Every captured request maps to an estimated AI-credit list price, broken down by prompt, cached input, cache write, and output tokens. Clearly labeled as estimates. Tagged when pricing is fallback or not-billed.</p>
+          <div class="terminal" aria-hidden="true">
+<span class="prompt">$</span> ./copilot-monitor cost --since 7d --json <span class="arrow">|</span> jq .total_usd
+<br><span class="out">3.47</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="icon" aria-hidden="true">&#9000;</div>
+        <h3>CLI + JSON API</h3>
+        <p>Every report (<code>stats</code>, <code>cost</code>, <code>today</code>, <code>sessions</code>, <code>export</code>) works in the terminal and serves JSON for your own tooling.</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon" aria-hidden="true">&#9201;</div>
+        <h3>Live session view</h3>
+        <p>Requests grouped by a 30-minute inactivity gap. See the model mix, cost, and duration of the session you're in right now.</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon" aria-hidden="true">&#128197;</div>
+        <h3>Period drill-down</h3>
+        <p>Today / yesterday / 7d / 30d / 90d / 365d. Every section of the dashboard filters to the same window.</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon" aria-hidden="true">&#128274;</div>
+        <h3>Local-only by design</h3>
+        <p>Binds to <code>127.0.0.1</code>. SQLite at <code>~/.local/share/copilot-monitor/store.db</code>. No external requests, ever.</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon" aria-hidden="true">&#10003;</div>
+        <h3>Inspectable</h3>
+        <p>Single Go binary. Schema in <code>internal/store/schema.sql</code>. Read the source, audit the captures, trust what you see.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>What is and isn't stored</h2>
+    <p>The privacy contract is enforced by the schema, not by policy.</p>
+    <div class="privacy-grid">
+      <div class="privacy-card">
+        <h4>Stored</h4>
+        <ul>
+          <li>Timestamp, endpoint, HTTP status</li>
+          <li>Model name (when known)</li>
+          <li>Latency (ms)</li>
+          <li>Token counts: input, cached input, cache write, output</li>
+          <li>Project label (optional)</li>
+          <li>Session grouping (derived)</li>
+        </ul>
+      </div>
+      <div class="privacy-card not-stored">
+        <h4>Never stored</h4>
+        <ul>
+          <li>Prompt text</li>
+          <li>Completion text</li>
+          <li>Source code or repository paths</li>
+          <li>Auth headers, cookies, API keys</li>
+          <li>Anything from request or response bodies</li>
+        </ul>
+      </div>
+    </div>
+    <p>See <a href="https://github.com/koopycat/copilot-monitor/blob/main/SPEC.md">SPEC.md</a> for the full contract.</p>
+  </section>
+
+  <section>
+    <h2>Is this for you?</h2>
+    <p>Use it if any of these sound like you.</p>
+    <div class="personas">
+      <div class="persona">
+        <h3>You use Copilot every day</h3>
+        <span class="signal">$ copilot-monitor cost --since 30d</span>
+        <p>You want to know which models you're actually calling, and what your prompts cost. Not a corporate dashboard, your own numbers on your own machine.</p>
+      </div>
+      <div class="persona">
+        <h3>You're tuning prompts for cache hit rate</h3>
+        <span class="signal">cache % per model, per session</span>
+        <p>Copilot Monitor breaks cached-input versus uncached tokens down per session, so you can see which prompt patterns actually pay off.</p>
+      </div>
+      <div class="persona">
+        <h3>You don't trust cloud-side telemetry</h3>
+        <span class="signal">binds 127.0.0.1 only</span>
+        <p>Read the schema, inspect the source, verify nothing leaves your machine. The privacy contract is enforced by the schema, not by a privacy policy.</p>
+      </div>
+      <div class="persona">
+        <h3>You're piping usage into your own tooling</h3>
+        <span class="signal">--json on every command</span>
+        <p>Every endpoint returns JSON. Every CLI command has <code>--json</code>. Queries are SQL against a SQLite file you own.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Get started</h2>
+    <p>Clone, build, run. The devenv shell provides the Go toolchain.</p>
+    <pre class="install"><span class="comment"># clone and enter the dev shell</span>
+<span class="cmd">git clone https://github.com/koopycat/copilot-monitor</span>
+<span class="cmd">cd copilot-monitor</span>
+<span class="cmd">devenv shell</span>
+
+<span class="comment"># build, then run the proxy + dashboard</span>
+<span class="cmd">just build</span>
+<span class="cmd">./copilot-monitor run</span><span class="arrow"> &amp;</span>
+<span class="cmd">./copilot-monitor serve</span>
+
+<span class="comment"># point VSCode at the proxy</span>
+<span class="cmd">./copilot-monitor configure-vscode</span><span class="arrow"> &gt;&gt; ~/.config/Code/User/settings.json</span>
+<span class="comment"># reload VSCode and use Copilot normally</span></pre>
+    <p>Open <a href="http://127.0.0.1:7734">http://127.0.0.1:7734</a> for the dashboard.</p>
+  </section>
+
+  <footer>
+    <div class="footer-grid">
+      <div>
+        Single-user local utility. Source on
+        <a href="https://github.com/koopycat/copilot-monitor">GitHub</a>.
+      </div>
+      <div class="footer-links">
+        <a href="./api">API</a>
+        <a href="./architecture">Architecture</a>
+        <a href="https://github.com/koopycat/copilot-monitor/blob/main/SPEC.md">SPEC</a>
+        <a href="https://github.com/koopycat/copilot-monitor/blob/main/PRODUCT.md">Product</a>
+      </div>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>
