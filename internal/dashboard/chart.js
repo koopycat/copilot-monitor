@@ -1,3 +1,15 @@
+let _colors = null;
+function chartColors() {
+  if (!_colors) {
+    const style = getComputedStyle(document.documentElement);
+    _colors = {
+      faint: (style.getPropertyValue('--faint') || '#6e7681').trim(),
+      border: (style.getPropertyValue('--border') || '#21262d').trim(),
+    };
+  }
+  return _colors;
+}
+
 export function drawChart(canvas, data, granularity, modelColor, metric = 'tokens') {
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
@@ -11,8 +23,9 @@ export function drawChart(canvas, data, granularity, modelColor, metric = 'token
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
 
+  const { faint, border } = chartColors();
+
   if (!data || !data.length) {
-    const faint = getComputedStyle(document.body).getPropertyValue('--faint').trim() || '#6e7681';
     ctx.fillStyle = faint; ctx.font = '0.8rem system-ui'; ctx.textAlign = 'center';
     ctx.fillText('No data yet', w / 2, h / 2);
     return;
@@ -25,6 +38,7 @@ export function drawChart(canvas, data, granularity, modelColor, metric = 'token
     : d => d.date;
   const dates = [...new Set(data.map(dateKey))].sort();
   const models = [...new Set(data.map(d => d.model))].sort();
+
   const buckets = new Map();
   let maxValue = 0;
 
@@ -57,10 +71,9 @@ export function drawChart(canvas, data, granularity, modelColor, metric = 'token
     }
   }
 
-  const faint = getComputedStyle(document.body).getPropertyValue('--faint').trim() || '#6e7681';
-  const border = getComputedStyle(document.body).getPropertyValue('--border').trim() || '#21262d';
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   const step = Math.max(1, Math.floor(dates.length / 14));
+
   for (let j = 0; j < dates.length; j += step) {
     const x = padL + j * (barW + gap) + barW / 2;
     if (x > padL + chartW) break;
@@ -78,16 +91,21 @@ export function drawChart(canvas, data, granularity, modelColor, metric = 'token
   const formatTick = metric === 'requests'
     ? (v) => v >= 1000 ? Math.round(v / 1000) + 'k' : String(v)
     : (v) => v >= 1000 ? Math.round(v / 1000) + 'k' : String(v);
+
   for (let v = 0; v <= maxValue; v += tickStep) {
     const y = h - bottom - (v / maxValue) * chartH;
     if (y < top) continue;
     ctx.fillStyle = faint; ctx.font = '0.55rem system-ui';
     ctx.fillText(formatTick(v), padL - 4, y);
+
     ctx.strokeStyle = border;
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
   }
 
-  document.getElementById('chart-legend').innerHTML = models.map((m, i) =>
-    `<span class="legend-item"><span class="legend-swatch" style="background:${modelColor(m, i)}"></span>${m}</span>`
-  ).join('');
+  const legendEl = document.getElementById('chart-legend');
+  if (legendEl) {
+    legendEl.innerHTML = models.map((m, i) =>
+      `<span class="legend-item"><span class="legend-swatch" style="background:${modelColor(m, i)}"></span>${m}</span>`
+    ).join('');
+  }
 }

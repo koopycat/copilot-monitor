@@ -1,9 +1,9 @@
-import { createApp } from 'petite-vue';
+import Alpine from 'alpinejs';
 import { drawChart } from './chart.js';
 
 const COLORS = ['#58a6ff','#3fb950','#d29922','#f85149','#bc8cff','#79c0ff','#56d364'];
 const colorMap = new Map();
-export function modelColor(model, i) {
+function modelColor(model, i) {
   if (!colorMap.has(model)) colorMap.set(model, COLORS[i % COLORS.length]);
   return colorMap.get(model);
 }
@@ -21,12 +21,13 @@ const dur  = s => {
 };
 const intl = n => n == null ? '0' : n.toLocaleString();
 
-async function safeFetch(url) {
+async function safeFetch(url, signal) {
   try {
-    const r = await fetch(url);
+    const r = await fetch(url, { signal });
     if (!r.ok) return null;
     return await r.json();
   } catch (e) {
+    if (e.name === 'AbortError') throw e;
     return null;
   }
 }
@@ -79,6 +80,16 @@ function periodDays(period) {
   }
 }
 
+const REFRESH_MS = matchMedia('(prefers-reduced-data: reduce)').matches ? 120_000 : 30_000;
+
+function vt(fn) {
+  if (document.startViewTransition) {
+    document.startViewTransition(() => { fn(); });
+  } else {
+    fn();
+  }
+}
+
 function App() {
   const S = {
     period: '30d',
@@ -99,12 +110,22 @@ function App() {
     _lastSessionCount: null,
     _pulseTimer: null,
     _timer: null,
+    _ro: null,
+    _abort: null,
 
     init() {
       this.gran = periodGran(this.period);
       this._syncPeriodDerived();
       this.load();
       this.startTimer();
+      const chartWrap = document.querySelector('.chart-wrap');
+      if (chartWrap) {
+        this._ro = new ResizeObserver(() => {
+          drawChart(document.getElementById('chart'), this.timeline, this.gran, modelColor, this.metric);
+        });
+        this._ro.observe(chartWrap);
+      }
+      return () => this.stopTimer();
     },
     get maxToken() {
       return Math.max(1, ...this.stats.map(s => s.total_tokens));
@@ -153,9 +174,9 @@ function App() {
     },
     _syncPeriodDerived() {
       const pq = periodQuery(this.period);
-      let href = '/api/export?since=' + encodeURIComponent(pq.since);
-      if (pq.until) href += '&until=' + encodeURIComponent(pq.until);
-      this.exportHref = href;
+      const params = new URLSearchParams({ since: pq.since });
+      if (pq.until) params.set('until', pq.until);
+      this.exportHref = '/api/export?' + params;
     },
     get liveSessionActive() {
       return !!(this.currentSession && this.currentSession.active);
@@ -184,17 +205,19 @@ function App() {
       this.period = p;
       this.gran = periodGran(p);
       this._syncPeriodDerived();
-      this.load();
+      vt(() => this.load());
     },
     switchGran(g) {
       if (g === this.gran) return;
       this.gran = g;
-      this.load();
+      vt(() => this.load());
     },
     switchMetric(m) {
       if (m === this.metric) return;
       this.metric = m;
-      drawChart(document.getElementById('chart'), this.timeline, this.gran, modelColor, this.metric);
+      vt(() => {
+        drawChart(document.getElementById('chart'), this.timeline, this.gran, modelColor, this.metric);
+      });
     },
     barW(val, max) {
       const pct = max ? val / max : 0;
@@ -202,22 +225,31 @@ function App() {
     },
 
     async load() {
+      this._abort?.abort();
+      this._abort = new AbortController();
+      const { signal } = this._abort;
       try {
         const pq = periodQuery(this.period);
         const since = pq.since;
-        const until = pq.until ? '&until=' + encodeURIComponent(pq.until) : '';
-        const timelineParams = 'since=' + encodeURIComponent(since) + until + '&granularity=' + this.gran;
-        const sinceParam = 'since=' + encodeURIComponent(since) + until;
+
+        const sinceParams = new URLSearchParams({ since });
+        if (pq.until) sinceParams.set('until', pq.until);
+
+        const timelineParams = new URLSearchParams({ since });
+        if (pq.until) timelineParams.set('until', pq.until);
+        timelineParams.set('granularity', this.gran);
 
         const fetches = [
-          safeFetch('/api/stats?' + sinceParam),
-          safeFetch('/api/cost?' + sinceParam),
-          safeFetch('/api/sessions?' + sinceParam + '&limit=20'),
-          safeFetch('/api/stats/timeline?' + timelineParams),
-          safeFetch('/api/session/current'),
+          safeFetch('/api/stats?' + sinceParams, signal),
+          safeFetch('/api/cost?' + sinceParams, signal),
+          safeFetch('/api/sessions?' + sinceParams + '&limit=20', signal),
+          safeFetch('/api/stats/timeline?' + timelineParams, signal),
+          safeFetch('/api/session/current', signal),
         ];
 
         const results = await Promise.all(fetches);
+        if (signal.aborted) return;
+
         let idx = 0;
         this.stats = results[idx++] || [];
         const cost = results[idx++] || {};
@@ -231,6 +263,7 @@ function App() {
         drawChart(document.getElementById('chart'), this.timeline, this.gran, modelColor, this.metric);
         this.lastUpdated = new Date().toLocaleTimeString();
       } catch(e) {
+        if (e.name === 'AbortError') return;
         this.lastUpdated = null;
         console.error(e);
       }
@@ -257,20 +290,23 @@ function App() {
     stopTimer() {
       if (this._timer) { clearInterval(this._timer); this._timer = null; }
       if (this._pulseTimer) { clearTimeout(this._pulseTimer); this._pulseTimer = null; }
+      if (this._ro) { this._ro.disconnect(); this._ro = null; }
+      if (this._abort) { this._abort.abort(); this._abort = null; }
     },
     startTimer() {
-      this.stopTimer();
-      this._timer = setInterval(() => this.load(), 30000);
+      if (this._timer) { clearInterval(this._timer); this._timer = null; }
+      this._timer = setInterval(() => this.load(), REFRESH_MS);
     },
   };
   return S;
 }
 
-createApp({
-  App,
-  $usd: usd,
-  $ms: ms,
-  $dur: dur,
-  $intl: intl,
-  modelColor,
-}).mount('#app');
+document.addEventListener('alpine:init', () => {
+  Alpine.data('dashboard', App);
+  Alpine.magic('usd', () => usd);
+  Alpine.magic('ms', () => ms);
+  Alpine.magic('dur', () => dur);
+  Alpine.magic('intl', () => intl);
+  Alpine.magic('modelColor', () => modelColor);
+});
+Alpine.start();

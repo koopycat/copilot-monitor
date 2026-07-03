@@ -63,10 +63,11 @@ test.describe('Metric Toggle', () => {
 
 test.describe('Refresh', () => {
   test('refresh button updates timestamp', async ({ loadedPage: page }) => {
-    const subtitle = page.locator('.subtitle');
-    await expect(subtitle).not.toHaveText('Loading…');
+    // Both subtitles exist in DOM with x-show; data loads → "Loading…" hides
+    const loading = page.locator('.subtitle').filter({ hasText: 'Loading…' });
+    await expect(loading).toBeHidden({ timeout: 10_000 });
     await page.locator('.refresh-btn').click();
-    await expect(subtitle).not.toHaveText('Loading…');
+    await expect(loading).toBeHidden({ timeout: 10_000 });
   });
 });
 

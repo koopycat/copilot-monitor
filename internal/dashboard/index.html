@@ -8,39 +8,41 @@
 <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
-<div id="app" v-scope="App()" v-cloak @vue:mounted="init" @vue:unmounted="stopTimer">
+<div id="app" x-data="dashboard" x-cloak x-init="init">
   <h1>Copilot Monitor <button class="refresh-btn" @click="load" title="Refresh now">↻</button></h1>
   <div class="period-bar">
-    <button v-for="p in periods" :key="p.key" class="period-btn" :class="{active: period === p.key}" @click="switchPeriod(p.key)">{{ p.label }}</button>
+    <template x-for="p in periods" :key="p.key">
+      <button class="period-btn" :class="{active: period === p.key}" @click="switchPeriod(p.key)" x-text="p.label"></button>
+    </template>
   </div>
-  <p class="subtitle" v-if="lastUpdated">Updated {{ lastUpdated }}</p>
-  <p class="subtitle" v-else>Loading&hellip;</p>
+  <p class="subtitle" x-show="lastUpdated">Updated <span x-text="lastUpdated"></span></p>
+  <p class="subtitle" x-show="!lastUpdated">Loading&hellip;</p>
 
   <div class="row">
     <div class="metric">
-      <div class="metric-value">{{ cost !== null ? $usd(cost) : '-' }}</div>
-      <div class="metric-label">est. AI-credit cost, {{ periodLabel }}</div>
+      <div class="metric-value"><span x-text="cost !== null ? $usd(cost) : '-'"></span></div>
+      <div class="metric-label">est. AI-credit cost, <span x-text="periodLabel"></span></div>
     </div>
     <div class="metric">
-      <div class="metric-value">{{ projectedText }}</div>
+      <div class="metric-value"><span x-text="projectedText"></span></div>
       <div class="metric-label">projected this month</div>
     </div>
     <div class="metric">
-      <div class="metric-value">{{ $intl(totalRequests) }}</div>
-      <div class="metric-label">requests, {{ periodLabel }}</div>
+      <div class="metric-value"><span x-text="$intl(totalRequests)"></span></div>
+      <div class="metric-label">requests, <span x-text="periodLabel"></span></div>
     </div>
     <div class="live-session" :class="{active: liveSessionActive, pulse: sessionPulse}">
       <div class="live-session-head">
         <div class="live-session-title">Live Session</div>
-        <div class="live-session-status"><span class="status-dot" :class="{active: liveSessionActive}"></span>{{ sessionStatusText }}</div>
+        <div class="live-session-status"><span class="status-dot" :class="{active: liveSessionActive}"></span><span x-text="sessionStatusText"></span></div>
       </div>
-      <div class="live-session-cost">{{ currentSession ? $usd(currentSession.cost || 0) : '-' }}</div>
+      <div class="live-session-cost"><span x-text="currentSession ? $usd(currentSession.cost || 0) : '-'"></span></div>
       <div class="live-session-grid">
-        <div class="live-session-item"><span>Requests</span><strong>{{ $intl(currentSession ? currentSession.request_count : 0) }}</strong></div>
-        <div class="live-session-item"><span>Tokens</span><strong>{{ $intl(currentSession ? currentSession.token_count : 0) }}</strong></div>
-        <div class="live-session-item"><span>Duration</span><strong>{{ sessionDurationText }}</strong></div>
+        <div class="live-session-item"><span>Requests</span><strong><span x-text="$intl(currentSession ? currentSession.request_count : 0)"></span></strong></div>
+        <div class="live-session-item"><span>Tokens</span><strong><span x-text="$intl(currentSession ? currentSession.token_count : 0)"></span></strong></div>
+        <div class="live-session-item"><span>Duration</span><strong><span x-text="sessionDurationText"></span></strong></div>
       </div>
-      <div class="live-session-models">Models: {{ sessionModelsText }}</div>
+      <div class="live-session-models">Models: <span x-text="sessionModelsText"></span></div>
     </div>
   </div>
 
@@ -61,21 +63,23 @@
   <table>
     <thead><tr><th>Model</th><th>Requests</th><th>Cache&nbsp;%</th><th>Total Tokens</th><th>Latency</th><th>Total&nbsp;$</th></tr></thead>
     <tbody>
-      <tr v-for="(s,i) in modelRows" :key="s.model + s.endpoint" :title="s.detail">
-        <td>
-          <span class="bar-cell">
-            <span class="bar-inline" :style="{width: barW(s.total_tokens, maxToken) + 'px', background: modelColor(s.model, i)}"></span>
-            {{ s.model }} <span class="tag">{{ s.endpoint }}</span>
-            <span v-if="s.fallback" class="tag fb">fallback</span>
-            <span v-if="s.not_billed" class="tag nb">not billed</span>
-          </span>
-        </td>
-        <td class="num">{{ $intl(s.requests) }}</td>
-        <td class="num">{{ s.cache_hit_pct }}%</td>
-        <td class="num">{{ $intl(s.total_tokens) }}</td>
-        <td class="num">{{ $ms(s.avg_latency_ms) }}</td>
-        <td class="num">{{ $usd(s.total_usd) }}</td>
-      </tr>
+      <template x-for="(s,i) in modelRows" :key="s.model + s.endpoint">
+        <tr :title="s.detail">
+          <td>
+            <span class="bar-cell">
+              <span class="bar-inline" :style="{width: barW(s.total_tokens, maxToken) + 'px', background: $modelColor(s.model, i)}"></span>
+              <span x-text="s.model"></span> <span class="tag" x-text="s.endpoint"></span>
+              <span x-show="s.fallback" class="tag fb">fallback</span>
+              <span x-show="s.not_billed" class="tag nb">not billed</span>
+            </span>
+          </td>
+          <td class="num"><span x-text="$intl(s.requests)"></span></td>
+          <td class="num"><span x-text="s.cache_hit_pct + '%'"></span></td>
+          <td class="num"><span x-text="$intl(s.total_tokens)"></span></td>
+          <td class="num"><span x-text="$ms(s.avg_latency_ms)"></span></td>
+          <td class="num"><span x-text="$usd(s.total_usd)"></span></td>
+        </tr>
+      </template>
     </tbody>
   </table>
 
@@ -83,15 +87,15 @@
   <table>
     <thead><tr><th>Start</th><th>Duration</th><th>Project</th><th>Requests</th><th>Tokens</th><th>Total&nbsp;$</th></tr></thead>
     <tbody>
-      <tr v-if="sessions.length === 0"><td colspan="6" class="empty">No sessions captured yet</td></tr>
-      <tr v-for="s in sessions" :key="s.id">
-        <td>{{ new Date(s.started_at).toLocaleString() }}</td>
-        <td class="num">{{ $dur((new Date(s.ended_at) - new Date(s.started_at)) / 1000) }}</td>
-        <td>{{ s.project || '-' }}</td>
-        <td class="num">{{ $intl(s.request_count) }}</td>
-        <td class="num">{{ $intl(s.token_count) }}</td>
-        <td class="num">{{ $usd(s.cost) }}</td>
-      </tr>
+      <template x-if="sessions.length === 0"><tr><td colspan="6" class="empty">No sessions captured yet</td></tr></template>
+      <template x-for="s in sessions" :key="s.id"><tr>
+        <td><span x-text="new Date(s.started_at).toLocaleString()"></span></td>
+        <td class="num"><span x-text="$dur((new Date(s.ended_at) - new Date(s.started_at)) / 1000)"></span></td>
+        <td><span x-text="s.project || '-'"></span></td>
+        <td class="num"><span x-text="$intl(s.request_count)"></span></td>
+        <td class="num"><span x-text="$intl(s.token_count)"></span></td>
+        <td class="num"><span x-text="$usd(s.cost)"></span></td>
+      </tr></template>
     </tbody>
   </table>
 
@@ -104,7 +108,7 @@
 <script type="importmap">
 {
   "imports": {
-    "petite-vue": "https://unpkg.com/petite-vue@0.4.1/dist/petite-vue.es.js"
+    "alpinejs": "https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/module.esm.js"
   }
 }
 </script>
