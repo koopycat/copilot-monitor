@@ -4,8 +4,6 @@
 [![Go 1.26](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/koopycat/copilot-monitor)](https://github.com/koopycat/copilot-monitor/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go Report Card](https://goreportcard.com/badge/github.com/koopycat/copilot-monitor)](https://goreportcard.com/report/github.com/koopycat/copilot-monitor)
-
 **Know exactly what GitHub Copilot is doing on your machine.**
 
 A local HTTP reverse proxy that sits between VSCode and `api.githubcopilot.com`,
