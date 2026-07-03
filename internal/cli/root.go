@@ -50,7 +50,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprint(w, strings.TrimSpace(`copilot-monitor monitors GitHub Copilot model API usage through a local HTTP reverse proxy.
 
 Usage:
-  copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path]
+  copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path] [--no-live]
   copilot-monitor configure-vscode [--addr 127.0.0.1:7733]
   copilot-monitor stats [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
@@ -62,7 +62,7 @@ Usage:
   copilot-monitor version
 
 Commands:
-  run               Start the local HTTP proxy listener.
+  run               Start the local HTTP proxy listener (also shows a live session tail when stderr is a TTY).
   configure-vscode  Print the VSCode settings JSON snippet.
   serve             Start the read-only HTTP API and dashboard.
   stats             Print captured usage grouped by model and endpoint.

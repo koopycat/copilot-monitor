@@ -168,6 +168,9 @@ Start the proxy:
 ./copilot-monitor run
 ```
 
+While the proxy runs, a live session tail refreshes every 2 seconds in your terminal: status, duration, request count, tokens, and estimated cost for the current session.
+Pass `--no-live` to disable it (useful when stderr is redirected to a log file).
+
 Reload VSCode:
 
 ```text

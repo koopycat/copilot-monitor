@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"copilot-monitoring/internal/catalog"
+	costcalc "copilot-monitoring/internal/cost"
 	"copilot-monitoring/internal/store"
 )
 
@@ -225,6 +227,40 @@ func TestLiveCommandEmptyDB(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "No sessions captured yet") {
 		t.Fatalf("unexpected live output:\n%s", stdout.String())
+	}
+}
+
+func TestRenderLiveCompact(t *testing.T) {
+	now := time.Now().UTC()
+	cat, err := catalog.LoadDefault()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := &store.CurrentSession{
+		StartedAt:     now.Add(-5 * time.Minute),
+		LastRequestAt: now.Add(-1 * time.Minute),
+		Project:       "p",
+		RequestCount:  7,
+		TokenCount:    12345,
+		Status:        "active",
+		Active:        true,
+		Models: []store.ModelStats{
+			{Model: "claude-3.5-sonnet", Endpoint: "chat/completions", Requests: 4, TotalTokens: 6000},
+			{Model: "gpt-4.1", Endpoint: "chat/completions", Requests: 2, TotalTokens: 4000},
+			{Model: "o3", Endpoint: "chat/completions", Requests: 1, TotalTokens: 2345},
+		},
+	}
+	costResult := costcalc.Calculate(current.Models, cat)
+	out := renderLiveCompact(current, costResult)
+	for _, want := range []string{"● active", "7 req", "12,345 tok", "project p", "claude-3.5-sonnet 4", "gpt-4.1 2"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("compact render missing %q:\n%s", want, out)
+		}
+	}
+	// Empty current should produce a placeholder
+	emptyOut := renderLiveCompact(nil, costcalc.Total{})
+	if !strings.Contains(emptyOut, "no sessions") {
+		t.Fatalf("empty render should mention no sessions, got: %q", emptyOut)
 	}
 }
 
