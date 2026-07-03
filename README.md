@@ -184,6 +184,7 @@ completions, source code, or auth material.
 ./copilot-monitor stats --since all
 ./copilot-monitor cost --since all
 ./copilot-monitor today
+./copilot-monitor live
 ./copilot-monitor sessions --since 7d --limit 20
 ```
 
@@ -193,8 +194,12 @@ JSON output for machine processing:
 ./copilot-monitor stats --since 7d --json
 ./copilot-monitor cost --since 7d --json
 ./copilot-monitor today --json
+./copilot-monitor live --json
 ./copilot-monitor sessions --since 7d --json
 ```
+
+`live` prints the current active session: status, project, duration, request count, total tokens, and per-model cost.
+This is the same data the dashboard's "Live Session" panel shows, so you can check what is happening right now without opening a browser.
 
 ## Flags
 

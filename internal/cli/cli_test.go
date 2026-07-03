@@ -173,6 +173,88 @@ func TestSessionsCommand(t *testing.T) {
 	}
 }
 
+func TestLiveCommand(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "store.db")
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	for _, rec := range []store.RequestRecord{
+		{Timestamp: now.Add(-5 * time.Minute), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "claude-3.5-sonnet", Status: 200, PromptTokens: 1000, CompletionTokens: 500, TotalTokens: 1500, Project: "p"},
+		{Timestamp: now.Add(-2 * time.Minute), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "claude-3.5-sonnet", Status: 200, PromptTokens: 800, CompletionTokens: 400, TotalTokens: 1200, Project: "p"},
+	} {
+		if err := st.InsertRequest(context.Background(), rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = st.Close()
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"live", "--db", dbPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{
+		"Live session",
+		"● active",
+		"claude-3.5-sonnet",
+		"p",
+		"2",     // request count
+		"2,700", // total tokens
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("live output missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestLiveCommandEmptyDB(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "store.db")
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = st.Close()
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"live", "--db", dbPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "No sessions captured yet") {
+		t.Fatalf("unexpected live output:\n%s", stdout.String())
+	}
+}
+
+func TestLiveCommandJSON(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "store.db")
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if err := st.InsertRequest(context.Background(), store.RequestRecord{
+		Timestamp: now.Add(-time.Minute), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-4.1", Status: 200, PromptTokens: 500, CompletionTokens: 250, TotalTokens: 750,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_ = st.Close()
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"live", "--db", dbPath, "--json"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{`"status": "active"`, `"request_count": 1`, `"gpt-4.1"`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("live json missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestCostCommandFallbackNote(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "store.db")
 	st, err := store.Open(dbPath)
