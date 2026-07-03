@@ -21,6 +21,14 @@ For local use, run `./copilot-monitor serve` for the dashboard API or `./copilot
 
 Follow standard Go style: tabs via `gofmt`, small packages, explicit error handling, and table-driven tests where useful. Keep command handlers in `internal/cli` named by command, for example `stats.go` and `runStats`. Keep HTTP/API handlers grouped by feature in `internal/api` and proxy behavior in `internal/proxy`. JavaScript and CSS in `internal/dashboard` should remain dependency-light and colocated with `index.html`.
 
+## Agentic Workflows
+
+- Do not add temporary output, such as implementation plans, to the docs folders.
+- Use a dedicated `plan` folder for planning artifacts.
+- Clean up temporary outputs after finishing a task.
+- `docs` contains long-term documentation.
+- `specs` contains specifications without references to the actual implementation.
+
 ## Testing Guidelines
 
 Tests use the standard Go testing package. Place tests beside implementation files as `*_test.go`, with names like `TestStoreSessions` or `TestRouterCapturesUsage`. Prefer unit tests for parsers, cost calculations, storage, and CLI output, and integration-style tests for proxy/API behavior when HTTP semantics matter. Run `just test` during development and `just all` before opening a PR.
