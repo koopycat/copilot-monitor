@@ -10,9 +10,9 @@ import (
 )
 
 func (h *Handler) handleCost(w http.ResponseWriter, r *http.Request) {
-	since := parseSinceParam(r)
 	filter := store.StatsFilter{
-		Since:    since,
+		Since:    parseSinceParam(r),
+		Until:    parseUntilParam(r),
 		Project:  r.URL.Query().Get("project"),
 		Endpoint: r.URL.Query().Get("endpoint"),
 	}

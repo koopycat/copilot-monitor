@@ -7,8 +7,7 @@ import (
 )
 
 func (h *Handler) handleExport(w http.ResponseWriter, r *http.Request) {
-	since := parseSinceParam(r)
-	rows, err := h.db.ExportRequests(r.Context(), since)
+	rows, err := h.db.ExportRequests(r.Context(), parseSinceParam(r), parseUntilParam(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

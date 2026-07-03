@@ -46,8 +46,58 @@ function comparePeriodRank(period) {
   return 2;
 }
 
+function midnightToday() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+function midnightYesterday() {
+  const t = midnightToday();
+  return new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1);
+}
+function toISO(d) {
+  return d.toISOString().slice(0, 19) + 'Z';
+}
+
+const PERIODS = [
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: '7d', label: '7d' },
+  { key: '30d', label: '30d' },
+  { key: '90d', label: '90d' },
+  { key: '365d', label: '365d' },
+];
+
+function periodQuery(period) {
+  switch (period) {
+    case 'today':
+      return { since: toISO(midnightToday()), until: '' };
+    case 'yesterday':
+      return { since: toISO(midnightYesterday()), until: toISO(midnightToday()) };
+    default:
+      return { since: period, until: '' };
+  }
+}
+
+function periodGran(period) {
+  return (period === 'today' || period === 'yesterday') ? 'hour' : 'day';
+}
+
+function periodDays(period) {
+  switch (period) {
+    case 'today': return 1;
+    case 'yesterday': return 1;
+    case '7d': return 7;
+    case '30d': return 30;
+    case '90d': return 90;
+    case '365d': return 365;
+    default: return 30;
+  }
+}
+
 function App() {
   const S = {
+    period: '30d',
+    periods: PERIODS,
     gran: 'day',
     metric: 'tokens',
     cost: null,
@@ -60,12 +110,16 @@ function App() {
     currentSession: null,
     currentSessionModels: [],
     sessionPulse: false,
+    showCompare: true,
+    exportHref: '/api/export?since=30d',
     _lastSessionID: null,
     _lastSessionCount: null,
     _pulseTimer: null,
     _timer: null,
 
     init() {
+      this.gran = periodGran(this.period);
+      this._syncPeriodDerived();
       this.load();
       this.startTimer();
     },
@@ -97,9 +151,15 @@ function App() {
         };
       });
     },
+    get periodLabel() {
+      const p = PERIODS.find(p => p.key === this.period);
+      return p ? p.label.toLowerCase() : this.period;
+    },
     get projectedText() {
       if (this.cost === null) return '-';
-      const days = new Set(this.timeline.map(t => t.date)).size || 1;
+      const days = periodDays(this.period);
+      if (days <= 1) return usd(this.cost);
+      if (days >= 365) return '~' + usd(this.cost / 12) + '/mo';
       return '~' + usd(this.cost / days * 30);
     },
     get latencyText() {
@@ -107,6 +167,13 @@ function App() {
       if (!total) return '-';
       const sum = this.stats.reduce((s, r) => s + r.avg_latency_ms * r.requests, 0);
       return ms(sum / total);
+    },
+    _syncPeriodDerived() {
+      const pq = periodQuery(this.period);
+      let href = '/api/export?since=' + encodeURIComponent(pq.since);
+      if (pq.until) href += '&until=' + encodeURIComponent(pq.until);
+      this.exportHref = href;
+      this.showCompare = this.period !== 'today' && this.period !== 'yesterday';
     },
     get liveSessionActive() {
       return !!(this.currentSession && this.currentSession.active);
@@ -137,6 +204,13 @@ function App() {
       return periods.slice().sort((a, b) => comparePeriodRank(a) - comparePeriodRank(b));
     },
 
+    switchPeriod(p) {
+      if (p === this.period) return;
+      this.period = p;
+      this.gran = periodGran(p);
+      this._syncPeriodDerived();
+      this.load();
+    },
     switchGran(g) {
       if (g === this.gran) return;
       this.gran = g;
@@ -164,21 +238,39 @@ function App() {
 
     async load() {
       try {
-        const params = this.gran === 'hour' ? 'since=24h&granularity=hour' : 'since=30d&granularity=day';
-        const [stats, cost, sessions, timeline, compare, current] = await Promise.all([
-          safeFetch('/api/stats?since=30d'),
-          safeFetch('/api/cost?since=30d'),
-          safeFetch('/api/sessions?since=30d&limit=20'),
-          safeFetch('/api/stats/timeline?'+params),
-          safeFetch('/api/compare'),
-          safeFetch('/api/session/current'),
-        ]);
-        this.stats = stats || [];
-        this.cost = (cost && cost.total_usd) || 0;
-        this.costRows = (cost && cost.rows) || [];
-        this.sessions = sessions || [];
-        this.timeline = timeline || [];
-        this.compare = (compare && compare.periods) || [];
+        const pq = periodQuery(this.period);
+        const since = pq.since;
+        const until = pq.until ? '&until=' + encodeURIComponent(pq.until) : '';
+        const timelineParams = 'since=' + encodeURIComponent(since) + until + '&granularity=' + this.gran;
+        const sinceParam = 'since=' + encodeURIComponent(since) + until;
+
+        const fetches = [
+          safeFetch('/api/stats?' + sinceParam),
+          safeFetch('/api/cost?' + sinceParam),
+          safeFetch('/api/sessions?' + sinceParam + '&limit=20'),
+          safeFetch('/api/stats/timeline?' + timelineParams),
+        ];
+        if (this.showCompare) {
+          fetches.push(safeFetch('/api/compare'));
+        }
+        fetches.push(safeFetch('/api/session/current'));
+
+        const results = await Promise.all(fetches);
+        let idx = 0;
+        this.stats = results[idx++] || [];
+        const cost = results[idx++] || {};
+        this.cost = cost.total_usd || 0;
+        this.costRows = cost.rows || [];
+        this.sessions = results[idx++] || [];
+        this.timeline = results[idx++] || [];
+        if (this.showCompare) {
+          const comp = results[idx++] || {};
+          this.compare = comp.periods || [];
+        } else {
+          this.compare = [];
+        }
+        const current = results[idx++] || {};
+
         this.updateCurrentSession(current);
         drawChart(document.getElementById('chart'), this.timeline, this.gran, modelColor, this.metric);
         this.lastUpdated = new Date().toLocaleTimeString();

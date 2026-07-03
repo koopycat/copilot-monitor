@@ -13,7 +13,6 @@ import (
 )
 
 func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
-	since := parseSinceParam(r)
 	if err := h.db.RebuildSessions(context.Background(), 30*time.Minute); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -25,7 +24,8 @@ func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	filter := store.SessionFilter{
-		Since:   since,
+		Since:   parseSinceParam(r),
+		Until:   parseUntilParam(r),
 		Project: r.URL.Query().Get("project"),
 		Limit:   limit,
 	}

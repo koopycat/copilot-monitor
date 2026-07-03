@@ -32,7 +32,7 @@ func runExport(args []string, stdout, stderr io.Writer) int {
 	}
 	defer st.Close()
 
-	rows, err := st.ExportRequests(context.Background(), since)
+	rows, err := st.ExportRequests(context.Background(), since, time.Time{})
 	if err != nil {
 		fmt.Fprintf(stderr, "export failed: %v\n", err)
 		return 1

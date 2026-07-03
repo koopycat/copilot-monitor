@@ -13,6 +13,7 @@ func (h *Handler) handleToday(w http.ResponseWriter, r *http.Request) {
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	filter := store.StatsFilter{
 		Since:    start,
+		Until:    parseUntilParam(r),
 		Project:  r.URL.Query().Get("project"),
 		Endpoint: r.URL.Query().Get("endpoint"),
 	}

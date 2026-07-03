@@ -33,6 +33,10 @@ h2 { font-size: 0.875rem; font-weight: 500; color: var(--muted); margin: 2rem 0 
 .toggle-btn.active { background: var(--accent); color: #fff; }
 .toggle-btn:hover:not(.active) { background: var(--surface); color: var(--ink); }
 .subtitle { font-size: 0.75rem; color: var(--faint); margin-bottom: 1.5rem; }
+.period-bar { display: flex; gap: 0.35rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.period-btn { padding: 0.3rem 0.75rem; background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 0.72rem; font-weight: 500; cursor: pointer; transition: background var(--speed), color var(--speed), border-color var(--speed); }
+.period-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.period-btn:hover:not(.active) { background: var(--surface); color: var(--ink); }
 .row { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; margin-bottom: 1rem; }
 .metric { min-width: 160px; }
 .metric-value { font-size: 2rem; font-weight: 600; color: var(--accent); line-height: 1.15; }

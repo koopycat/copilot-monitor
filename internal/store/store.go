@@ -279,6 +279,10 @@ func (s *Store) Timeline(ctx context.Context, filter StatsFilter, granularity st
 	if !filter.Since.IsZero() {
 		since = filter.Since.UTC().Format(time.RFC3339Nano)
 	}
+	until := ""
+	if !filter.Until.IsZero() {
+		until = filter.Until.UTC().Format(time.RFC3339Nano)
+	}
 
 	var groupExpr, dateExpr string
 	switch granularity {
@@ -300,13 +304,14 @@ SELECT
   COALESCE(SUM(total_tokens), 0) AS total_tokens
 FROM requests
 WHERE (? = '' OR ts >= ?)
+  AND (? = '' OR ts < ?)
   AND (? = '' OR project = ?)
   AND (? = '' OR endpoint = ?)
   AND model IS NOT NULL AND model != ''
 GROUP BY %s, model
 ORDER BY date ASC, hour ASC, model ASC`, dateExpr, groupExpr)
 
-	rows, err := s.db.QueryContext(ctx, query, since, since, filter.Project, filter.Project, filter.Endpoint, filter.Endpoint)
+	rows, err := s.db.QueryContext(ctx, query, since, since, until, until, filter.Project, filter.Project, filter.Endpoint, filter.Endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +328,7 @@ ORDER BY date ASC, hour ASC, model ASC`, dateExpr, groupExpr)
 	return out, rows.Err()
 }
 
-func (s *Store) ExportRequests(ctx context.Context, since time.Time) ([]ExportRow, error) {
+func (s *Store) ExportRequests(ctx context.Context, since, until time.Time) ([]ExportRow, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("nil store")
 	}
@@ -331,15 +336,20 @@ func (s *Store) ExportRequests(ctx context.Context, since time.Time) ([]ExportRo
 	if !since.IsZero() {
 		sinceStr = since.UTC().Format(time.RFC3339Nano)
 	}
+	untilStr := ""
+	if !until.IsZero() {
+		untilStr = until.UTC().Format(time.RFC3339Nano)
+	}
 	rows, err := s.db.QueryContext(ctx, `
 SELECT ts, endpoint, COALESCE(model,''), status, latency_ms,
   COALESCE(prompt_tokens,0), COALESCE(cached_input_tokens,0), COALESCE(cache_write_tokens,0),
   COALESCE(completion_tokens,0), COALESCE(total_tokens,0), COALESCE(project,'')
 FROM requests
 WHERE (? = '' OR ts >= ?)
+  AND (? = '' OR ts < ?)
   AND model IS NOT NULL AND model != ''
   AND status = 200
-ORDER BY ts DESC`, sinceStr, sinceStr)
+ORDER BY ts DESC`, sinceStr, sinceStr, untilStr, untilStr)
 	if err != nil {
 		return nil, err
 	}

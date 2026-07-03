@@ -52,8 +52,8 @@ func jsonHeader(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 }
 
-func parseSinceParam(r *http.Request) time.Time {
-	raw := r.URL.Query().Get("since")
+func parseTimeParam(r *http.Request, key string) time.Time {
+	raw := r.URL.Query().Get(key)
 	if raw == "" || raw == "all" {
 		return time.Time{}
 	}
@@ -66,5 +66,19 @@ func parseSinceParam(r *http.Request) time.Time {
 	if d, err := time.ParseDuration(raw); err == nil && d > 0 {
 		return time.Now().Add(-d)
 	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return t
+	}
+	if t, err := time.Parse("2006-01-02T15:04:05Z", raw); err == nil {
+		return t
+	}
 	return time.Time{}
+}
+
+func parseSinceParam(r *http.Request) time.Time {
+	return parseTimeParam(r, "since")
+}
+
+func parseUntilParam(r *http.Request) time.Time {
+	return parseTimeParam(r, "until")
 }

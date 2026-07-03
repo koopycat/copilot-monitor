@@ -9,13 +9,13 @@ import (
 
 func (h *Handler) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	jsonHeader(w)
-	since := parseSinceParam(r)
 	granularity := r.URL.Query().Get("granularity")
 	if granularity != "hour" {
 		granularity = "day"
 	}
 	filter := store.StatsFilter{
-		Since:    since,
+		Since:    parseSinceParam(r),
+		Until:    parseUntilParam(r),
 		Project:  r.URL.Query().Get("project"),
 		Endpoint: r.URL.Query().Get("endpoint"),
 	}

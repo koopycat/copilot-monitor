@@ -9,6 +9,7 @@ import (
 
 type SessionFilter struct {
 	Since   time.Time
+	Until   time.Time
 	Project string
 	Limit   int
 }
@@ -237,13 +238,18 @@ func (s *Store) Sessions(ctx context.Context, filter SessionFilter) ([]SessionSt
 	if !filter.Since.IsZero() {
 		since = filter.Since.UTC().Format(time.RFC3339Nano)
 	}
+	until := ""
+	if !filter.Until.IsZero() {
+		until = filter.Until.UTC().Format(time.RFC3339Nano)
+	}
 	rows, err := s.db.QueryContext(ctx, `
 SELECT id, started_at, ended_at, COALESCE(project, ''), request_count, token_count
 FROM sessions
 WHERE (? = '' OR started_at >= ?)
+  AND (? = '' OR started_at < ?)
   AND (? = '' OR project = ?)
 ORDER BY started_at DESC, id DESC
-LIMIT ?`, since, since, filter.Project, filter.Project, limit)
+LIMIT ?`, since, since, until, until, filter.Project, filter.Project, limit)
 	if err != nil {
 		return nil, err
 	}

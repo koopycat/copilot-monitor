@@ -10,13 +10,16 @@
 <body>
 <div id="app" v-scope="App()" v-cloak @vue:mounted="init" @vue:unmounted="stopTimer">
   <h1>Copilot Monitor <button class="refresh-btn" @click="load" title="Refresh now">↻</button></h1>
+  <div class="period-bar">
+    <button v-for="p in periods" :key="p.key" class="period-btn" :class="{active: period === p.key}" @click="switchPeriod(p.key)">{{ p.label }}</button>
+  </div>
   <p class="subtitle" v-if="lastUpdated">Updated {{ lastUpdated }}</p>
   <p class="subtitle" v-else>Loading&hellip;</p>
 
   <div class="row">
     <div class="metric">
       <div class="metric-value">{{ cost !== null ? $usd(cost) : '-' }}</div>
-      <div class="metric-label">est. AI-credit cost, 30d</div>
+      <div class="metric-label">est. AI-credit cost, {{ periodLabel }}</div>
     </div>
     <div class="metric">
       <div class="metric-value">{{ projectedText }}</div>
@@ -24,7 +27,7 @@
     </div>
     <div class="metric">
       <div class="metric-value">{{ $intl(totalRequests) }}</div>
-      <div class="metric-label">requests, 30d</div>
+      <div class="metric-label">requests, {{ periodLabel }}</div>
     </div>
     <div class="live-session" :class="{active: liveSessionActive, pulse: sessionPulse}">
       <div class="live-session-head">
@@ -54,8 +57,8 @@
   <div class="chart-wrap"><canvas id="chart" role="img" aria-label="Usage chart"></canvas></div>
   <div class="legend" id="chart-legend"></div>
 
-  <h2>Compare</h2>
-  <div class="compare-grid">
+  <h2 v-if="showCompare">Compare</h2>
+  <div v-if="showCompare" class="compare-grid">
     <div class="compare-card" v-for="(p,i) in comparePeriods" :key="p.label || i">
       <div class="compare-title">{{ compareLabel(p) }}</div>
       <div class="compare-line"><span>Total cost</span><strong>{{ $usd(p.total_cost || 0) }}</strong></div>
@@ -104,7 +107,7 @@
 
   <footer class="footer">
     <span>Estimated AI-credit list-price cost. Not your GitHub Copilot bill.</span>
-    <span><a href="/api/export?since=30d">Export CSV</a> &middot; Auto-refreshes every 30s</span>
+    <span><a :href="exportHref">Export CSV</a> &middot; Auto-refreshes every 30s</span>
   </footer>
 </div>
 

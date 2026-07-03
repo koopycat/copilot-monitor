@@ -10,6 +10,9 @@
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 /tmp/
 /build-errors.log
 usage-debug*.jsonl
@@ -20,3 +23,13 @@ usage-debug*.jsonl
 # OS/editor noise
 .DS_Store
 /.idea/
+
+# AI tooling
+/.claude/
+
+# E2E test tooling
+/.playwright/
+/node_modules/
+internal/e2e/node_modules/
+internal/e2e/screenshots/
+/testdata.db*
