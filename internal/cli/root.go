@@ -56,7 +56,7 @@ Usage:
   copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor today [--db path] [--project name] [--endpoint chat]
   copilot-monitor sessions [--db path] [--since 30d] [--project name] [--limit 50]
-  copilot-monitor live [--db path] [--json]
+  copilot-monitor live [--db path] [--json] [--watch]
   copilot-monitor serve [--addr 127.0.0.1:7734] [--db path]
   copilot-monitor export [--since 30d] [--db path]
   copilot-monitor version
@@ -69,7 +69,7 @@ Commands:
   cost              Print estimated equivalent provider list-price cost.
   today             Print today's captured usage.
   sessions          Print captured sessions using a 30-minute inactivity gap.
-  live              Print the current active session.
+  live              Print the current active session (--watch to auto-refresh).
   export            Export captured request metadata to CSV.
   version           Print the version.
 `)+"\n")
