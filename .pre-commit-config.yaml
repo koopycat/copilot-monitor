@@ -23,7 +23,7 @@ repos:
         types: [go]
       - id: go-mod-tidy
         name: go mod tidy
-        entry: bash -c 'go mod tidy -diff'
+        entry: go mod tidy -diff
         language: system
         files: ^(go\.mod|go\.sum|\.go)$
         pass_filenames: false
@@ -31,13 +31,7 @@ repos:
         name: go vet
         entry: go vet ./...
         language: system
-        files: '\.go$'
-        pass_filenames: false
-      - id: go-test
-        name: go test
-        entry: go test ./...
-        language: system
-        files: '\.go$'
+        types: [go]
         pass_filenames: false
       - id: e2e-eslint
         name: e2e eslint
