@@ -1,3 +1,5 @@
 packages:
   - 'dashboard'
   - 'internal/e2e'
+allowBuilds:
+  esbuild: true
