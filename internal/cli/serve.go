@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"copilot-monitoring/dashboard"
 	"copilot-monitoring/internal/api"
 	"copilot-monitoring/internal/store"
 )
@@ -29,10 +30,13 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	}
 	defer st.Close()
 
-	handler := api.NewHandler(st)
+	mux := http.NewServeMux()
+	mux.Handle("/api/", api.NewHandler(st))
+	mux.Handle("/", dashboard.Handler())
+
 	server := &http.Server{
 		Addr:              *addr,
-		Handler:           handler,
+		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

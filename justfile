@@ -3,6 +3,7 @@ default: all
 all: vet test build dashboard-build
 
 build:
+    cd dashboard && pnpm build
     go build ./cmd/copilot-monitor
 
 dashboard-build:

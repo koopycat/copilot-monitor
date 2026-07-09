@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is a Go CLI and local proxy for monitoring GitHub Copilot API usage. The executable entry point is `cmd/copilot-monitor/main.go`; application code lives under `internal/`. Key packages are `internal/cli` for commands, `internal/proxy` for forwarding and capture, `internal/api` for the dashboard API, `internal/store` for SQLite persistence, `internal/cost` and `internal/catalog` for pricing/model data, and `internal/log` for terminal output. Dashboard assets live in `internal/dashboard/`; the schema is `internal/store/schema.sql`.
+This is a Go CLI and local proxy for monitoring GitHub Copilot API usage. The executable entry point is `cmd/copilot-monitor/main.go`; application code lives under `internal/`. Key packages are `internal/cli` for commands, `internal/proxy` for forwarding and capture, `internal/api` for the dashboard API, `internal/store` for SQLite persistence, `internal/cost` and `internal/catalog` for pricing/model data, and `internal/log` for terminal output. Dashboard assets live in `dashboard/`; the schema is `internal/store/schema.sql`.
 
 ## Build, Test, and Development Commands
 
