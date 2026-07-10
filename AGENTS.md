@@ -78,11 +78,9 @@ opening a PR.
 
 ## Commit & Pull Request Guidelines
 
-Recent commits use short, imperative summaries such as
-`Split api.go by handler group` and `Fix export help and add export tests`. Keep
-commits scoped and describe the behavior changed. Pull requests should include a
-concise summary, test results (`just all` output or noted exceptions), linked
-issues when applicable, and screenshots or notes for dashboard/UI changes.
+Full rules in [`docs/pull-requests.md`](docs/pull-requests.md). In brief: commit
+messages are single-line and scoped; PRs are focused with a clear thesis; the PR
+body explains _why_, not _what_; always diff against main before opening.
 
 ## Security & Configuration Tips
 
