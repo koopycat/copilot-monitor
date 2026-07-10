@@ -80,7 +80,7 @@ jobs:
             (cd dist && zip -q "copilot-monitor-${{ matrix.target }}.zip" "${{ matrix.binary }}" README.md)
           fi
       - name: Upload
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/copilot-monitor-${{ matrix.target }}.${{ matrix.archive }}
           generate_release_notes: true
