@@ -90,7 +90,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// First-line startup banner — must appear before any other output.
-	fmt.Fprintf(stderr, "llm-proxy: listening on %s (%d routes) \u2014 curl http://%s/_ping\n", settingsAddr(*addr), len(proxyCfg.Routes), settingsAddr(*addr))
+	fmt.Fprintf(stderr, "llm-proxy: listening on %s (%d routes) - curl http://%s/_ping\n", settingsAddr(*addr), len(proxyCfg.Routes), settingsAddr(*addr))
 
 	router := proxy.NewRouter(proxyCfg)
 
@@ -151,6 +151,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	signal.Stop(sigCh)
 	select {
 	case s := <-sigReceived:
 		if s == syscall.SIGINT {
