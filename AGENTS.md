@@ -44,16 +44,23 @@ dependency-light and colocated with `index.html`.
 ## Agentic Workflows
 
 - `README.md` is for user-facing setup, smoke tests, and common commands.
-- `SPEC.md` is an index. Normative requirements live in `specs/`.
-- `specs/` contains implementation-independent requirements. Do not include code
-  paths, file paths, package names, or implementation plans there.
+- `SPEC.md` is an index. Requirements live in
+  `openspec/specs/<capability>/spec.md`.
+- `openspec/specs/` contains the single source of truth for system behavior.
+  Each capability has its own `spec.md` with requirements (SHALL/MUST) and
+  WHEN/THEN scenarios. Do not include code paths, file paths, package names, or
+  implementation plans there.
 - `docs/` contains durable documentation for the current implementation, such as
   architecture, API behavior, operations, and troubleshooting. `docs/api.md` and
   `docs/architecture.md` are the technical reference pages served by GitHub
   Pages.
 - `docs/index.html` is the GitHub Pages marketing landing page; it links to the
   technical docs and the GitHub repo.
-- `plans/` is used for planning artifacts (\*.md etc). Cleanup if done.
+- `openspec/changes/` is used for planning artifacts via the OpenSpec workflow.
+  Use `/opsx:propose`, `/opsx:apply`, `/opsx:archive`. The legacy `plans/`
+  directory may still exist but new planning goes through OpenSpec.
+- `openspec/config.yaml` contains project context and non-behavioral design
+  constraints (quality attributes, naming conventions, DX principles).
 
 GitHub Pages is served from `/docs` on the default branch. The landing page is
 at `docs/index.html` (URL: `/`). Technical docs are at `docs/api.md` and
@@ -62,7 +69,7 @@ extension stripping).
 
 - `PRODUCT.md` contains product intent, audience, and design principles.
 - Do not add temporary output, such as ad hoc implementation notes or scratch
-  plans, to `docs/` or `specs/`.
+  plans, to `docs/` or `openspec/specs/`.
 - Clean up temporary outputs after finishing a task.
 - When behavior changes, update requirements, durable docs, and active plans
   only when each is actually affected.

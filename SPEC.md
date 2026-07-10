@@ -1,26 +1,36 @@
 # Specification Index
 
-This file is the navigation point for requirements and durable project
-documentation.
+Requirements are managed through OpenSpec. Behavioral requirements live in
+`openspec/specs/<capability>/spec.md`. Non-behavioral design constraints live in
+`openspec/config.yaml`.
 
-## Requirements
+## Capabilities
 
-Requirements describe what the product must do and avoid implementation details.
+| Capability  | File                                 | Scope                                                                                                       |
+| ----------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| proxy       | `openspec/specs/proxy/spec.md`       | Core proxy behavior, WebSocket, health, shutdown, request IDs, buffer limits, startup validation, live tail |
+| routing     | `openspec/specs/routing/spec.md`     | Route configuration, model filtering, provider labels, prefix stripping                                     |
+| capture     | `openspec/specs/capture/spec.md`     | Usage metadata, session grouping, compression metrics, debug logging, structured logging                    |
+| policy      | `openspec/specs/policy/spec.md`      | Model allow/block, fail-open, API management, model discovery                                               |
+| compression | `openspec/specs/compression/spec.md` | Loopback processor, timeout/strict/ratio config, fail-open, status labels                                   |
+| reporting   | `openspec/specs/reporting/spec.md`   | CLI commands, dashboard API, filtering, export, init, validate                                              |
+| dashboard   | `openspec/specs/dashboard/spec.md`   | Dashboard UI, metrics, charts, policy management, routes display                                            |
+| privacy     | `openspec/specs/privacy/spec.md`     | Data minimization, locality, loopback binding, export boundaries                                            |
 
-| Document                                                         | Scope                                                                                              |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [`specs/product-requirements.md`](specs/product-requirements.md) | Product behavior, route configuration schema, CLI commands, routing, policy, health, and reporting |
-| [`specs/privacy-requirements.md`](specs/privacy-requirements.md) | Privacy, local-storage, data minimization, and debug-output invariants                             |
+## Workflow
 
-## Current Documentation
+```text
+/opsx:propose "description"  →  create change with proposal, specs, design, tasks
+/opsx:apply                  →  implement tasks
+/opsx:archive                →  merge delta specs into openspec/specs/
+```
 
-Documentation describes how the current project works or how contributors use
-it.
+## Documentation
 
-| Document                                       | Scope                                                                                 |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------- |
-| [`README.md`](README.md)                       | User quickstart, local smoke test, commands, and privacy summary                      |
-| [`docs/architecture.md`](docs/architecture.md) | Current request lifecycle, package map, schema notes, and implementation traceability |
-| [`docs/api.md`](docs/api.md)                   | Current read-only HTTP API and embedded dashboard reference                           |
-| [`AGENTS.md`](AGENTS.md)                       | Contributor and agent workflow rules                                                  |
-| [`PRODUCT.md`](PRODUCT.md)                     | Product intent, audience, and design principles                                       |
+| Document               | Scope                                                                         |
+| ---------------------- | ----------------------------------------------------------------------------- |
+| `README.md`            | User quickstart, local smoke test, commands, and privacy summary              |
+| `docs/architecture.md` | Request lifecycle, package map, schema notes, and implementation traceability |
+| `docs/api.md`          | Read-only HTTP API and embedded dashboard reference                           |
+| `AGENTS.md`            | Contributor and agent workflow rules                                          |
+| `PRODUCT.md`           | Product intent, audience, and design principles                               |
