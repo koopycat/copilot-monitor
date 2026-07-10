@@ -128,6 +128,8 @@ func inferProvider(model string) string {
 		return "google"
 	case strings.Contains(model, "raptor"):
 		return "github"
+	case strings.Contains(model, "deepseek"):
+		return "deepseek"
 	case strings.HasPrefix(model, "mai-"):
 		return "microsoft"
 	default:

@@ -8,6 +8,7 @@ import (
 type Row struct {
 	Model             string  `json:"model"`
 	Endpoint          string  `json:"endpoint"`
+	UpstreamHost      string  `json:"upstream_host"`
 	Provider          string  `json:"provider"`
 	Requests          int     `json:"requests"`
 	PromptTokens      int     `json:"prompt_tokens"`
@@ -48,6 +49,7 @@ func Calculate(stats []store.ModelStats, catalog catalog.Catalog) Total {
 		row := Row{
 			Model:             stat.Model,
 			Endpoint:          stat.Endpoint,
+			UpstreamHost:      stat.UpstreamHost,
 			Provider:          lookup.Pricing.Provider,
 			Requests:          stat.Requests,
 			PromptTokens:      stat.PromptTokens,
