@@ -17,6 +17,7 @@ type Handler struct {
 	store      *store.Store
 	project    string
 	usageDebug *UsageDebugLogger
+	router     *Router
 	nextID     atomic.Uint64
 }
 
@@ -29,11 +30,19 @@ func NewHandlerWithStore(log *log.Writer, st *store.Store, project string) *Hand
 }
 
 func NewHandlerWithStoreAndUsageDebug(log *log.Writer, st *store.Store, project string, usageDebug *UsageDebugLogger) *Handler {
+	return NewHandlerWithRouter(log, st, project, usageDebug, nil)
+}
+
+func NewHandlerWithRouter(log *log.Writer, st *store.Store, project string, usageDebug *UsageDebugLogger, router *Router) *Handler {
+	if router == nil {
+		router = NewRouter(nil)
+	}
 	return &Handler{
 		log:        log,
 		store:      st,
 		project:    project,
 		usageDebug: usageDebug,
+		router:     router,
 		client: &http.Client{Transport: &http.Transport{
 			Proxy:              http.ProxyFromEnvironment,
 			DisableCompression: true,
@@ -44,7 +53,18 @@ func NewHandlerWithStoreAndUsageDebug(log *log.Writer, st *store.Store, project 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id := h.nextID.Add(1)
 	started := time.Now().UTC()
-	route, ok := RoutePath(r.URL.Path)
+
+	// Read body first so model is available for routing
+	body, err := readAndRestoreBody(r)
+	if err != nil {
+		h.log.Error("id=%d read_body_error=%q\n", id, err.Error())
+		http.Error(w, "failed to read request body", http.StatusBadRequest)
+		return
+	}
+	meta := ParseRequestMetadata(body)
+
+	// Route by path + model
+	route, ok := h.router.MatchModel(r.URL.Path, meta.Model)
 	if !ok {
 		h.log.Error("id=%d path=%q route=unknown status=502\n", id, r.URL.RequestURI())
 		http.Error(w, "unknown Copilot path", http.StatusBadGateway)
@@ -57,14 +77,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 		return
 	}
-
-	body, err := readAndRestoreBody(r)
-	if err != nil {
-		h.log.Error("id=%d read_body_error=%q\n", id, err.Error())
-		http.Error(w, "failed to read request body", http.StatusBadRequest)
-		return
-	}
-	meta := ParseRequestMetadata(body)
 
 	h.log.Request("id=%d method=%s path=%q endpoint=%s upstream=%s capture=%s model=%q stream=%s\n",
 		id,

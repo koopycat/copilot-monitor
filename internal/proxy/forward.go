@@ -31,11 +31,12 @@ func MakeUpstreamRequest(in *http.Request, route Route, body []byte) (*http.Requ
 	if route.Upstream == "" {
 		return nil, fmt.Errorf("route has no upstream")
 	}
+	path, rawPath := route.ApplyPathPrefix(in.URL.Path, in.URL.RawPath)
 	outURL := &url.URL{
 		Scheme:     "https",
 		Host:       route.Upstream,
-		Path:       in.URL.Path,
-		RawPath:    in.URL.RawPath,
+		Path:       path,
+		RawPath:    rawPath,
 		RawQuery:   in.URL.RawQuery,
 		ForceQuery: in.URL.ForceQuery,
 	}
