@@ -16,6 +16,11 @@ repos:
 
   - repo: local
     hooks:
+      - id: markdownlint
+        name: markdownlint
+        entry: markdownlint
+        language: system
+        types: [markdown]
       - id: go-fmt
         name: go fmt
         entry: gofmt -l -w
