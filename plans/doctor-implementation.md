@@ -16,20 +16,20 @@ llm-proxy doctor --routes-config path [--db path] [--check-connectivity] [--no-c
 
 ### Flags
 
-| Flag | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `--routes-config` | string | **Yes** | — | Path to the JSON routes config file |
-| `--db` | string | No | `store.DefaultPath()` | SQLite database path |
-| `--check-connectivity` | bool | No | `false` | Opt-in TCP probe of upstream hosts (3s timeout each) |
-| `--no-color` | bool | No | `false` | Disable colored output (also respects `NO_COLOR` env, `TERM=dumb`, non-TTY) |
+| Flag                   | Type   | Required | Default               | Description                                                                 |
+| ---------------------- | ------ | -------- | --------------------- | --------------------------------------------------------------------------- |
+| `--routes-config`      | string | **Yes**  | —                     | Path to the JSON routes config file                                         |
+| `--db`                 | string | No       | `store.DefaultPath()` | SQLite database path                                                        |
+| `--check-connectivity` | bool   | No       | `false`               | Opt-in TCP probe of upstream hosts (3s timeout each)                        |
+| `--no-color`           | bool   | No       | `false`               | Disable colored output (also respects `NO_COLOR` env, `TERM=dumb`, non-TTY) |
 
 ### Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| `0` | All checks passed |
-| `1` | One or more checks failed |
-| `2` | Usage error (missing required `--routes-config`, bad flag, etc.) |
+| Code | Meaning                                                          |
+| ---- | ---------------------------------------------------------------- |
+| `0`  | All checks passed                                                |
+| `1`  | One or more checks failed                                        |
+| `2`  | Usage error (missing required `--routes-config`, bad flag, etc.) |
 
 ---
 
@@ -39,7 +39,8 @@ llm-proxy doctor --routes-config path [--db path] [--check-connectivity] [--no-c
 
 - **Always passes.**
 - Prints `"Version"` as Name, `"ok"` as Status.
-- Detail: `fmt.Sprintf("llm-proxy %s", version)` where `version` is the existing `var version = "0.1.0-dev"` in `root.go`.
+- Detail: `fmt.Sprintf("llm-proxy %s", version)` where `version` is the existing
+  `var version = "0.1.0-dev"` in `root.go`.
 
 ```
 → checkResult{Name: "Version", Status: "ok", Detail: "llm-proxy 0.1.0-dev"}
@@ -47,21 +48,29 @@ llm-proxy doctor --routes-config path [--db path] [--check-connectivity] [--no-c
 
 ### Check 2: Routes config valid — `checkRoutesConfig(path string) checkResult`
 
-- Calls `proxy.LoadConfig(path)` (which reads, strips comments, parses JSON, and validates).
-- On success: `Status = "ok"`, `Detail = fmt.Sprintf("valid (%d routes) [%s]", len(cfg.Routes), path)`.
-- On failure: `Status = "fail"`, `Detail = err.Error()`. The error from `LoadConfig` already uses the labeled error format from chunk 0.5, e.g. `route "chat" (/v1/chat/completions): upstream_host is required`.
+- Calls `proxy.LoadConfig(path)` (which reads, strips comments, parses JSON, and
+  validates).
+- On success: `Status = "ok"`,
+  `Detail = fmt.Sprintf("valid (%d routes) [%s]", len(cfg.Routes), path)`.
+- On failure: `Status = "fail"`, `Detail = err.Error()`. The error from
+  `LoadConfig` already uses the labeled error format from chunk 0.5, e.g.
+  `route "chat" (/v1/chat/completions): upstream_host is required`.
 
 ```
 → success: checkResult{Name: "Routes config", Status: "ok",  Detail: "valid (3 routes) [/path/to/routes.json]"}
 → failure: checkResult{Name: "Routes config", Status: "fail", Detail: "read routes config \"/bad\": read ..."}
 ```
 
-The caller must also retain the parsed `*proxy.ProxyConfig` for downstream checks — refactor `checkRoutesConfig` to return `(*proxy.ProxyConfig, checkResult)` or store the config in a struct field.
+The caller must also retain the parsed `*proxy.ProxyConfig` for downstream
+checks — refactor `checkRoutesConfig` to return
+`(*proxy.ProxyConfig, checkResult)` or store the config in a struct field.
 
 ### Check 3: Database writable — `checkDatabase(dbPath string) checkResult`
 
 - Calls `store.Open(dbPath)` and immediately `defer s.Close()`.
-- `store.Open` already creates the parent directory (`os.MkdirAll`) and runs `PRAGMA journal_mode=WAL` + schema migration — this is sufficient proof of writability.
+- `store.Open` already creates the parent directory (`os.MkdirAll`) and runs
+  `PRAGMA journal_mode=WAL` + schema migration — this is sufficient proof of
+  writability.
 - On success: `Status = "ok"`, `Detail = store.FormatPath(dbPath)`.
 - On failure: `Status = "fail"`, `Detail = err.Error()`.
 
@@ -73,15 +82,20 @@ The caller must also retain the parsed `*proxy.ProxyConfig` for downstream check
 ### Check 4: Disk space — `checkDiskSpace(dbPath string) checkResult`
 
 1. Compute the directory containing DB: `dir := filepath.Dir(dbPath)`.
-2. Check directory exists: `os.Stat(dir)` — if not exists, return fail `"directory does not exist: <dir>"`.
+2. Check directory exists: `os.Stat(dir)` — if not exists, return fail
+   `"directory does not exist: <dir>"`.
 3. Call `syscall.Statfs(dir, &st)` (stdlib, cross-platform via build tags).
-   - macOS: `st.Bavail` (available to non-superuser) × `st.Bsize` → bytes available.
+   - macOS: `st.Bavail` (available to non-superuser) × `st.Bsize` → bytes
+     available.
    - Linux: `st.Bavail` × `st.Bsize` → bytes available.
-   - Note: Use `syscall` (not `golang.org/x/sys/unix`) to avoid adding new imports; `syscall.Statfs_t` exists on both macOS and Linux.
+   - Note: Use `syscall` (not `golang.org/x/sys/unix`) to avoid adding new
+     imports; `syscall.Statfs_t` exists on both macOS and Linux.
 4. Convert to MB: `availableMB := bytes / (1024 * 1024)`.
 5. Threshold: 100 MB.
-   - ≥ 100 MB: `Status = "ok"`, `Detail = fmt.Sprintf("%d MB available", availableMB)`.
-   - < 100 MB: `Status = "fail"`, `Detail = fmt.Sprintf("%d MB available, need ≥ 100 MB", availableMB)`.
+   - ≥ 100 MB: `Status = "ok"`,
+     `Detail = fmt.Sprintf("%d MB available", availableMB)`.
+   - < 100 MB: `Status = "fail"`,
+     `Detail = fmt.Sprintf("%d MB available, need ≥ 100 MB", availableMB)`.
 
 ```
 → ok:    checkResult{Name: "Disk space", Status: "ok",   Detail: "512 MB available"}
@@ -101,11 +115,13 @@ availableBytes := uint64(st.Bavail) * uint64(st.Bsize)
 availableMB := availableBytes / (1024 * 1024)
 ```
 
-This works on both macOS and Linux (Go's `syscall` package abstracts the structs via build tags).
+This works on both macOS and Linux (Go's `syscall` package abstracts the structs
+via build tags).
 
 ### Check 5: Upstream connectivity — `checkUpstreams(routes []proxy.RouteConfig) []checkResult`
 
-**Only executed when `--check-connectivity` is set.** Otherwise, a single synthetic result:
+**Only executed when `--check-connectivity` is set.** Otherwise, a single
+synthetic result:
 
 ```
 checkResult{Name: "Upstreams", Status: "skip", Detail: "skipped (use --check-connectivity)"}
@@ -114,11 +130,15 @@ checkResult{Name: "Upstreams", Status: "skip", Detail: "skipped (use --check-con
 When enabled, for each unique `UpstreamHost` across loaded routes:
 
 1. **Skip empty hosts** (local capture routes with `upstream_host == ""`).
-2. **Deduplicate** hosts into a `map[string]struct{}` (multiple routes may reference the same host).
+2. **Deduplicate** hosts into a `map[string]struct{}` (multiple routes may
+   reference the same host).
 3. For each host, attempt `net.DialTimeout("tcp", host+":443", 3*time.Second)`.
-4. On success: `Status = "ok"`, `Detail = fmt.Sprintf("%s:443 reachable", host)`.
-5. On failure: `Status = "fail"`, `Detail = fmt.Sprintf("%s:443 unreachable: %v", host, err)`.
-   - `net.DialTimeout` errors already include useful messages: `connection refused`, `i/o timeout`, `no such host`.
+4. On success: `Status = "ok"`,
+   `Detail = fmt.Sprintf("%s:443 reachable", host)`.
+5. On failure: `Status = "fail"`,
+   `Detail = fmt.Sprintf("%s:443 unreachable: %v", host, err)`.
+   - `net.DialTimeout` errors already include useful messages:
+     `connection refused`, `i/o timeout`, `no such host`.
 
 Each unique upstream host produces its own `checkResult`:
 
@@ -127,7 +147,9 @@ Each unique upstream host produces its own `checkResult`:
 → checkResult{Name: "Upstream api.anthropic.com",  Status: "fail", Detail: "api.anthropic.com:443 unreachable: i/o timeout"}
 ```
 
-When `--check-connectivity` is set but there are **zero** hosts to check (all routes have empty `upstream_host` / are local), skip the section entirely and emit:
+When `--check-connectivity` is set but there are **zero** hosts to check (all
+routes have empty `upstream_host` / are local), skip the section entirely and
+emit:
 
 ```
 checkResult{Name: "Upstreams", Status: "skip", Detail: "no remote hosts to check"}
@@ -180,9 +202,13 @@ llm-proxy doctor
 
 ### Formatting Rules
 
-- **Header**: `llm-proxy doctor` on its own line, followed by a `─` separator line (width 48 chars).
-- **Status column**: Each check is a single line. Status indicator (`✓`/`✗`/`-` or `OK`/`FAIL`/`SKIP`) + space + left-aligned check name (padded to align details) + detail text.
-- **Padding**: The name column is padded to `"Disk space"` width (12 chars) + colon. Use `fmt.Fprintf(w, " %s  %-*s %s\n", mark, nameWidth, name, detail)`.
+- **Header**: `llm-proxy doctor` on its own line, followed by a `─` separator
+  line (width 48 chars).
+- **Status column**: Each check is a single line. Status indicator (`✓`/`✗`/`-`
+  or `OK`/`FAIL`/`SKIP`) + space + left-aligned check name (padded to align
+  details) + detail text.
+- **Padding**: The name column is padded to `"Disk space"` width (12 chars) +
+  colon. Use `fmt.Fprintf(w, " %s  %-*s %s\n", mark, nameWidth, name, detail)`.
 - **Path display**: Wrap config and DB paths in square brackets: `[path]`.
 - **Footer** after the separator:
   - `"All checks passed."` when all pass.
@@ -191,6 +217,7 @@ llm-proxy doctor
 ### Column Width Calculation
 
 The Name column values are:
+
 - `"Version:"` → 8 chars
 - `"Routes config:"` → 14 chars
 - `"Database:"` → 10 chars
@@ -198,7 +225,10 @@ The Name column values are:
 - `"Upstreams:"` → 12 chars
 - `"Upstream <host>:"` → variable → use max of 14 or len(host)+10
 
-For simplicity, use a **fixed name width of 18** (enough for `"Upstreams:"` with margin). When checking individual upstream hosts, use `"Upstream <host>:"` which could be longer; pad to a consistent `nameWidth` calculated as `max(18, maxLen(names))`.
+For simplicity, use a **fixed name width of 18** (enough for `"Upstreams:"` with
+margin). When checking individual upstream hosts, use `"Upstream <host>:"` which
+could be longer; pad to a consistent `nameWidth` calculated as
+`max(18, maxLen(names))`.
 
 ---
 
@@ -224,12 +254,15 @@ func runDoctor(args []string, stdout, stderr io.Writer) int
 ```
 
 Responsibilities of `runDoctor`:
-1. Parse flags (`--routes-config`, `--db`, `--check-connectivity`, `--no-color`).
+
+1. Parse flags (`--routes-config`, `--db`, `--check-connectivity`,
+   `--no-color`).
 2. Validate `--routes-config` is set (else print error to stderr, return 2).
 3. Determine color mode via `resolveColorMode(stdout, noColorFlag)`.
 4. Execute checks sequentially:
    - `checkVersion()`
-   - `checkRoutesConfig(routesConfig)` — save `*proxy.ProxyConfig` for upstream check
+   - `checkRoutesConfig(routesConfig)` — save `*proxy.ProxyConfig` for upstream
+     check
    - `checkDatabase(dbPath)`
    - `checkDiskSpace(dbPath)`
    - `checkUpstreams(cfg.Routes)` if `--check-connectivity`, else skip
@@ -246,7 +279,8 @@ func checkDiskSpace(dbPath string) checkResult
 func checkUpstreams(routes []proxy.RouteConfig) []checkResult
 ```
 
-Note: `checkRoutesConfig` returns the parsed `*ProxyConfig` so that `checkUpstreams` can iterate the hosts.
+Note: `checkRoutesConfig` returns the parsed `*ProxyConfig` so that
+`checkUpstreams` can iterate the hosts.
 
 #### Print Function
 
@@ -255,6 +289,7 @@ func printDoctorResults(w io.Writer, results []checkResult, useColor bool)
 ```
 
 Prints:
+
 1. Header: `"llm-proxy doctor\n"` + separator line
 2. Each result line with appropriate mark
 3. Separator line
@@ -285,7 +320,8 @@ func resolveColorMode(stdout io.Writer, noColorFlag bool) bool {
 }
 ```
 
-This follows the same pattern already used in `internal/log/log.go:71` (`NewWriterWithFormat`).
+This follows the same pattern already used in `internal/log/log.go:71`
+(`NewWriterWithFormat`).
 
 #### Mark Function
 
@@ -318,15 +354,18 @@ func checkMark(status string, useColor bool) string {
 
 ### Changes to `root.go`
 
-1. Add `doc: "Run diagnostics and checks"` to help text, or add the new command line.
+1. Add `doc: "Run diagnostics and checks"` to help text, or add the new command
+   line.
 
 2. In the `switch args[0]` block inside `Run()`:
+
    ```go
    case "doctor":
        return runDoctor(args[1:], stdout, stderr)
    ```
 
 3. In `printUsage()`, add to the "Usage:" block:
+
    ```
    llm-proxy doctor --routes-config path [--db path] [--check-connectivity] [--no-color]
    ```
@@ -340,7 +379,9 @@ func checkMark(status string, useColor bool) string {
 
 ## 6. Testing Strategy
 
-All tests in `internal/cli/cli_test.go`, following the existing pattern (`bytes.Buffer` for stdout/stderr, `Run()` calls, exit code checks, `strings.Contains` on output).
+All tests in `internal/cli/cli_test.go`, following the existing pattern
+(`bytes.Buffer` for stdout/stderr, `Run()` calls, exit code checks,
+`strings.Contains` on output).
 
 ### Test 1: `TestDoctorCommand_ValidConfig`
 
@@ -440,7 +481,9 @@ func TestDoctorCommand_NonExistentDB(t *testing.T) {
 }
 ```
 
-**Note**: `store.Open` calls `os.MkdirAll(filepath.Dir(path))` — on Linux this may create even `/proc/nonexistent`. Use a read-only directory pattern, or test with a path like `/dev/null/store.db` where the "directory" is actually a file.
+**Note**: `store.Open` calls `os.MkdirAll(filepath.Dir(path))` — on Linux this
+may create even `/proc/nonexistent`. Use a read-only directory pattern, or test
+with a path like `/dev/null/store.db` where the "directory" is actually a file.
 
 ### Test 5: `TestDoctorCommand_CheckConnectivity_Reachable`
 
@@ -565,24 +608,24 @@ func TestDoctorCommand_EmptyRoutes(t *testing.T) {
 
 ## 7. Edge Cases
 
-| Case | Expected Behavior |
-|------|-------------------|
-| **Empty routes config** (`{"routes":[]}`) | Routes check passes: `"valid (0 routes)"` |
-| **Non-existent DB path (parent dir exists)** | `store.Open` creates the file & schema — passes as "writable" |
-| **Non-existent DB parent dir** | `store.Open` calls `MkdirAll` — passes unless filesystem is read-only |
-| **Truly unwritable path** (e.g., `/dev/null/store.db`) | Database check fails with descriptive error |
-| **Disk space check on non-existent directory** | DB is always opened first; if `store.Open` succeeds, dir exists. Disk space checks `filepath.Dir(dbPath)` which will exist. If somehow missing → `"directory does not exist"` fail |
-| **Upstream with empty `upstream_host`** (local capture routes) | Skipped: not added to deduplicated host list |
-| **Multiple routes with same `upstream_host`** | Deduplicated: checked once |
-| **Connectivity check timeout** (3s exceeded) | `net.DialTimeout` returns `i/o timeout` error — printed as `"unreachable: i/o timeout"` |
-| **DNS resolution failure** | `net.DialTimeout` returns `no such host` — printed as `"unreachable: no such host"` |
-| **`--routes-config` missing** | Exit 2, error to stderr |
-| **`--routes-config` file doesn't exist** | Routes check fails with `"read routes config: open ...: no such file or directory"` |
-| **Config with JSON parse error** | Routes check fails with `"parse routes config: ..."` |
-| **DB disk space: exactly 100 MB** | Passes (≥ 100 MB threshold) |
-| **No `--check-connectivity`, all routes local** | Upstreams section shows `"skipped (use --check-connectivity)"` |
-| **Piped stdout** (not a TTY) | Color disabled automatically via `log.IsTerminal` |
-| **`NO_COLOR` env set to empty string** | `""` is falsy → color enabled (follows spec convention that NO_COLOR must be set to *something*) |
+| Case                                                           | Expected Behavior                                                                                                                                                                  |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Empty routes config** (`{"routes":[]}`)                      | Routes check passes: `"valid (0 routes)"`                                                                                                                                          |
+| **Non-existent DB path (parent dir exists)**                   | `store.Open` creates the file & schema — passes as "writable"                                                                                                                      |
+| **Non-existent DB parent dir**                                 | `store.Open` calls `MkdirAll` — passes unless filesystem is read-only                                                                                                              |
+| **Truly unwritable path** (e.g., `/dev/null/store.db`)         | Database check fails with descriptive error                                                                                                                                        |
+| **Disk space check on non-existent directory**                 | DB is always opened first; if `store.Open` succeeds, dir exists. Disk space checks `filepath.Dir(dbPath)` which will exist. If somehow missing → `"directory does not exist"` fail |
+| **Upstream with empty `upstream_host`** (local capture routes) | Skipped: not added to deduplicated host list                                                                                                                                       |
+| **Multiple routes with same `upstream_host`**                  | Deduplicated: checked once                                                                                                                                                         |
+| **Connectivity check timeout** (3s exceeded)                   | `net.DialTimeout` returns `i/o timeout` error — printed as `"unreachable: i/o timeout"`                                                                                            |
+| **DNS resolution failure**                                     | `net.DialTimeout` returns `no such host` — printed as `"unreachable: no such host"`                                                                                                |
+| **`--routes-config` missing**                                  | Exit 2, error to stderr                                                                                                                                                            |
+| **`--routes-config` file doesn't exist**                       | Routes check fails with `"read routes config: open ...: no such file or directory"`                                                                                                |
+| **Config with JSON parse error**                               | Routes check fails with `"parse routes config: ..."`                                                                                                                               |
+| **DB disk space: exactly 100 MB**                              | Passes (≥ 100 MB threshold)                                                                                                                                                        |
+| **No `--check-connectivity`, all routes local**                | Upstreams section shows `"skipped (use --check-connectivity)"`                                                                                                                     |
+| **Piped stdout** (not a TTY)                                   | Color disabled automatically via `log.IsTerminal`                                                                                                                                  |
+| **`NO_COLOR` env set to empty string**                         | `""` is falsy → color enabled (follows spec convention that NO*COLOR must be set to \_something*)                                                                                  |
 
 ---
 
@@ -613,7 +656,10 @@ func checkDiskSpace(dbPath string) checkResult {
 }
 ```
 
-> **Note:** `syscall.Statfs_t.Bavail` is `int64` on macOS and `int64` on Linux. The multiplication `uint64(st.Bavail) * uint64(st.Bsize)` must handle sign correctly. Use `int64` arithmetic, then convert: `availableMB := (st.Bavail * st.Bsize) / (1024 * 1024)`.
+> **Note:** `syscall.Statfs_t.Bavail` is `int64` on macOS and `int64` on Linux.
+> The multiplication `uint64(st.Bavail) * uint64(st.Bsize)` must handle sign
+> correctly. Use `int64` arithmetic, then convert:
+> `availableMB := (st.Bavail * st.Bsize) / (1024 * 1024)`.
 
 ### No New Module Dependencies
 
@@ -621,8 +667,10 @@ func checkDiskSpace(dbPath string) checkResult {
 - `net` (`net.DialTimeout`) — stdlib ✓
 - `log.IsTerminal` — existing internal package ✓
 - `proxy.LoadConfig` — existing internal package ✓
-- `store.Open`, `store.DefaultPath`, `store.FormatPath` — existing internal package ✓
-- `golang.org/x/sys` — already in `go.mod` as transitive dep, but **not needed** for this implementation
+- `store.Open`, `store.DefaultPath`, `store.FormatPath` — existing internal
+  package ✓
+- `golang.org/x/sys` — already in `go.mod` as transitive dep, but **not needed**
+  for this implementation
 
 ---
 
@@ -687,9 +735,15 @@ Functions:
 - [ ] `go test ./...` passes
 - [ ] `go vet ./...` clean
 - [ ] `go build ./...` succeeds
-- [ ] Manual test: `llm-proxy doctor --routes-config ./examples/routes/basic.json` produces expected output
-- [ ] Manual test: `llm-proxy doctor --routes-config ./examples/routes/basic.json --check-connectivity` probes upstreams
-- [ ] Manual test: `llm-proxy doctor --routes-config ./examples/routes/basic.json --no-color` uses OK/FAIL
+- [ ] Manual test:
+      `llm-proxy doctor --routes-config ./examples/routes/basic.json` produces
+      expected output
+- [ ] Manual test:
+      `llm-proxy doctor --routes-config ./examples/routes/basic.json --check-connectivity`
+      probes upstreams
+- [ ] Manual test:
+      `llm-proxy doctor --routes-config ./examples/routes/basic.json --no-color`
+      uses OK/FAIL
 - [ ] Manual test: pipe to `cat` disables color automatically
 - [ ] Commit: `feat(cli): add doctor command for environment diagnostics`
 
@@ -698,7 +752,8 @@ Functions:
 ## 11. Implementation Order (within the chunk)
 
 1. **Define types and helpers** — `checkResult`, `checkMark`, `resolveColorMode`
-2. **Implement `runDoctor`** with flag parsing and sequential check orchestration
+2. **Implement `runDoctor`** with flag parsing and sequential check
+   orchestration
 3. **Implement each check function** one at a time:
    - `checkVersion` (trivial, always pass)
    - `checkRoutesConfig` (reuses existing `proxy.LoadConfig`)
@@ -707,6 +762,7 @@ Functions:
    - `checkUpstreams` (new code, `net.DialTimeout`)
 4. **Implement `printDoctorResults`** — header, lines, footer, column alignment
 5. **Register in `root.go`** — switch case + help text
-6. **Write tests** — unit tests for each check function + integration tests via `Run()`
+6. **Write tests** — unit tests for each check function + integration tests via
+   `Run()`
 7. **Verify** — `go test`, `go vet`, `go build`, manual smoke test
 8. **Commit**

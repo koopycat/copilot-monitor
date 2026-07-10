@@ -27,7 +27,10 @@
           <span class="bar-cell">
             <span
               class="bar-inline"
-              style="width: {dashboard.barW(s.total_tokens, maxToken)}px; background: {modelColor(s.model, i)};"
+              style="width: {dashboard.barW(s.total_tokens, maxToken)}px; background: {modelColor(
+                s.model,
+                i,
+              )};"
             ></span>
             {s.model}
             <span class="tag">{s.endpoint}</span>

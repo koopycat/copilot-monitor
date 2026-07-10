@@ -31,7 +31,10 @@ html {
 }
 
 body {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
   margin: clamp(1rem, 4vw, 2.5rem);
   background: var(--bg);
   color: var(--ink);
@@ -488,7 +491,12 @@ tbody tr:hover {
 }
 
 .routes-panel code {
-  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, monospace;
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    SF Mono,
+    Menlo,
+    monospace;
   font-size: 0.72rem;
   color: var(--accent);
 }
@@ -579,7 +587,12 @@ tbody tr:hover {
   align-items: center;
   gap: 0.2rem;
   font-size: 0.72rem;
-  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, monospace;
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    SF Mono,
+    Menlo,
+    monospace;
   padding: 1px 4px 1px 6px;
   border-radius: 4px;
   background: rgba(88, 166, 255, 0.12);
@@ -611,7 +624,12 @@ tbody tr:hover {
   border: none;
   outline: none;
   color: var(--ink);
-  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, monospace;
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    SF Mono,
+    Menlo,
+    monospace;
   font-size: 0.78rem;
   padding: 0.15rem 0;
 }
@@ -640,7 +658,12 @@ tbody tr:hover {
 .model-listbox-option {
   padding: 4px 10px;
   font-size: 0.76rem;
-  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, monospace;
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    SF Mono,
+    Menlo,
+    monospace;
   color: var(--ink);
   cursor: pointer;
 }
@@ -658,7 +681,12 @@ tbody tr:hover {
 }
 
 .token-hint code {
-  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, monospace;
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    SF Mono,
+    Menlo,
+    monospace;
   font-size: 0.65rem;
   background: var(--bg);
   padding: 1px 4px;
@@ -683,7 +711,10 @@ tbody tr:hover {
   font-size: 0.72rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background var(--speed), color var(--speed), border-color var(--speed);
+  transition:
+    background var(--speed),
+    color var(--speed),
+    border-color var(--speed);
 }
 
 .btn-sm:hover,

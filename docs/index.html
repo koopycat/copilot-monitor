@@ -1,1211 +1,1732 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Copilot Monitor - Every Copilot request, on the record</title>
-  <meta name="description" content="A local reverse proxy that records every GitHub Copilot request - per-model token counts, latency, and estimated cost. Local SQLite. No cloud, no telemetry, no prompts stored.">
-  <script>document.documentElement.classList.add('js');</script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23141a22'/%3E%3Ctext x='8' y='11.5' font-family='ui-monospace,monospace' font-size='11' font-weight='700' text-anchor='middle' fill='%23e8a13a'%3E%24%3C/text%3E%3C/svg%3E">
-  <style>
-    /* ===========================================================
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Copilot Monitor - Every Copilot request, on the record</title>
+    <meta
+      name="description"
+      content="A local reverse proxy that records every GitHub Copilot request - per-model token counts, latency, and estimated cost. Local SQLite. No cloud, no telemetry, no prompts stored."
+    />
+    <script>
+      document.documentElement.classList.add('js');
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23141a22'/%3E%3Ctext x='8' y='11.5' font-family='ui-monospace,monospace' font-size='11' font-weight='700' text-anchor='middle' fill='%23e8a13a'%3E%24%3C/text%3E%3C/svg%3E"
+    />
+    <style>
+      /* ===========================================================
        COPILOT MONITOR — "The Case File"
        Detective / forensic-surveillance register. Dark, committed.
        =========================================================== */
 
-    @layer reset, theme, base, layout, components, motion;
+      @layer reset, theme, base, layout, components, motion;
 
-    /* ===========================================================
+      /* ===========================================================
        RESET
        =========================================================== */
-    @layer reset {
-      *, *::before, *::after { box-sizing: border-box; }
-    }
+      @layer reset {
+        *,
+        *::before,
+        *::after {
+          box-sizing: border-box;
+        }
+      }
 
-    /* ===========================================================
+      /* ===========================================================
        THEME — single source of truth for color palette
        =========================================================== */
-    @layer theme {
-      :root {
-        /* surfaces — deep cool ink, amber pools light out of it */
-        --bg:        oklch(0.17 0.012 258);
-        --bg-2:      oklch(0.135 0.012 258);
-        --surface:   oklch(0.21 0.013 258);
-        --surface-2: oklch(0.245 0.014 258);
-        --border:    oklch(0.31 0.014 258);
-        --border-strong: oklch(0.40 0.016 258);
+      @layer theme {
+        :root {
+          /* surfaces — deep cool ink, amber pools light out of it */
+          --bg: oklch(0.17 0.012 258);
+          --bg-2: oklch(0.135 0.012 258);
+          --surface: oklch(0.21 0.013 258);
+          --surface-2: oklch(0.245 0.014 258);
+          --border: oklch(0.31 0.014 258);
+          --border-strong: oklch(0.4 0.016 258);
 
-        /* ink — warm paper text, lit by the desk lamp */
-        --ink:        oklch(0.90 0.012 85);
-        --ink-strong: oklch(0.96 0.010 85);
-        --muted:      oklch(0.68 0.014 258);
-        --faint:      oklch(0.60 0.014 258);
+          /* ink — warm paper text, lit by the desk lamp */
+          --ink: oklch(0.9 0.012 85);
+          --ink-strong: oklch(0.96 0.01 85);
+          --muted: oklch(0.68 0.014 258);
+          --faint: oklch(0.6 0.014 258);
 
-        /* spotlight accent — warm amber, the single light source */
-        --amber:        oklch(0.82 0.135 80);
-        --amber-strong: oklch(0.78 0.150 72);
-        --amber-soft:   color-mix(in oklch, var(--amber) 14%, transparent);
+          /* spotlight accent — warm amber, the single light source */
+          --amber: oklch(0.82 0.135 80);
+          --amber-strong: oklch(0.78 0.15 72);
+          --amber-soft: color-mix(in oklch, var(--amber) 14%, transparent);
 
-        /* evidence red — stamps, redaction, alerts */
-        --red:      oklch(0.64 0.190 27);
-        --red-soft: color-mix(in oklch, var(--red) 14%, transparent);
+          /* evidence red — stamps, redaction, alerts */
+          --red: oklch(0.64 0.19 27);
+          --red-soft: color-mix(in oklch, var(--red) 14%, transparent);
 
-        /* response green — the ← response log line (ANSI 92) */
-        --green:    oklch(0.80 0.165 145);
+          /* response green — the ← response log line (ANSI 92) */
+          --green: oklch(0.8 0.165 145);
 
-        --radius:    6px;
-        --radius-lg: 10px;
-        --max:       1080px;
+          --radius: 6px;
+          --radius-lg: 10px;
+          --max: 1080px;
 
-        --ease: cubic-bezier(.22, 1, .36, 1);
+          --ease: cubic-bezier(0.22, 1, 0.36, 1);
+        }
       }
-    }
 
-    /* ===========================================================
+      /* ===========================================================
        BASE — document, typography, global chrome
        =========================================================== */
-    @layer base {
-      html { scroll-behavior: smooth; }
-
-      :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 3px; }
-
-      body {
-        margin: 0;
-        font-family: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: var(--bg);
-        color: var(--ink);
-        line-height: 1.65;
-        -webkit-font-smoothing: antialiased;
-        text-rendering: optimizeLegibility;
-        position: relative;
-        overflow-x: hidden;
-
-        /* atmosphere: faint scanlines + vignette (static texture, not motion) */
-        &::before {
-          content: "";
-          position: fixed;
-          inset: 0;
-          pointer-events: none;
-          z-index: 1;
-          background:
-            repeating-linear-gradient(to bottom, transparent 0 2px, oklch(0 0 0 / 0.022) 2px 3px),
-            radial-gradient(120% 80% at 50% 0%, transparent 40%, oklch(0 0 0 / 0.35) 100%);
-        }
-      }
-
-      a {
-        color: var(--amber);
-        text-decoration: none;
-        transition: color 150ms;
-
-        &:hover { color: var(--amber-strong); }
-      }
-
-      code {
-        font-family: "JetBrains Mono", ui-monospace, monospace;
-        background: var(--surface-2);
-        padding: 0.08rem 0.38rem;
-        border-radius: 4px;
-        font-size: 0.86em;
-        color: var(--ink-strong);
-        border: 1px solid var(--border);
-      }
-
-      .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
-
-      /* ---------- type roles ---------- */
-      .kicker {
-        font-family: "JetBrains Mono", ui-monospace, monospace;
-        font-size: 0.72rem;
-        font-weight: 500;
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        color: var(--amber);
-        display: inline-flex;
-        align-items: center;
-        gap: 0.55rem;
-
-        &::before {
-          content: "";
-          width: 1.5rem;
-          height: 1px;
-          background: var(--amber);
-          opacity: 0.6;
-        }
-      }
-
-      h1 {
-        font-family: "Anton", "Oswald", sans-serif;
-        font-weight: 400;
-        font-size: clamp(2.6rem, 7vw, 5rem);
-        line-height: 0.98;
-        letter-spacing: 0.005em;
-        margin: 1rem 0 1.4rem;
-        text-transform: uppercase;
-        text-wrap: balance;
-        max-width: 16ch;
-
-        .accent { color: var(--amber); }
-      }
-
-      .section-head {
-        display: flex; align-items: baseline; gap: 1rem;
-        flex-wrap: wrap; margin-bottom: 0.5rem;
-      }
-
-      h2 {
-        font-family: "Oswald", sans-serif;
-        font-weight: 600;
-        font-size: clamp(1.5rem, 3.4vw, 2.1rem);
-        letter-spacing: 0.01em;
-        line-height: 1.1;
-        margin: 0;
-        text-transform: uppercase;
-        text-wrap: balance;
-        color: var(--ink-strong);
-      }
-
-      p {
-        margin: 0 0 1rem;
-        text-wrap: pretty;
-      }
-    }
-
-    /* ===========================================================
-       LAYOUT
-       =========================================================== */
-    @layer layout {
-      .wrap { max-width: var(--max); margin: 0 auto; padding: 0 1.5rem; position: relative; z-index: 2; }
-    }
-
-    /* ===========================================================
-       COMPONENTS
-       =========================================================== */
-    @layer components {
-
-      /* ---------- status bar ---------- */
-      .statusbar {
-        border-bottom: 1px solid var(--border);
-        background: var(--bg-2);
-        font-family: "JetBrains Mono", ui-monospace, monospace;
-        font-size: 0.72rem;
-        letter-spacing: 0.06em;
-        position: relative;
-        z-index: 3;
-
-        .wrap {
-          display: flex; align-items: center; gap: 1.25rem;
-          padding-top: 0.6rem; padding-bottom: 0.6rem;
-          flex-wrap: wrap;
+      @layer base {
+        html {
+          scroll-behavior: smooth;
         }
 
-        .rec {
-          display: inline-flex; align-items: center; gap: 0.45rem;
-          color: var(--red); font-weight: 700;
+        :focus-visible {
+          outline: 2px solid var(--amber);
+          outline-offset: 2px;
+          border-radius: 3px;
+        }
 
-          .dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: var(--red);
-            box-shadow: 0 0 8px var(--red);
-            animation: blink 1.6s steps(1) infinite;
+        body {
+          margin: 0;
+          font-family:
+            'Hanken Grotesk',
+            -apple-system,
+            BlinkMacSystemFont,
+            'Segoe UI',
+            sans-serif;
+          background: var(--bg);
+          color: var(--ink);
+          line-height: 1.65;
+          -webkit-font-smoothing: antialiased;
+          text-rendering: optimizeLegibility;
+          position: relative;
+          overflow-x: hidden;
+
+          /* atmosphere: faint scanlines + vignette (static texture, not motion) */
+          &::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1;
+            background:
+              repeating-linear-gradient(to bottom, transparent 0 2px, oklch(0 0 0 / 0.022) 2px 3px),
+              radial-gradient(120% 80% at 50% 0%, transparent 40%, oklch(0 0 0 / 0.35) 100%);
           }
         }
 
-        .case { color: var(--muted); }
-        .spacer { flex: 1; }
-        .classif { color: var(--faint); }
-        .sep { color: var(--border-strong); }
-      }
+        a {
+          color: var(--amber);
+          text-decoration: none;
+          transition: color 150ms;
 
-      /* ---------- hero ---------- */
-      .hero {
-        padding: 4.5rem 0 3.5rem;
-        border-bottom: 1px solid var(--border);
-        position: relative;
-        background-color: var(--bg);
-        background-image:
-          linear-gradient(100deg, oklch(0.17 0.012 258 / 0.95) 0%, oklch(0.17 0.012 258 / 0.80) 36%, oklch(0.17 0.012 258 / 0.50) 100%),
-          linear-gradient(to bottom, oklch(0.17 0.012 258 / 0.35), transparent 22%, transparent 70%, oklch(0.17 0.012 258 / 0.65)),
-          url(./assets/hero-wiretap.jpg);
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-      }
-
-      .hero-grid {
-        display: grid;
-        grid-template-columns: 1.05fr 0.95fr;
-        gap: 3rem;
-        align-items: center;
-      }
-
-      .lede {
-        font-size: 1.06rem;
-        color: var(--muted);
-        max-width: 46ch;
-        margin-bottom: 2rem;
-      }
-
-      .hero-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.25rem; }
-
-      /* ---------- buttons ---------- */
-      .btn {
-        display: inline-flex; align-items: center; gap: 0.4rem;
-        font-family: "Oswald", sans-serif;
-        font-weight: 500;
-        font-size: 0.86rem;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        padding: 0.55rem 0.95rem;
-        border: 1px solid var(--border-strong);
-        border-radius: var(--radius);
-        color: var(--ink);
-        transition: border-color 150ms, color 150ms, background 150ms, translate 120ms;
-
-        &.ghost {
-          background: transparent;
-
-          &:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-soft); }
-          &:active { translate: 0 1px; }
-        }
-      }
-
-      /* ---------- download CTA ---------- */
-      .downloads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.7rem; margin: 1.75rem 0 0; }
-
-      .dl-btn {
-        display: flex; flex-direction: column; gap: 0.3rem;
-        padding: 0.9rem 0.8rem 0.8rem;
-        background: var(--amber);
-        color: oklch(0.18 0.02 70);
-        border-radius: var(--radius);
-        font-family: "Oswald", sans-serif;
-        font-weight: 600;
-        font-size: 0.98rem;
-        letter-spacing: 0.02em;
-        text-transform: uppercase;
-        transition: background 150ms, translate 150ms var(--ease), box-shadow 150ms;
-        box-shadow: 0 0 0 1px oklch(0.82 0.135 80 / 0);
-        will-change: translate;
-
-        &:hover {
-          background: var(--amber-strong);
-          color: oklch(0.14 0.02 70);
-          translate: 0 -2px;
-          box-shadow: 0 12px 28px -12px var(--amber);
+          &:hover {
+            color: var(--amber-strong);
+          }
         }
 
-        &:active { translate: 0 0; }
+        code {
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          background: var(--surface-2);
+          padding: 0.08rem 0.38rem;
+          border-radius: 4px;
+          font-size: 0.86em;
+          color: var(--ink-strong);
+          border: 1px solid var(--border);
+        }
 
-        svg { opacity: 0.85; }
+        .mono {
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+        }
 
-        .dl-sub {
-          font-family: "JetBrains Mono", monospace;
+        /* ---------- type roles ---------- */
+        .kicker {
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 0.72rem;
           font-weight: 500;
-          font-size: 0.66rem;
-          letter-spacing: 0.06em;
-          text-transform: none;
-          opacity: 0.7;
+          letter-spacing: 0.22em;
+          text-transform: uppercase;
+          color: var(--amber);
+          display: inline-flex;
+          align-items: center;
+          gap: 0.55rem;
+
+          &::before {
+            content: '';
+            width: 1.5rem;
+            height: 1px;
+            background: var(--amber);
+            opacity: 0.6;
+          }
+        }
+
+        h1 {
+          font-family: 'Anton', 'Oswald', sans-serif;
+          font-weight: 400;
+          font-size: clamp(2.6rem, 7vw, 5rem);
+          line-height: 0.98;
+          letter-spacing: 0.005em;
+          margin: 1rem 0 1.4rem;
+          text-transform: uppercase;
+          text-wrap: balance;
+          max-width: 16ch;
+
+          .accent {
+            color: var(--amber);
+          }
+        }
+
+        .section-head {
+          display: flex;
+          align-items: baseline;
+          gap: 1rem;
+          flex-wrap: wrap;
+          margin-bottom: 0.5rem;
+        }
+
+        h2 {
+          font-family: 'Oswald', sans-serif;
+          font-weight: 600;
+          font-size: clamp(1.5rem, 3.4vw, 2.1rem);
+          letter-spacing: 0.01em;
+          line-height: 1.1;
+          margin: 0;
+          text-transform: uppercase;
+          text-wrap: balance;
+          color: var(--ink-strong);
+        }
+
+        p {
+          margin: 0 0 1rem;
+          text-wrap: pretty;
         }
       }
 
-      /* ---------- intercept feed monitor ---------- */
-      .feed {
-        position: relative;
-        background: var(--bg-2);
-        border: 1px solid var(--border-strong);
-        border-radius: var(--radius-lg);
-        overflow: hidden;
-        box-shadow: 0 30px 60px -30px oklch(0 0 0 / 0.8), inset 0 0 0 1px oklch(0 0 0 / 0.3);
+      /* ===========================================================
+       LAYOUT
+       =========================================================== */
+      @layer layout {
+        .wrap {
+          max-width: var(--max);
+          margin: 0 auto;
+          padding: 0 1.5rem;
+          position: relative;
+          z-index: 2;
+        }
+      }
 
-        .feed-head {
-          display: flex; align-items: center; gap: 0.7rem;
-          padding: 0.6rem 0.85rem;
+      /* ===========================================================
+       COMPONENTS
+       =========================================================== */
+      @layer components {
+        /* ---------- status bar ---------- */
+        .statusbar {
           border-bottom: 1px solid var(--border);
-          font-family: "JetBrains Mono", monospace;
-          font-size: 0.7rem;
-          color: var(--muted);
-          letter-spacing: 0.05em;
-          background: oklch(0 0 0 / 0.25);
+          background: var(--bg-2);
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 0.72rem;
+          letter-spacing: 0.06em;
+          position: relative;
+          z-index: 3;
 
-          .live {
-            color: var(--green); font-weight: 700;
-            display: inline-flex; align-items: center; gap: 0.4rem;
+          .wrap {
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            padding-top: 0.6rem;
+            padding-bottom: 0.6rem;
+            flex-wrap: wrap;
+          }
+
+          .rec {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            color: var(--red);
+            font-weight: 700;
 
             .dot {
-              width: 7px; height: 7px; border-radius: 50%;
-              background: var(--green);
-              box-shadow: 0 0 8px var(--green);
+              width: 8px;
+              height: 8px;
+              border-radius: 50%;
+              background: var(--red);
+              box-shadow: 0 0 8px var(--red);
               animation: blink 1.6s steps(1) infinite;
             }
           }
 
-          .dots {
-            margin-left: auto; display: flex; gap: 0.3rem;
-
-            i {
-              width: 8px; height: 8px; border-radius: 50%;
-              background: var(--border-strong);
-              display: inline-block;
-            }
+          .case {
+            color: var(--muted);
           }
-        }
-
-        .feed-body {
-          padding: 0.75rem 0.95rem 0.8rem;
-          font-family: "JetBrains Mono", monospace;
-          font-size: 0.72rem;
-          line-height: 1.95;
-          color: var(--ink);
-          min-height: 220px;
-
-          .stats {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-
-            th, td {
-              padding: 0.28rem 0.4rem;
-              text-align: right;
-              white-space: nowrap;
-
-              &:first-child {
-                text-align: left;
-                width: 24%;
-                white-space: normal;
-                word-break: break-word;
-              }
-            }
-
-            th {
-              white-space: normal;
-              font-size: 0.6rem;
-              letter-spacing: 0.04em;
-            }
-
-            thead th {
-              color: var(--faint);
-              font-weight: 500;
-              letter-spacing: 0.03em;
-              border-bottom: 1px solid var(--border);
-              padding-bottom: 0.45rem;
-            }
-
-            tbody {
-              td {
-                color: var(--ink);
-
-                &.model { color: var(--amber); font-weight: 500; }
-                &.cost { color: var(--ink-strong); font-weight: 700; }
-              }
-
-              tr.total td {
-                color: var(--green);
-                font-weight: 700;
-                border-top: 1px solid var(--border);
-                padding-top: 0.45rem;
-              }
-            }
+          .spacer {
+            flex: 1;
           }
-        }
-
-        .feed-foot {
-          margin-top: 0.6rem;
-          padding-top: 0.45rem;
-          border-top: 1px dashed var(--border);
-          color: var(--faint);
-          font-size: 0.68rem;
-          display: flex; gap: 0.5rem; align-items: center;
-
-          .rec-dot {
-            width: 6px; height: 6px; border-radius: 50%;
-            background: var(--red);
-            animation: blink 1s steps(1) infinite;
-          }
-        }
-      }
-
-      /* ---------- sections / exhibits ---------- */
-      section {
-        padding: 4rem 0;
-        border-bottom: 1px solid var(--border);
-        position: relative;
-        content-visibility: auto;
-        contain-intrinsic-size: 400px;
-
-        p {
-          color: var(--muted);
-          max-width: 70ch;
-
-          > strong { color: var(--ink-strong); }
-        }
-      }
-
-      .exhibit-tag {
-        display: inline-flex; align-items: center; gap: 0.5rem;
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.7rem;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        color: var(--amber);
-        background: var(--amber-soft);
-        border: 1px solid oklch(0.82 0.135 80 / 0.3);
-        padding: 0.28rem 0.6rem;
-        border-radius: 3px;
-        margin-bottom: 0.9rem;
-      }
-
-      /* ---------- evidence-framed screenshot ---------- */
-      .evidence-frame {
-        position: relative;
-        margin-top: 1.5rem;
-        padding: 0.7rem 0.7rem 0.5rem;
-        background: var(--surface);
-        border: 1px solid var(--border-strong);
-        border-radius: var(--radius-lg);
-
-        &::before, &::after {
-          content: "";
-          position: absolute;
-          width: 18px; height: 18px;
-          border: 2px solid var(--amber);
-          opacity: 0.85;
-        }
-        &::before { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
-        &::after { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }
-
-        img {
-          display: block;
-          width: 100%;
-          height: auto;
-          border-radius: 4px;
-          border: 1px solid var(--border);
-        }
-      }
-
-      .evidence-cap {
-        display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
-        margin-top: 0.55rem;
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.7rem;
-        letter-spacing: 0.05em;
-        color: var(--faint);
-
-        .tag { color: var(--amber); }
-      }
-
-      /* ---------- flow / intercept topology ---------- */
-      .flow {
-        margin-top: 1.5rem;
-        overflow-x: auto;
-
-        svg {
-          display: block; width: 100%; max-width: 720px; height: auto; margin: 0 auto;
-
-          .box { fill: var(--surface); stroke: var(--border-strong); stroke-width: 1; }
-          .box.proxy { fill: var(--amber-soft); stroke: var(--amber); stroke-width: 1.6; }
-          .arrow { stroke: var(--muted); stroke-width: 1.4; fill: none; }
-          .arrowhead { fill: var(--muted); }
-          .tap {
-            fill: var(--red);
-            font-family: "JetBrains Mono", monospace;
-            font-size: 9px; font-weight: 700; letter-spacing: 1px;
-          }
-          .label { fill: var(--muted); font-family: "JetBrains Mono", monospace; font-size: 10px; }
-          text { fill: var(--ink); font-family: "JetBrains Mono", monospace; font-size: 12px; }
-        }
-      }
-
-      .flow-caption {
-        text-align: center;
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.74rem;
-        color: var(--muted);
-        margin: 0.8rem 0 0;
-      }
-
-      .flow-step { color: var(--amber); }
-
-      /* ---------- features / evidence locker ---------- */
-      .features {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1rem;
-        margin-top: 1.75rem;
-      }
-
-      .feature {
-        position: relative;
-        padding: 1.3rem 1.2rem 1.2rem;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        transition: translate 200ms var(--ease), border-color 200ms, background 200ms;
-        will-change: translate;
-
-        &:hover {
-          translate: 0 -3px;
-          border-color: var(--amber);
-          background: var(--surface-2);
-        }
-
-        .icon {
-          font-family: "JetBrains Mono", monospace;
-          font-weight: 700;
-          color: var(--amber);
-          width: 2rem; height: 2rem;
-          display: inline-flex; align-items: center; justify-content: center;
-          border: 1px solid oklch(0.82 0.135 80 / 0.4);
-          border-radius: 4px;
-          margin-bottom: 0.7rem;
-        }
-
-        h3 {
-          font-family: "Oswald", sans-serif;
-          font-weight: 600;
-          font-size: 1.05rem;
-          margin: 0 0 0.4rem;
-          color: var(--ink-strong);
-          text-wrap: balance;
-        }
-
-        p { font-size: 0.92rem; margin: 0; }
-
-        &.wide {
-          grid-column: 1 / -1;
-
-          .wide-inner {
-            display: grid; grid-template-columns: auto 1fr; gap: 1.3rem; align-items: start;
-
-            > .icon { grid-row: span 2; }
-          }
-        }
-      }
-
-      .terminal {
-        grid-column: 1 / -1;
-        margin-top: 1rem;
-        background: var(--bg-2);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 0.8rem 1rem;
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.82rem;
-        color: var(--ink);
-        overflow-x: auto;
-
-        .prompt { color: var(--amber); }
-        .arrow { color: var(--muted); }
-        .out { color: var(--ink-strong); font-weight: 700; }
-      }
-
-      /* ---------- redacted file ---------- */
-      .privacy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
-
-      .privacy-card {
-        padding: 1.3rem 1.3rem 1.1rem;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-
-        h4 {
-          font-family: "Oswald", sans-serif;
-          font-weight: 600;
-          letter-spacing: 0.06em;
-          text-transform: uppercase;
-          font-size: 0.95rem;
-          margin: 0 0 0.8rem;
-          color: var(--ink-strong);
-          display: flex; align-items: center; gap: 0.5rem;
-
-          .pill {
-            font-family: "JetBrains Mono", monospace;
-            font-size: 0.62rem;
-            color: var(--amber);
-            border: 1px solid oklch(0.82 0.135 80 / 0.35);
-            padding: 0.1rem 0.4rem;
-            border-radius: 3px;
-          }
-        }
-
-        ul {
-          list-style: none; padding: 0; margin: 0;
-          font-family: "JetBrains Mono", monospace;
-          font-size: 0.83rem;
-        }
-
-        li {
-          padding: 0.32rem 0;
-          border-bottom: 1px dashed var(--border);
-          color: var(--ink);
-
-          &:last-child { border-bottom: 0; }
-
-          .meta { color: var(--faint); }
-        }
-
-        &.not-stored {
-          position: relative;
-
-          li {
+          .classif {
             color: var(--faint);
+          }
+          .sep {
+            color: var(--border-strong);
+          }
+        }
 
-            .bar {
-              display: inline-block;
-              width: 7.5rem;
-              height: 0.92em;
-              vertical-align: -0.1em;
-              background: var(--ink-strong);
-              border-radius: 1px;
-              margin-right: 0.55rem;
-              user-select: none;
+        /* ---------- hero ---------- */
+        .hero {
+          padding: 4.5rem 0 3.5rem;
+          border-bottom: 1px solid var(--border);
+          position: relative;
+          background-color: var(--bg);
+          background-image:
+            linear-gradient(
+              100deg,
+              oklch(0.17 0.012 258 / 0.95) 0%,
+              oklch(0.17 0.012 258 / 0.8) 36%,
+              oklch(0.17 0.012 258 / 0.5) 100%
+            ),
+            linear-gradient(
+              to bottom,
+              oklch(0.17 0.012 258 / 0.35),
+              transparent 22%,
+              transparent 70%,
+              oklch(0.17 0.012 258 / 0.65)
+            ),
+            url(./assets/hero-wiretap.jpg);
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+        }
+
+        .hero-grid {
+          display: grid;
+          grid-template-columns: 1.05fr 0.95fr;
+          gap: 3rem;
+          align-items: center;
+        }
+
+        .lede {
+          font-size: 1.06rem;
+          color: var(--muted);
+          max-width: 46ch;
+          margin-bottom: 2rem;
+        }
+
+        .hero-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          margin-top: 1.25rem;
+        }
+
+        /* ---------- buttons ---------- */
+        .btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          font-family: 'Oswald', sans-serif;
+          font-weight: 500;
+          font-size: 0.86rem;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          padding: 0.55rem 0.95rem;
+          border: 1px solid var(--border-strong);
+          border-radius: var(--radius);
+          color: var(--ink);
+          transition:
+            border-color 150ms,
+            color 150ms,
+            background 150ms,
+            translate 120ms;
+
+          &.ghost {
+            background: transparent;
+
+            &:hover {
+              border-color: var(--amber);
+              color: var(--amber);
+              background: var(--amber-soft);
+            }
+            &:active {
+              translate: 0 1px;
             }
           }
         }
-      }
 
-      .stamp {
-        position: absolute;
-        top: 0.6rem; right: 0.7rem;
-        font-family: "Oswald", sans-serif;
-        font-weight: 700;
-        font-size: 0.72rem;
-        letter-spacing: 0.12em;
-        color: var(--red);
-        border: 2px solid var(--red);
-        padding: 0.15rem 0.5rem;
-        border-radius: 3px;
-        rotate: 8deg;
-        opacity: 0.85;
-        background: color-mix(in oklch, var(--red) 6%, transparent);
-      }
+        /* ---------- download CTA ---------- */
+        .downloads {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 0.7rem;
+          margin: 1.75rem 0 0;
+        }
 
-      .guarantees {
-        list-style: none; padding: 0; margin: 1.4rem 0 0; display: grid; gap: 0.6rem;
-
-        li {
-          padding: 0.85rem 1rem 0.85rem 2.3rem;
-          background: var(--surface);
-          border: 1px solid var(--border);
-          border-left: 0;
+        .dl-btn {
+          display: flex;
+          flex-direction: column;
+          gap: 0.3rem;
+          padding: 0.9rem 0.8rem 0.8rem;
+          background: var(--amber);
+          color: oklch(0.18 0.02 70);
           border-radius: var(--radius);
-          position: relative;
-          color: var(--muted);
+          font-family: 'Oswald', sans-serif;
+          font-weight: 600;
+          font-size: 0.98rem;
+          letter-spacing: 0.02em;
+          text-transform: uppercase;
+          transition:
+            background 150ms,
+            translate 150ms var(--ease),
+            box-shadow 150ms;
+          box-shadow: 0 0 0 1px oklch(0.82 0.135 80 / 0);
+          will-change: translate;
 
-          &::before {
-            content: "✓";
-            position: absolute; left: 0.9rem; top: 0.8rem;
-            color: var(--amber); font-weight: 700; font-family: "JetBrains Mono", monospace;
+          &:hover {
+            background: var(--amber-strong);
+            color: oklch(0.14 0.02 70);
+            translate: 0 -2px;
+            box-shadow: 0 12px 28px -12px var(--amber);
           }
 
-          strong { color: var(--ink-strong); }
-        }
-      }
+          &:active {
+            translate: 0 0;
+          }
 
-      /* ---------- dossier / personas ---------- */
-      .personas { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.6rem; }
+          svg {
+            opacity: 0.85;
+          }
 
-      .persona {
-        padding: 1.25rem 1.25rem 1.1rem;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        position: relative;
-        transition: border-color 200ms, translate 200ms var(--ease);
-        will-change: translate;
-
-        &:hover {
-          border-color: var(--amber);
-          translate: 0 -2px;
+          .dl-sub {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
+            font-size: 0.66rem;
+            letter-spacing: 0.06em;
+            text-transform: none;
+            opacity: 0.7;
+          }
         }
 
-        .file-no {
-          position: absolute; top: 0.85rem; right: 1rem;
-          font-family: "JetBrains Mono", monospace;
-          font-size: 0.64rem;
-          color: var(--faint);
-          letter-spacing: 0.08em;
+        /* ---------- intercept feed monitor ---------- */
+        .feed {
+          position: relative;
+          background: var(--bg-2);
+          border: 1px solid var(--border-strong);
+          border-radius: var(--radius-lg);
+          overflow: hidden;
+          box-shadow:
+            0 30px 60px -30px oklch(0 0 0 / 0.8),
+            inset 0 0 0 1px oklch(0 0 0 / 0.3);
+
+          .feed-head {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            padding: 0.6rem 0.85rem;
+            border-bottom: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--muted);
+            letter-spacing: 0.05em;
+            background: oklch(0 0 0 / 0.25);
+
+            .live {
+              color: var(--green);
+              font-weight: 700;
+              display: inline-flex;
+              align-items: center;
+              gap: 0.4rem;
+
+              .dot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: var(--green);
+                box-shadow: 0 0 8px var(--green);
+                animation: blink 1.6s steps(1) infinite;
+              }
+            }
+
+            .dots {
+              margin-left: auto;
+              display: flex;
+              gap: 0.3rem;
+
+              i {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: var(--border-strong);
+                display: inline-block;
+              }
+            }
+          }
+
+          .feed-body {
+            padding: 0.75rem 0.95rem 0.8rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            line-height: 1.95;
+            color: var(--ink);
+            min-height: 220px;
+
+            .stats {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+
+              th,
+              td {
+                padding: 0.28rem 0.4rem;
+                text-align: right;
+                white-space: nowrap;
+
+                &:first-child {
+                  text-align: left;
+                  width: 24%;
+                  white-space: normal;
+                  word-break: break-word;
+                }
+              }
+
+              th {
+                white-space: normal;
+                font-size: 0.6rem;
+                letter-spacing: 0.04em;
+              }
+
+              thead th {
+                color: var(--faint);
+                font-weight: 500;
+                letter-spacing: 0.03em;
+                border-bottom: 1px solid var(--border);
+                padding-bottom: 0.45rem;
+              }
+
+              tbody {
+                td {
+                  color: var(--ink);
+
+                  &.model {
+                    color: var(--amber);
+                    font-weight: 500;
+                  }
+                  &.cost {
+                    color: var(--ink-strong);
+                    font-weight: 700;
+                  }
+                }
+
+                tr.total td {
+                  color: var(--green);
+                  font-weight: 700;
+                  border-top: 1px solid var(--border);
+                  padding-top: 0.45rem;
+                }
+              }
+            }
+          }
+
+          .feed-foot {
+            margin-top: 0.6rem;
+            padding-top: 0.45rem;
+            border-top: 1px dashed var(--border);
+            color: var(--faint);
+            font-size: 0.68rem;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+
+            .rec-dot {
+              width: 6px;
+              height: 6px;
+              border-radius: 50%;
+              background: var(--red);
+              animation: blink 1s steps(1) infinite;
+            }
+          }
         }
 
-        h3 {
-          font-family: "Oswald", sans-serif;
-          font-weight: 600;
-          font-size: 1.02rem;
-          margin: 0 0 0.5rem;
-          color: var(--ink-strong);
-          text-wrap: balance;
-          padding-right: 3rem;
+        /* ---------- sections / exhibits ---------- */
+        section {
+          padding: 4rem 0;
+          border-bottom: 1px solid var(--border);
+          position: relative;
+          content-visibility: auto;
+          contain-intrinsic-size: 400px;
+
+          p {
+            color: var(--muted);
+            max-width: 70ch;
+
+            > strong {
+              color: var(--ink-strong);
+            }
+          }
         }
 
-        .signal {
-          display: inline-block;
-          font-family: "JetBrains Mono", monospace;
-          font-size: 0.74rem;
+        .exhibit-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.7rem;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
           color: var(--amber);
           background: var(--amber-soft);
-          padding: 0.15rem 0.5rem;
+          border: 1px solid oklch(0.82 0.135 80 / 0.3);
+          padding: 0.28rem 0.6rem;
           border-radius: 3px;
-          margin-bottom: 0.6rem;
+          margin-bottom: 0.9rem;
         }
 
-        p { font-size: 0.9rem; margin: 0; }
-      }
+        /* ---------- evidence-framed screenshot ---------- */
+        .evidence-frame {
+          position: relative;
+          margin-top: 1.5rem;
+          padding: 0.7rem 0.7rem 0.5rem;
+          background: var(--surface);
+          border: 1px solid var(--border-strong);
+          border-radius: var(--radius-lg);
 
-      /* ---------- field manual ---------- */
-      .manual {
-        margin-top: 1.5rem;
-        background: var(--bg-2);
-        border: 1px solid var(--border-strong);
-        border-radius: var(--radius-lg);
-        overflow: hidden;
-      }
+          &::before,
+          &::after {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--amber);
+            opacity: 0.85;
+          }
+          &::before {
+            top: -2px;
+            left: -2px;
+            border-right: 0;
+            border-bottom: 0;
+          }
+          &::after {
+            bottom: -2px;
+            right: -2px;
+            border-left: 0;
+            border-top: 0;
+          }
 
-      .manual-head {
-        padding: 0.6rem 1rem;
-        border-bottom: 1px solid var(--border);
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.72rem;
-        color: var(--muted);
-        letter-spacing: 0.05em;
-        display: flex; gap: 0.6rem; align-items: center;
-        background: oklch(0 0 0 / 0.25);
+          img {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+          }
+        }
 
-        .tag { color: var(--amber); }
-      }
+        .evidence-cap {
+          display: flex;
+          justify-content: space-between;
+          gap: 1rem;
+          flex-wrap: wrap;
+          margin-top: 0.55rem;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.7rem;
+          letter-spacing: 0.05em;
+          color: var(--faint);
 
-      pre.install {
-        margin: 0;
-        padding: 1.1rem 1.2rem;
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.84rem;
-        line-height: 1.9;
-        color: var(--ink);
-        overflow-x: auto;
+          .tag {
+            color: var(--amber);
+          }
+        }
 
-        .comment { color: var(--faint); }
-        .cmd { color: var(--ink-strong); }
-        .arrow { color: var(--amber); }
-      }
+        /* ---------- flow / intercept topology ---------- */
+        .flow {
+          margin-top: 1.5rem;
+          overflow-x: auto;
 
-      /* ---------- footer ---------- */
-      footer { padding: 2.5rem 0 3rem; }
+          svg {
+            display: block;
+            width: 100%;
+            max-width: 720px;
+            height: auto;
+            margin: 0 auto;
 
-      .footer-grid {
-        display: flex; justify-content: space-between; gap: 1.5rem;
-        flex-wrap: wrap; align-items: center;
-        font-size: 0.85rem; color: var(--muted);
-      }
+            .box {
+              fill: var(--surface);
+              stroke: var(--border-strong);
+              stroke-width: 1;
+            }
+            .box.proxy {
+              fill: var(--amber-soft);
+              stroke: var(--amber);
+              stroke-width: 1.6;
+            }
+            .arrow {
+              stroke: var(--muted);
+              stroke-width: 1.4;
+              fill: none;
+            }
+            .arrowhead {
+              fill: var(--muted);
+            }
+            .tap {
+              fill: var(--red);
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 9px;
+              font-weight: 700;
+              letter-spacing: 1px;
+            }
+            .label {
+              fill: var(--muted);
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 10px;
+            }
+            text {
+              fill: var(--ink);
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 12px;
+            }
+          }
+        }
 
-      .footer-links { display: flex; gap: 1.25rem; }
+        .flow-caption {
+          text-align: center;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.74rem;
+          color: var(--muted);
+          margin: 0.8rem 0 0;
+        }
 
-      .footer-classif {
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.68rem;
-        letter-spacing: 0.12em;
-        color: var(--faint);
-        text-transform: uppercase;
-        margin-top: 1rem;
-        padding-top: 1rem;
-        border-top: 1px solid var(--border);
+        .flow-step {
+          color: var(--amber);
+        }
+
+        /* ---------- features / evidence locker ---------- */
+        .features {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 1rem;
+          margin-top: 1.75rem;
+        }
+
+        .feature {
+          position: relative;
+          padding: 1.3rem 1.2rem 1.2rem;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-lg);
+          transition:
+            translate 200ms var(--ease),
+            border-color 200ms,
+            background 200ms;
+          will-change: translate;
+
+          &:hover {
+            translate: 0 -3px;
+            border-color: var(--amber);
+            background: var(--surface-2);
+          }
+
+          .icon {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            color: var(--amber);
+            width: 2rem;
+            height: 2rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid oklch(0.82 0.135 80 / 0.4);
+            border-radius: 4px;
+            margin-bottom: 0.7rem;
+          }
+
+          h3 {
+            font-family: 'Oswald', sans-serif;
+            font-weight: 600;
+            font-size: 1.05rem;
+            margin: 0 0 0.4rem;
+            color: var(--ink-strong);
+            text-wrap: balance;
+          }
+
+          p {
+            font-size: 0.92rem;
+            margin: 0;
+          }
+
+          &.wide {
+            grid-column: 1 / -1;
+
+            .wide-inner {
+              display: grid;
+              grid-template-columns: auto 1fr;
+              gap: 1.3rem;
+              align-items: start;
+
+              > .icon {
+                grid-row: span 2;
+              }
+            }
+          }
+        }
+
+        .terminal {
+          grid-column: 1 / -1;
+          margin-top: 1rem;
+          background: var(--bg-2);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          padding: 0.8rem 1rem;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.82rem;
+          color: var(--ink);
+          overflow-x: auto;
+
+          .prompt {
+            color: var(--amber);
+          }
+          .arrow {
+            color: var(--muted);
+          }
+          .out {
+            color: var(--ink-strong);
+            font-weight: 700;
+          }
+        }
+
+        /* ---------- redacted file ---------- */
+        .privacy-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+          margin-top: 1.5rem;
+        }
+
+        .privacy-card {
+          padding: 1.3rem 1.3rem 1.1rem;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-lg);
+
+          h4 {
+            font-family: 'Oswald', sans-serif;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-size: 0.95rem;
+            margin: 0 0 0.8rem;
+            color: var(--ink-strong);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+
+            .pill {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 0.62rem;
+              color: var(--amber);
+              border: 1px solid oklch(0.82 0.135 80 / 0.35);
+              padding: 0.1rem 0.4rem;
+              border-radius: 3px;
+            }
+          }
+
+          ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.83rem;
+          }
+
+          li {
+            padding: 0.32rem 0;
+            border-bottom: 1px dashed var(--border);
+            color: var(--ink);
+
+            &:last-child {
+              border-bottom: 0;
+            }
+
+            .meta {
+              color: var(--faint);
+            }
+          }
+
+          &.not-stored {
+            position: relative;
+
+            li {
+              color: var(--faint);
+
+              .bar {
+                display: inline-block;
+                width: 7.5rem;
+                height: 0.92em;
+                vertical-align: -0.1em;
+                background: var(--ink-strong);
+                border-radius: 1px;
+                margin-right: 0.55rem;
+                user-select: none;
+              }
+            }
+          }
+        }
+
+        .stamp {
+          position: absolute;
+          top: 0.6rem;
+          right: 0.7rem;
+          font-family: 'Oswald', sans-serif;
+          font-weight: 700;
+          font-size: 0.72rem;
+          letter-spacing: 0.12em;
+          color: var(--red);
+          border: 2px solid var(--red);
+          padding: 0.15rem 0.5rem;
+          border-radius: 3px;
+          rotate: 8deg;
+          opacity: 0.85;
+          background: color-mix(in oklch, var(--red) 6%, transparent);
+        }
+
+        .guarantees {
+          list-style: none;
+          padding: 0;
+          margin: 1.4rem 0 0;
+          display: grid;
+          gap: 0.6rem;
+
+          li {
+            padding: 0.85rem 1rem 0.85rem 2.3rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 0;
+            border-radius: var(--radius);
+            position: relative;
+            color: var(--muted);
+
+            &::before {
+              content: '✓';
+              position: absolute;
+              left: 0.9rem;
+              top: 0.8rem;
+              color: var(--amber);
+              font-weight: 700;
+              font-family: 'JetBrains Mono', monospace;
+            }
+
+            strong {
+              color: var(--ink-strong);
+            }
+          }
+        }
+
+        /* ---------- dossier / personas ---------- */
+        .personas {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+          margin-top: 1.6rem;
+        }
+
+        .persona {
+          padding: 1.25rem 1.25rem 1.1rem;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-lg);
+          position: relative;
+          transition:
+            border-color 200ms,
+            translate 200ms var(--ease);
+          will-change: translate;
+
+          &:hover {
+            border-color: var(--amber);
+            translate: 0 -2px;
+          }
+
+          .file-no {
+            position: absolute;
+            top: 0.85rem;
+            right: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.64rem;
+            color: var(--faint);
+            letter-spacing: 0.08em;
+          }
+
+          h3 {
+            font-family: 'Oswald', sans-serif;
+            font-weight: 600;
+            font-size: 1.02rem;
+            margin: 0 0 0.5rem;
+            color: var(--ink-strong);
+            text-wrap: balance;
+            padding-right: 3rem;
+          }
+
+          .signal {
+            display: inline-block;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.74rem;
+            color: var(--amber);
+            background: var(--amber-soft);
+            padding: 0.15rem 0.5rem;
+            border-radius: 3px;
+            margin-bottom: 0.6rem;
+          }
+
+          p {
+            font-size: 0.9rem;
+            margin: 0;
+          }
+        }
+
+        /* ---------- field manual ---------- */
+        .manual {
+          margin-top: 1.5rem;
+          background: var(--bg-2);
+          border: 1px solid var(--border-strong);
+          border-radius: var(--radius-lg);
+          overflow: hidden;
+        }
+
+        .manual-head {
+          padding: 0.6rem 1rem;
+          border-bottom: 1px solid var(--border);
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.72rem;
+          color: var(--muted);
+          letter-spacing: 0.05em;
+          display: flex;
+          gap: 0.6rem;
+          align-items: center;
+          background: oklch(0 0 0 / 0.25);
+
+          .tag {
+            color: var(--amber);
+          }
+        }
+
+        pre.install {
+          margin: 0;
+          padding: 1.1rem 1.2rem;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.84rem;
+          line-height: 1.9;
+          color: var(--ink);
+          overflow-x: auto;
+
+          .comment {
+            color: var(--faint);
+          }
+          .cmd {
+            color: var(--ink-strong);
+          }
+          .arrow {
+            color: var(--amber);
+          }
+        }
+
+        /* ---------- footer ---------- */
+        footer {
+          padding: 2.5rem 0 3rem;
+        }
+
+        .footer-grid {
+          display: flex;
+          justify-content: space-between;
+          gap: 1.5rem;
+          flex-wrap: wrap;
+          align-items: center;
+          font-size: 0.85rem;
+          color: var(--muted);
+        }
+
+        .footer-links {
+          display: flex;
+          gap: 1.25rem;
+        }
+
+        .footer-classif {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.68rem;
+          letter-spacing: 0.12em;
+          color: var(--faint);
+          text-transform: uppercase;
+          margin-top: 1rem;
+          padding-top: 1rem;
+          border-top: 1px solid var(--border);
+        }
+
+        /* ===========================================================
+         RESPONSIVE
+         =========================================================== */
+        @media (max-width: 820px) {
+          .hero-grid {
+            grid-template-columns: 1fr;
+            gap: 2.5rem;
+          }
+        }
+
+        @media (max-width: 620px) {
+          .feature.wide .wide-inner {
+            grid-template-columns: 1fr;
+            > .icon {
+              grid-row: auto;
+            }
+          }
+          .privacy-grid {
+            grid-template-columns: 1fr;
+          }
+          .personas {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .hero {
+            padding: 3rem 0 2.5rem;
+          }
+          section {
+            padding: 3rem 0;
+          }
+          .statusbar .classif {
+            display: none;
+          }
+          h1 {
+            font-size: clamp(2.2rem, 11vw, 3rem);
+          }
+          .downloads {
+            grid-template-columns: 1fr;
+          }
+        }
       }
 
       /* ===========================================================
-         RESPONSIVE
-         =========================================================== */
-      @media (max-width: 820px) {
-        .hero-grid { grid-template-columns: 1fr; gap: 2.5rem; }
-      }
-
-      @media (max-width: 620px) {
-        .feature.wide .wide-inner { grid-template-columns: 1fr; > .icon { grid-row: auto; } }
-        .privacy-grid { grid-template-columns: 1fr; }
-        .personas { grid-template-columns: 1fr; }
-      }
-
-      @media (max-width: 560px) {
-        .hero { padding: 3rem 0 2.5rem; }
-        section { padding: 3rem 0; }
-        .statusbar .classif { display: none; }
-        h1 { font-size: clamp(2.2rem, 11vw, 3rem); }
-        .downloads { grid-template-columns: 1fr; }
-      }
-    }
-
-    /* ===========================================================
        MOTION — reveals, keyframes, scroll-driven (progressive)
        =========================================================== */
-    @layer motion {
-
-      /* base: content visible without JS */
-      [data-reveal] { opacity: 1; }
-
-      /* JS-only: hide until scrolled into view */
-      .js [data-reveal] {
-        opacity: 0;
-        translate: 0 20px;
-
-        &.in {
+      @layer motion {
+        /* base: content visible without JS */
+        [data-reveal] {
           opacity: 1;
-          translate: 0 0;
-          transition: opacity .65s var(--ease), translate .65s var(--ease);
         }
 
-        &.stamp-in { opacity: 1; translate: 0 0; }
-      }
-
-      .js [data-stamp] {
-        opacity: 0;
-        rotate: 8deg;
-        scale: 1.6;
-
-        &.in {
-          opacity: 0.9;
-          rotate: 8deg;
-          scale: 1;
-          transition: opacity .35s var(--ease), rotate .35s cubic-bezier(.4,1.4,.5,1), scale .35s cubic-bezier(.4,1.4,.5,1);
-        }
-      }
-
-      /* feed scan line */
-      .feed::after {
-        content: "";
-        position: absolute;
-        left: 0; right: 0; top: 0;
-        height: 38%;
-        background: linear-gradient(to bottom, oklch(0.82 0.135 80 / 0.06), transparent);
-        pointer-events: none;
-        animation: scan 4.2s linear infinite;
-      }
-
-      @keyframes blink {
-        0%, 50% { opacity: 1; }
-        50.01%, 100% { opacity: 0.25; }
-      }
-
-      @keyframes scan {
-        0% { translate: 0 -100%; }
-        100% { translate: 0 280%; }
-      }
-
-      /* scroll-driven animations: progressive enhancement for browsers that support it.
-         When unsupported, the JS IntersectionObserver handles reveals. */
-      @supports (animation-timeline: view()) {
+        /* JS-only: hide until scrolled into view */
         .js [data-reveal] {
-          animation: reveal-in linear both;
-          animation-timeline: view();
-          animation-range: entry 5% entry 25%;
+          opacity: 0;
+          translate: 0 20px;
+
+          &.in {
+            opacity: 1;
+            translate: 0 0;
+            transition:
+              opacity 0.65s var(--ease),
+              translate 0.65s var(--ease);
+          }
+
+          &.stamp-in {
+            opacity: 1;
+            translate: 0 0;
+          }
         }
 
         .js [data-stamp] {
-          animation: stamp-in linear both;
-          animation-timeline: view();
-          animation-range: entry 5% entry 30%;
+          opacity: 0;
+          rotate: 8deg;
+          scale: 1.6;
+
+          &.in {
+            opacity: 0.9;
+            rotate: 8deg;
+            scale: 1;
+            transition:
+              opacity 0.35s var(--ease),
+              rotate 0.35s cubic-bezier(0.4, 1.4, 0.5, 1),
+              scale 0.35s cubic-bezier(0.4, 1.4, 0.5, 1);
+          }
+        }
+
+        /* feed scan line */
+        .feed::after {
+          content: '';
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 0;
+          height: 38%;
+          background: linear-gradient(to bottom, oklch(0.82 0.135 80 / 0.06), transparent);
+          pointer-events: none;
+          animation: scan 4.2s linear infinite;
+        }
+
+        @keyframes blink {
+          0%,
+          50% {
+            opacity: 1;
+          }
+          50.01%,
+          100% {
+            opacity: 0.25;
+          }
+        }
+
+        @keyframes scan {
+          0% {
+            translate: 0 -100%;
+          }
+          100% {
+            translate: 0 280%;
+          }
+        }
+
+        /* scroll-driven animations: progressive enhancement for browsers that support it.
+         When unsupported, the JS IntersectionObserver handles reveals. */
+        @supports (animation-timeline: view()) {
+          .js [data-reveal] {
+            animation: reveal-in linear both;
+            animation-timeline: view();
+            animation-range: entry 5% entry 25%;
+          }
+
+          .js [data-stamp] {
+            animation: stamp-in linear both;
+            animation-timeline: view();
+            animation-range: entry 5% entry 30%;
+          }
+        }
+
+        @keyframes reveal-in {
+          from {
+            opacity: 0;
+            translate: 0 20px;
+          }
+          to {
+            opacity: 1;
+            translate: 0 0;
+          }
+        }
+
+        @keyframes stamp-in {
+          0% {
+            opacity: 0;
+            rotate: 8deg;
+            scale: 1.6;
+          }
+          100% {
+            opacity: 0.9;
+            rotate: 8deg;
+            scale: 1;
+          }
+        }
+
+        /* prefer reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+          *,
+          *::before,
+          *::after {
+            animation: none !important;
+            transition: none !important;
+          }
+          html {
+            scroll-behavior: auto;
+          }
+          .js [data-reveal],
+          .js [data-stamp] {
+            opacity: 1 !important;
+            translate: 0 0 !important;
+            rotate: none !important;
+            scale: 1 !important;
+          }
+          .feed::after {
+            display: none;
+          }
         }
       }
-
-      @keyframes reveal-in {
-        from { opacity: 0; translate: 0 20px; }
-        to   { opacity: 1; translate: 0 0; }
-      }
-
-      @keyframes stamp-in {
-        0%   { opacity: 0; rotate: 8deg; scale: 1.6; }
-        100% { opacity: 0.9; rotate: 8deg; scale: 1; }
-      }
-
-      /* prefer reduced motion */
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after { animation: none !important; transition: none !important; }
-        html { scroll-behavior: auto; }
-        .js [data-reveal], .js [data-stamp] { opacity: 1 !important; translate: 0 0 !important; rotate: none !important; scale: 1 !important; }
-        .feed::after { display: none; }
-      }
-    }
-  </style>
-</head>
-<body>
-
-  <!-- ====================== STATUS BAR ====================== -->
-  <div class="statusbar">
-    <div class="wrap">
-      <span class="rec"><span class="dot" aria-hidden="true"></span>REC</span>
-      <span class="case">CASE №CM-0142</span>
-      <span class="sep">/</span>
-      <span class="case">SUBJECT: github.copilot</span>
-      <span class="spacer"></span>
-      <span class="classif">CLASSIFIED: LOCAL EYES ONLY</span>
+    </style>
+  </head>
+  <body>
+    <!-- ====================== STATUS BAR ====================== -->
+    <div class="statusbar">
+      <div class="wrap">
+        <span class="rec"><span class="dot" aria-hidden="true"></span>REC</span>
+        <span class="case">CASE №CM-0142</span>
+        <span class="sep">/</span>
+        <span class="case">SUBJECT: github.copilot</span>
+        <span class="spacer"></span>
+        <span class="classif">CLASSIFIED: LOCAL EYES ONLY</span>
+      </div>
     </div>
-  </div>
 
     <!-- ====================== HERO ====================== -->
     <header class="hero">
       <div class="wrap">
-      <div class="hero-grid">
-        <div>
-          <span class="kicker">On the record</span>
-          <h1>Know exactly what <span class="accent">GitHub Copilot</span> is doing.</h1>
-          <p class="lede">
-            A local reverse proxy that intercepts every Copilot request and records the metadata that
-            matters: per-model token counts, latency, cache hits, and an estimated AI-credit cost.
-            SQLite on your machine. No cloud. No telemetry. No prompts, completions, or auth material
-            ever written to disk.
-          </p>
+        <div class="hero-grid">
+          <div>
+            <span class="kicker">On the record</span>
+            <h1>Know exactly what <span class="accent">GitHub Copilot</span> is doing.</h1>
+            <p class="lede">
+              A local reverse proxy that intercepts every Copilot request and records the metadata
+              that matters: per-model token counts, latency, cache hits, and an estimated AI-credit
+              cost. SQLite on your machine. No cloud. No telemetry. No prompts, completions, or auth
+              material ever written to disk.
+            </p>
 
-          <div class="downloads">
-            <a class="dl-btn" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-arm64.tar.gz">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 2c1.93 0 3.5 1.57 3.5 3.5S10.43 9 8.5 9 5 7.43 5 5.5 6.57 2 8.5 2Z"/></svg>
-              macOS
-              <span class="dl-sub">apple silicon</span>
-            </a>
-            <a class="dl-btn" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-amd64.tar.gz">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="m6 16 6-12 6 12"/><path d="M8 12h8"/></svg>
-              Linux
-              <span class="dl-sub">x86_64</span>
-            </a>
-            <a class="dl-btn" href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-windows-amd64.zip">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
-              Windows
-              <span class="dl-sub">x86_64</span>
-            </a>
+            <div class="downloads">
+              <a
+                class="dl-btn"
+                href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-arm64.tar.gz"
+              >
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5" />
+                  <path
+                    d="M8.5 2c1.93 0 3.5 1.57 3.5 3.5S10.43 9 8.5 9 5 7.43 5 5.5 6.57 2 8.5 2Z"
+                  />
+                </svg>
+                macOS
+                <span class="dl-sub">apple silicon</span>
+              </a>
+              <a
+                class="dl-btn"
+                href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-amd64.tar.gz"
+              >
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M4 20h16" />
+                  <path d="m6 16 6-12 6 12" />
+                  <path d="M8 12h8" />
+                </svg>
+                Linux
+                <span class="dl-sub">x86_64</span>
+              </a>
+              <a
+                class="dl-btn"
+                href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-windows-amd64.zip"
+              >
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="2" y="3" width="20" height="14" rx="2" />
+                  <path d="M8 21h8" />
+                  <path d="M12 17v4" />
+                </svg>
+                Windows
+                <span class="dl-sub">x86_64</span>
+              </a>
+            </div>
+
+            <div class="hero-actions">
+              <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor/releases"
+                >All releases →</a
+              >
+              <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor">GitHub</a>
+              <a
+                class="btn ghost"
+                href="https://github.com/koopycat/copilot-monitor/blob/main/README.md#quickstart"
+                >Quickstart</a
+              >
+              <a class="btn ghost" href="./architecture">Architecture</a>
+              <a class="btn ghost" href="./api">API reference</a>
+            </div>
           </div>
 
-          <div class="hero-actions">
-            <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor/releases">All releases →</a>
-            <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor">GitHub</a>
-            <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor/blob/main/README.md#quickstart">Quickstart</a>
-            <a class="btn ghost" href="./architecture">Architecture</a>
-            <a class="btn ghost" href="./api">API reference</a>
-          </div>
-        </div>
-
-        <!-- intercept feed monitor -->
-        <div class="feed" aria-hidden="true">
-          <div class="feed-head">
-            <span class="live"><span class="dot"></span>LIVE</span>
-            <span>$ copilot-monitor live · today</span>
-            <span class="dots"><i></i><i></i><i></i></span>
-          </div>
-          <div class="feed-body">
-            <table class="stats">
-              <thead>
-                <tr><th>MODEL</th><th>REQUESTS</th><th>INPUT</th><th>CACHED</th><th>CACHE&nbsp;HIT</th><th>OUTPUT</th><th>COST</th></tr>
-              </thead>
-              <tbody>
-                <tr><td class="model">gemini-3.5-flash</td><td>3</td><td>84,791</td><td>27,376</td><td>24%</td><td>109</td><td class="cost">$0.09</td></tr>
-                <tr><td class="model">claude-sonnet-4.6</td><td>1</td><td>2</td><td>0</td><td>0%</td><td>62</td><td class="cost">$0.08</td></tr>
-                <tr><td class="model">gpt-4o-mini-2024-07-18</td><td>6</td><td>5,052</td><td>3,072</td><td>38%</td><td>196</td><td class="cost">$0.01</td></tr>
-                <tr class="total"><td>TOTAL</td><td>10</td><td>89,845</td><td>30,448</td><td>25%</td><td>367</td><td>$0.18</td></tr>
-              </tbody>
-            </table>
-            <div class="feed-foot"><span class="rec-dot"></span>auto-refresh every 30s · binds 127.0.0.1 only</div>
-          </div>
-        </div>
-      </div>
-      </div>
-    </header>
-
-  <div class="wrap">
-
-    <section>
-      <h2 data-reveal>What it looks like</h2>
-
-      <p data-reveal>Real screenshot of the local dashboard at <code>http://127.0.0.1:7734</code>, taken against seeded sample data. Your numbers, your view.</p>
-      <figure class="evidence-frame" data-reveal>
-        <a href="./assets/dashboard.png" target="_blank" rel="noopener">
-          <img src="./assets/dashboard.png" alt="Screenshot of the Copilot Monitor dashboard showing $8.42 estimated AI-credit cost over 30 days, 974 requests, a live session panel, a stacked usage chart, and a per-model breakdown with claude-3.5-sonnet leading at 286,303 tokens." width="1280" height="1100" loading="lazy">
-        </a>
-        <figcaption class="evidence-cap">
-          <span><span class="tag">EX-A-01</span> dashboard.png · 1280×1100</span>
-          <span>acquired: local loopback</span>
-        </figcaption>
-      </figure>
-    </section>
-
-    <section>
-      <h2 data-reveal>Why it exists</h2>
-
-      <p data-reveal>
-        GitHub Copilot picks models automatically, charges AI credits invisibly, and exposes usage summaries
-        only on <code>github.com</code> with a 24-hour delay. You don't know which model handled your last
-        prompt, whether you got a cache hit, or what that refactor session actually cost you.
-      </p>
-      <p data-reveal>
-        Copilot Monitor gives you the raw numbers from your own machine: per-model token counts, latency,
-        estimated cost, and 30-minute session groupings. Local dashboard with a period selector
-        (today / yesterday / 7d / 30d / 90d / 365d) and a JSON API for your own scripts.
-      </p>
-    </section>
-
-    <section>
-      <h2 data-reveal>How it works</h2>
-
-      <p data-reveal>A reverse proxy sits between VSCode and the Copilot API, capturing metadata on the way through. Output goes to a local SQLite file and a dashboard on loopback.</p>
-      <div class="flow" data-reveal aria-label="Data flow diagram: VSCode requests go through the local copilot-monitor proxy, which forwards them to the Copilot API and persists metadata to a local SQLite database. The dashboard reads from that database.">
-        <svg viewBox="0 0 720 190" xmlns="http://www.w3.org/2000/svg" role="presentation">
-          <defs>
-            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M0,0 L10,5 L0,10 z" class="arrowhead"/>
-            </marker>
-          </defs>
-
-          <!-- Row 1: client -> proxy -> upstream -->
-          <rect class="box" x="20" y="22" width="100" height="40" rx="6"/>
-          <text x="70" y="47" text-anchor="middle" font-size="12">VSCode</text>
-
-          <rect class="box proxy" x="260" y="12" width="160" height="60" rx="6"/>
-          <text x="340" y="40" text-anchor="middle" fill="var(--ink-strong)" font-weight="600" font-size="12">copilot-monitor</text>
-          <text x="340" y="58" text-anchor="middle" class="label">run · :7733</text>
-          <text x="340" y="6" text-anchor="middle" class="tap">▲ TAP</text>
-
-          <rect class="box" x="550" y="22" width="150" height="40" rx="6"/>
-          <text x="625" y="47" text-anchor="middle" font-size="11">api.githubcopilot.com</text>
-
-          <line class="arrow" x1="120" y1="42" x2="258" y2="42" marker-end="url(#arr)"/>
-          <line class="arrow" x1="420" y1="42" x2="548" y2="42" marker-end="url(#arr)"/>
-
-          <!-- Row 2: proxy -> sqlite / dashboard -->
-          <rect class="box" x="150" y="125" width="200" height="50" rx="6"/>
-          <text x="250" y="146" text-anchor="middle" font-size="12">SQLite</text>
-          <text x="250" y="163" text-anchor="middle" class="label">store.db</text>
-
-          <rect class="box" x="400" y="125" width="220" height="50" rx="6"/>
-          <text x="510" y="146" text-anchor="middle" font-size="12">Dashboard</text>
-          <text x="510" y="163" text-anchor="middle" class="label">127.0.0.1:7734</text>
-
-          <line class="arrow" x1="310" y1="72" x2="250" y2="123" marker-end="url(#arr)"/>
-          <line class="arrow" x1="370" y1="72" x2="510" y2="123" marker-end="url(#arr)"/>
-        </svg>
-        <p class="flow-caption"><span class="flow-step">request</span> → <strong>copilot-monitor</strong> → <span class="flow-step">response</span> &nbsp;·&nbsp; metadata → SQLite &nbsp;·&nbsp; dashboard reads SQLite</p>
-      </div>
-    </section>
-
-    <section>
-      <h2 data-reveal>What you get</h2>
-
-      <div class="features">
-
-        <div class="feature wide" data-reveal>
-          <div class="wide-inner">
-            <div class="icon" aria-hidden="true">$</div>
-            <h3>Per-model cost estimates, not a bill</h3>
-            <p>Every captured request maps to an estimated AI-credit list price, broken down by prompt, cached input, cache write, and output tokens. Clearly labeled as estimates. Tagged when pricing is fallback or not-billed.</p>
-            <div class="terminal" aria-hidden="true">
-<span class="prompt">$</span> ./copilot-monitor cost --since 7d --json <span class="arrow">|</span> jq .total_usd
-<br><span class="out">3.47</span>
+          <!-- intercept feed monitor -->
+          <div class="feed" aria-hidden="true">
+            <div class="feed-head">
+              <span class="live"><span class="dot"></span>LIVE</span>
+              <span>$ copilot-monitor live · today</span>
+              <span class="dots"><i></i><i></i><i></i></span>
+            </div>
+            <div class="feed-body">
+              <table class="stats">
+                <thead>
+                  <tr>
+                    <th>MODEL</th>
+                    <th>REQUESTS</th>
+                    <th>INPUT</th>
+                    <th>CACHED</th>
+                    <th>CACHE&nbsp;HIT</th>
+                    <th>OUTPUT</th>
+                    <th>COST</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="model">gemini-3.5-flash</td>
+                    <td>3</td>
+                    <td>84,791</td>
+                    <td>27,376</td>
+                    <td>24%</td>
+                    <td>109</td>
+                    <td class="cost">$0.09</td>
+                  </tr>
+                  <tr>
+                    <td class="model">claude-sonnet-4.6</td>
+                    <td>1</td>
+                    <td>2</td>
+                    <td>0</td>
+                    <td>0%</td>
+                    <td>62</td>
+                    <td class="cost">$0.08</td>
+                  </tr>
+                  <tr>
+                    <td class="model">gpt-4o-mini-2024-07-18</td>
+                    <td>6</td>
+                    <td>5,052</td>
+                    <td>3,072</td>
+                    <td>38%</td>
+                    <td>196</td>
+                    <td class="cost">$0.01</td>
+                  </tr>
+                  <tr class="total">
+                    <td>TOTAL</td>
+                    <td>10</td>
+                    <td>89,845</td>
+                    <td>30,448</td>
+                    <td>25%</td>
+                    <td>367</td>
+                    <td>$0.18</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="feed-foot">
+                <span class="rec-dot"></span>auto-refresh every 30s · binds 127.0.0.1 only
+              </div>
             </div>
           </div>
         </div>
-
-        <div class="feature" data-reveal>
-          <div class="icon" aria-hidden="true">&#9000;</div>
-          <h3>CLI + JSON API</h3>
-          <p>Every report (<code>stats</code>, <code>cost</code>, <code>today</code>, <code>sessions</code>, <code>export</code>) works in the terminal and serves JSON for your own tooling.</p>
-        </div>
-
-        <div class="feature" data-reveal>
-          <div class="icon" aria-hidden="true">&#9201;</div>
-          <h3>Live session view</h3>
-          <p>Requests grouped by a 30-minute inactivity gap. See the model mix, cost, and duration of the session you're in right now.</p>
-        </div>
-
-        <div class="feature" data-reveal>
-          <div class="icon" aria-hidden="true">&#128197;</div>
-          <h3>Period drill-down</h3>
-          <p>Today / yesterday / 7d / 30d / 90d / 365d. Every section of the dashboard filters to the same window.</p>
-        </div>
-
-        <div class="feature" data-reveal>
-          <div class="icon" aria-hidden="true">&#128274;</div>
-          <h3>Local-only by design</h3>
-          <p>Binds to <code>127.0.0.1</code>. SQLite at <code>~/.local/share/copilot-monitor/store.db</code>. No external requests, ever.</p>
-        </div>
-
-        <div class="feature" data-reveal>
-          <div class="icon" aria-hidden="true">&#10003;</div>
-          <h3>Inspectable</h3>
-          <p>Single Go binary. Schema in <code>internal/store/schema.sql</code>. Read the source, audit the captures, trust what you see.</p>
-        </div>
-
       </div>
-    </section>
+    </header>
 
-    <section>
-      <h2 data-reveal>What is and isn't stored</h2>
+    <div class="wrap">
+      <section>
+        <h2 data-reveal>What it looks like</h2>
 
-      <p data-reveal>The privacy contract is enforced by the schema, not by policy. No prompt, completion, source code, or auth material is ever written to disk.</p>
-      <div class="privacy-grid">
-        <div class="privacy-card" data-reveal>
-          <h4>Recorded <span class="pill">on the record</span></h4>
-          <ul>
-            <li>Timestamp, endpoint, HTTP status</li>
-            <li>Model name (when known)</li>
-            <li>Latency (ms)</li>
-            <li>Token counts: input, cached, cache write, output</li>
-            <li>Project label (optional)</li>
-            <li>Session grouping (derived)</li>
-          </ul>
-        </div>
-        <div class="privacy-card not-stored" data-reveal>
-          <span class="stamp" data-stamp>Redacted</span>
-          <h4>Never stored <span class="pill" style="color:var(--red);border-color:oklch(0.64 0.19 27 / 0.35)">blacked out</span></h4>
-          <ul>
-            <li><span class="bar" aria-label="redacted"></span><span class="meta">prompt text</span></li>
-            <li><span class="bar" aria-label="redacted"></span><span class="meta">completion text</span></li>
-            <li><span class="bar" aria-label="redacted"></span><span class="meta">source code / repo paths</span></li>
-            <li><span class="bar" aria-label="redacted"></span><span class="meta">auth headers, cookies, keys</span></li>
-            <li><span class="bar" aria-label="redacted"></span><span class="meta">request / response bodies</span></li>
-          </ul>
-        </div>
-      </div>
-      <ul class="guarantees" data-reveal>
-        <li><strong>Loopback only.</strong> The proxy and dashboard both bind to <code>127.0.0.1</code>. Nothing is reachable from another machine.</li>
-        <li><strong>No external network calls.</strong> The binary never phones home, never updates itself, and never sends analytics. Verified by reading the source.</li>
-        <li><strong>Local file only.</strong> SQLite lives at <code>~/.local/share/copilot-monitor/store.db</code> on your machine. Delete the file, every trace is gone.</li>
-      </ul>
-    </section>
+        <p data-reveal>
+          Real screenshot of the local dashboard at <code>http://127.0.0.1:7734</code>, taken
+          against seeded sample data. Your numbers, your view.
+        </p>
+        <figure class="evidence-frame" data-reveal>
+          <a href="./assets/dashboard.png" target="_blank" rel="noopener">
+            <img
+              src="./assets/dashboard.png"
+              alt="Screenshot of the Copilot Monitor dashboard showing $8.42 estimated AI-credit cost over 30 days, 974 requests, a live session panel, a stacked usage chart, and a per-model breakdown with claude-3.5-sonnet leading at 286,303 tokens."
+              width="1280"
+              height="1100"
+              loading="lazy"
+            />
+          </a>
+          <figcaption class="evidence-cap">
+            <span><span class="tag">EX-A-01</span> dashboard.png · 1280×1100</span>
+            <span>acquired: local loopback</span>
+          </figcaption>
+        </figure>
+      </section>
 
-    <section>
-      <h2 data-reveal>Is this for you?</h2>
+      <section>
+        <h2 data-reveal>Why it exists</h2>
 
-      <p data-reveal>Use it if any of these sound like you.</p>
-      <div class="personas">
-        <div class="persona" data-reveal>
-          <span class="file-no">FILE 01</span>
-          <h3>You use Copilot every day</h3>
-          <span class="signal">$ copilot-monitor cost --since 30d</span>
-          <p>You want to know which models you're actually calling, and what your prompts cost. Not a corporate dashboard. Your own numbers, on your own machine.</p>
-        </div>
-        <div class="persona" data-reveal>
-          <span class="file-no">FILE 02</span>
-          <h3>You're tuning prompts for cache hit rate</h3>
-          <span class="signal">cache % per model, per session</span>
-          <p>Copilot Monitor breaks cached-input versus uncached tokens down per session, so you can see which prompt patterns actually pay off.</p>
-        </div>
-        <div class="persona" data-reveal>
-          <span class="file-no">FILE 03</span>
-          <h3>You don't trust cloud-side telemetry</h3>
-          <span class="signal">binds 127.0.0.1 only</span>
-          <p>Read the schema, inspect the source, verify nothing leaves your machine. The privacy contract is enforced by the schema, not by a privacy policy.</p>
-        </div>
-        <div class="persona" data-reveal>
-          <span class="file-no">FILE 04</span>
-          <h3>You're piping usage into your own tooling</h3>
-          <span class="signal">--json on every command</span>
-          <p>Every endpoint returns JSON. Every CLI command has <code>--json</code>. Queries are SQL against a SQLite file you own.</p>
-        </div>
-      </div>
-    </section>
+        <p data-reveal>
+          GitHub Copilot picks models automatically, charges AI credits invisibly, and exposes usage
+          summaries only on <code>github.com</code> with a 24-hour delay. You don't know which model
+          handled your last prompt, whether you got a cache hit, or what that refactor session
+          actually cost you.
+        </p>
+        <p data-reveal>
+          Copilot Monitor gives you the raw numbers from your own machine: per-model token counts,
+          latency, estimated cost, and 30-minute session groupings. Local dashboard with a period
+          selector (today / yesterday / 7d / 30d / 90d / 365d) and a JSON API for your own scripts.
+        </p>
+      </section>
 
-    <section>
-      <h2 data-reveal>Build from source</h2>
+      <section>
+        <h2 data-reveal>How it works</h2>
 
-      <p data-reveal>Clone, build, run. The devenv shell provides the Go toolchain.</p>
-      <div class="manual" data-reveal>
-        <div class="manual-head"><span class="tag">PROCEDURE</span> <span>·</span> <span>terminal · zsh/bash</span></div>
-<pre class="install"><span class="comment"># clone and enter the dev shell</span>
+        <p data-reveal>
+          A reverse proxy sits between VSCode and the Copilot API, capturing metadata on the way
+          through. Output goes to a local SQLite file and a dashboard on loopback.
+        </p>
+        <div
+          class="flow"
+          data-reveal
+          aria-label="Data flow diagram: VSCode requests go through the local copilot-monitor proxy, which forwards them to the Copilot API and persists metadata to a local SQLite database. The dashboard reads from that database."
+        >
+          <svg viewBox="0 0 720 190" xmlns="http://www.w3.org/2000/svg" role="presentation">
+            <defs>
+              <marker
+                id="arr"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto"
+              >
+                <path d="M0,0 L10,5 L0,10 z" class="arrowhead" />
+              </marker>
+            </defs>
+
+            <!-- Row 1: client -> proxy -> upstream -->
+            <rect class="box" x="20" y="22" width="100" height="40" rx="6" />
+            <text x="70" y="47" text-anchor="middle" font-size="12">VSCode</text>
+
+            <rect class="box proxy" x="260" y="12" width="160" height="60" rx="6" />
+            <text
+              x="340"
+              y="40"
+              text-anchor="middle"
+              fill="var(--ink-strong)"
+              font-weight="600"
+              font-size="12"
+            >
+              copilot-monitor
+            </text>
+            <text x="340" y="58" text-anchor="middle" class="label">run · :7733</text>
+            <text x="340" y="6" text-anchor="middle" class="tap">▲ TAP</text>
+
+            <rect class="box" x="550" y="22" width="150" height="40" rx="6" />
+            <text x="625" y="47" text-anchor="middle" font-size="11">api.githubcopilot.com</text>
+
+            <line class="arrow" x1="120" y1="42" x2="258" y2="42" marker-end="url(#arr)" />
+            <line class="arrow" x1="420" y1="42" x2="548" y2="42" marker-end="url(#arr)" />
+
+            <!-- Row 2: proxy -> sqlite / dashboard -->
+            <rect class="box" x="150" y="125" width="200" height="50" rx="6" />
+            <text x="250" y="146" text-anchor="middle" font-size="12">SQLite</text>
+            <text x="250" y="163" text-anchor="middle" class="label">store.db</text>
+
+            <rect class="box" x="400" y="125" width="220" height="50" rx="6" />
+            <text x="510" y="146" text-anchor="middle" font-size="12">Dashboard</text>
+            <text x="510" y="163" text-anchor="middle" class="label">127.0.0.1:7734</text>
+
+            <line class="arrow" x1="310" y1="72" x2="250" y2="123" marker-end="url(#arr)" />
+            <line class="arrow" x1="370" y1="72" x2="510" y2="123" marker-end="url(#arr)" />
+          </svg>
+          <p class="flow-caption">
+            <span class="flow-step">request</span> → <strong>copilot-monitor</strong> →
+            <span class="flow-step">response</span> &nbsp;·&nbsp; metadata → SQLite &nbsp;·&nbsp;
+            dashboard reads SQLite
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h2 data-reveal>What you get</h2>
+
+        <div class="features">
+          <div class="feature wide" data-reveal>
+            <div class="wide-inner">
+              <div class="icon" aria-hidden="true">$</div>
+              <h3>Per-model cost estimates, not a bill</h3>
+              <p>
+                Every captured request maps to an estimated AI-credit list price, broken down by
+                prompt, cached input, cache write, and output tokens. Clearly labeled as estimates.
+                Tagged when pricing is fallback or not-billed.
+              </p>
+              <div class="terminal" aria-hidden="true">
+                <span class="prompt">$</span> ./copilot-monitor cost --since 7d --json
+                <span class="arrow">|</span> jq .total_usd <br /><span class="out">3.47</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="feature" data-reveal>
+            <div class="icon" aria-hidden="true">&#9000;</div>
+            <h3>CLI + JSON API</h3>
+            <p>
+              Every report (<code>stats</code>, <code>cost</code>, <code>today</code>,
+              <code>sessions</code>, <code>export</code>) works in the terminal and serves JSON for
+              your own tooling.
+            </p>
+          </div>
+
+          <div class="feature" data-reveal>
+            <div class="icon" aria-hidden="true">&#9201;</div>
+            <h3>Live session view</h3>
+            <p>
+              Requests grouped by a 30-minute inactivity gap. See the model mix, cost, and duration
+              of the session you're in right now.
+            </p>
+          </div>
+
+          <div class="feature" data-reveal>
+            <div class="icon" aria-hidden="true">&#128197;</div>
+            <h3>Period drill-down</h3>
+            <p>
+              Today / yesterday / 7d / 30d / 90d / 365d. Every section of the dashboard filters to
+              the same window.
+            </p>
+          </div>
+
+          <div class="feature" data-reveal>
+            <div class="icon" aria-hidden="true">&#128274;</div>
+            <h3>Local-only by design</h3>
+            <p>
+              Binds to <code>127.0.0.1</code>. SQLite at
+              <code>~/.local/share/copilot-monitor/store.db</code>. No external requests, ever.
+            </p>
+          </div>
+
+          <div class="feature" data-reveal>
+            <div class="icon" aria-hidden="true">&#10003;</div>
+            <h3>Inspectable</h3>
+            <p>
+              Single Go binary. Schema in <code>internal/store/schema.sql</code>. Read the source,
+              audit the captures, trust what you see.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 data-reveal>What is and isn't stored</h2>
+
+        <p data-reveal>
+          The privacy contract is enforced by the schema, not by policy. No prompt, completion,
+          source code, or auth material is ever written to disk.
+        </p>
+        <div class="privacy-grid">
+          <div class="privacy-card" data-reveal>
+            <h4>Recorded <span class="pill">on the record</span></h4>
+            <ul>
+              <li>Timestamp, endpoint, HTTP status</li>
+              <li>Model name (when known)</li>
+              <li>Latency (ms)</li>
+              <li>Token counts: input, cached, cache write, output</li>
+              <li>Project label (optional)</li>
+              <li>Session grouping (derived)</li>
+            </ul>
+          </div>
+          <div class="privacy-card not-stored" data-reveal>
+            <span class="stamp" data-stamp>Redacted</span>
+            <h4>
+              Never stored
+              <span class="pill" style="color: var(--red); border-color: oklch(0.64 0.19 27 / 0.35)"
+                >blacked out</span
+              >
+            </h4>
+            <ul>
+              <li>
+                <span class="bar" aria-label="redacted"></span><span class="meta">prompt text</span>
+              </li>
+              <li>
+                <span class="bar" aria-label="redacted"></span
+                ><span class="meta">completion text</span>
+              </li>
+              <li>
+                <span class="bar" aria-label="redacted"></span
+                ><span class="meta">source code / repo paths</span>
+              </li>
+              <li>
+                <span class="bar" aria-label="redacted"></span
+                ><span class="meta">auth headers, cookies, keys</span>
+              </li>
+              <li>
+                <span class="bar" aria-label="redacted"></span
+                ><span class="meta">request / response bodies</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <ul class="guarantees" data-reveal>
+          <li>
+            <strong>Loopback only.</strong> The proxy and dashboard both bind to
+            <code>127.0.0.1</code>. Nothing is reachable from another machine.
+          </li>
+          <li>
+            <strong>No external network calls.</strong> The binary never phones home, never updates
+            itself, and never sends analytics. Verified by reading the source.
+          </li>
+          <li>
+            <strong>Local file only.</strong> SQLite lives at
+            <code>~/.local/share/copilot-monitor/store.db</code> on your machine. Delete the file,
+            every trace is gone.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 data-reveal>Is this for you?</h2>
+
+        <p data-reveal>Use it if any of these sound like you.</p>
+        <div class="personas">
+          <div class="persona" data-reveal>
+            <span class="file-no">FILE 01</span>
+            <h3>You use Copilot every day</h3>
+            <span class="signal">$ copilot-monitor cost --since 30d</span>
+            <p>
+              You want to know which models you're actually calling, and what your prompts cost. Not
+              a corporate dashboard. Your own numbers, on your own machine.
+            </p>
+          </div>
+          <div class="persona" data-reveal>
+            <span class="file-no">FILE 02</span>
+            <h3>You're tuning prompts for cache hit rate</h3>
+            <span class="signal">cache % per model, per session</span>
+            <p>
+              Copilot Monitor breaks cached-input versus uncached tokens down per session, so you
+              can see which prompt patterns actually pay off.
+            </p>
+          </div>
+          <div class="persona" data-reveal>
+            <span class="file-no">FILE 03</span>
+            <h3>You don't trust cloud-side telemetry</h3>
+            <span class="signal">binds 127.0.0.1 only</span>
+            <p>
+              Read the schema, inspect the source, verify nothing leaves your machine. The privacy
+              contract is enforced by the schema, not by a privacy policy.
+            </p>
+          </div>
+          <div class="persona" data-reveal>
+            <span class="file-no">FILE 04</span>
+            <h3>You're piping usage into your own tooling</h3>
+            <span class="signal">--json on every command</span>
+            <p>
+              Every endpoint returns JSON. Every CLI command has <code>--json</code>. Queries are
+              SQL against a SQLite file you own.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 data-reveal>Build from source</h2>
+
+        <p data-reveal>Clone, build, run. The devenv shell provides the Go toolchain.</p>
+        <div class="manual" data-reveal>
+          <div class="manual-head">
+            <span class="tag">PROCEDURE</span> <span>·</span> <span>terminal · zsh/bash</span>
+          </div>
+          <pre class="install"><span class="comment"># clone and enter the dev shell</span>
 <span class="cmd">git clone https://github.com/koopycat/copilot-monitor</span>
 <span class="cmd">cd copilot-monitor</span>
 <span class="cmd">devenv shell</span>
@@ -1223,76 +1744,99 @@
 <span>}</span>
 
 <span class="comment"># reload VSCode, then use Copilot normally</span></pre>
-      </div>
-      <p data-reveal style="margin-top:1.1rem">Open <a href="http://127.0.0.1:7734">http://127.0.0.1:7734</a> for the dashboard.</p>
-    </section>
-
-    <!-- ====================== FOOTER ====================== -->
-    <footer>
-      <div class="footer-grid">
-        <div>Single-user local utility. Source on <a href="https://github.com/koopycat/copilot-monitor">GitHub</a>.</div>
-        <div class="footer-links">
-          <a href="./api">API</a>
-          <a href="./architecture">Architecture</a>
         </div>
-      </div>
-      <div class="footer-classif">End of file · Case CM-0142 · classified: local eyes only · nothing transmitted</div>
-    </footer>
+        <p data-reveal style="margin-top: 1.1rem">
+          Open <a href="http://127.0.0.1:7734">http://127.0.0.1:7734</a> for the dashboard.
+        </p>
+      </section>
 
-  </div>
+      <!-- ====================== FOOTER ====================== -->
+      <footer>
+        <div class="footer-grid">
+          <div>
+            Single-user local utility. Source on
+            <a href="https://github.com/koopycat/copilot-monitor">GitHub</a>.
+          </div>
+          <div class="footer-links">
+            <a href="./api">API</a>
+            <a href="./architecture">Architecture</a>
+          </div>
+        </div>
+        <div class="footer-classif">
+          End of file · Case CM-0142 · classified: local eyes only · nothing transmitted
+        </div>
+      </footer>
+    </div>
 
-  <script>
-    // Progressive enhancement: reveals + feed population. Content is visible without JS.
-    (function () {
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        document.querySelectorAll('[data-reveal], [data-stamp]').forEach(function (el) {
-          el.classList.add('in');
-        });
-        return;
-      }
-
-      // If scroll-driven animations are supported, the CSS @supports block handles
-      // reveals via animation-timeline: view(). Skip the JS IntersectionObserver
-      // to avoid double-animation and keep reveals on the compositor thread.
-      var hasScrollTimeline = false;
-      try { hasScrollTimeline = CSS.supports('animation-timeline: view()'); } catch(e) {}
-
-      if (!hasScrollTimeline) {
-        var io = new IntersectionObserver(function (entries) {
-          entries.forEach(function (e) {
-            if (e.isIntersecting) {
-              e.target.classList.add('in');
-              io.unobserve(e.target);
-            }
+    <script>
+      // Progressive enhancement: reveals + feed population. Content is visible without JS.
+      (function () {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          document.querySelectorAll('[data-reveal], [data-stamp]').forEach(function (el) {
+            el.classList.add('in');
           });
-        }, { threshold: 0.14 });
-
-        document.querySelectorAll('[data-reveal], [data-stamp]').forEach(function (el) { io.observe(el); });
-      }
-
-      // populate the live stats table row-by-row
-      var feed = document.querySelector('.feed-body');
-      if (feed) {
-        var rows = Array.prototype.slice.call(feed.querySelectorAll('.stats tbody tr'));
-        rows.forEach(function (r) { r.style.opacity = '0'; r.style.translate = '-8px 0'; r.style.transition = 'opacity .5s var(--ease), translate .5s var(--ease)'; });
-        var i = 0;
-        function next() {
-          if (i < rows.length) {
-            rows[i].style.opacity = '1';
-            rows[i].style.translate = '0 0';
-            i++;
-            setTimeout(next, 220);
-          }
+          return;
         }
-        // start once the feed is on screen
-        var fio = new IntersectionObserver(function (entries) {
-          entries.forEach(function (e) {
-            if (e.isIntersecting) { next(); fio.unobserve(e.target); }
+
+        // If scroll-driven animations are supported, the CSS @supports block handles
+        // reveals via animation-timeline: view(). Skip the JS IntersectionObserver
+        // to avoid double-animation and keep reveals on the compositor thread.
+        var hasScrollTimeline = false;
+        try {
+          hasScrollTimeline = CSS.supports('animation-timeline: view()');
+        } catch (e) {}
+
+        if (!hasScrollTimeline) {
+          var io = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (e) {
+                if (e.isIntersecting) {
+                  e.target.classList.add('in');
+                  io.unobserve(e.target);
+                }
+              });
+            },
+            { threshold: 0.14 },
+          );
+
+          document.querySelectorAll('[data-reveal], [data-stamp]').forEach(function (el) {
+            io.observe(el);
           });
-        }, { threshold: 0.3 });
-        fio.observe(feed);
-      }
-    })();
-  </script>
-</body>
+        }
+
+        // populate the live stats table row-by-row
+        var feed = document.querySelector('.feed-body');
+        if (feed) {
+          var rows = Array.prototype.slice.call(feed.querySelectorAll('.stats tbody tr'));
+          rows.forEach(function (r) {
+            r.style.opacity = '0';
+            r.style.translate = '-8px 0';
+            r.style.transition = 'opacity .5s var(--ease), translate .5s var(--ease)';
+          });
+          var i = 0;
+          function next() {
+            if (i < rows.length) {
+              rows[i].style.opacity = '1';
+              rows[i].style.translate = '0 0';
+              i++;
+              setTimeout(next, 220);
+            }
+          }
+          // start once the feed is on screen
+          var fio = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (e) {
+                if (e.isIntersecting) {
+                  next();
+                  fio.unobserve(e.target);
+                }
+              });
+            },
+            { threshold: 0.3 },
+          );
+          fio.observe(feed);
+        }
+      })();
+    </script>
+  </body>
 </html>

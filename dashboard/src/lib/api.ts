@@ -43,7 +43,11 @@ export async function loadDashboard(
   const extra: Record<string, string> = {};
   if (upstream) extra.upstream = upstream;
 
-  const sinceParams = buildParams({ since: pq.since, ...(pq.until ? { until: pq.until } : {}), ...extra });
+  const sinceParams = buildParams({
+    since: pq.since,
+    ...(pq.until ? { until: pq.until } : {}),
+    ...extra,
+  });
   const timelineParams = buildParams({
     since: pq.since,
     ...(pq.until ? { until: pq.until } : {}),

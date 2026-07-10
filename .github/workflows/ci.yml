@@ -3,18 +3,18 @@ name: ci
 on:
   push:
     paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "specs/**"
-      - "plans/**"
-      - "PRODUCT.md"
+      - '**.md'
+      - 'docs/**'
+      - 'specs/**'
+      - 'plans/**'
+      - 'PRODUCT.md'
   pull_request:
     paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "specs/**"
-      - "plans/**"
-      - "PRODUCT.md"
+      - '**.md'
+      - 'docs/**'
+      - 'specs/**'
+      - 'plans/**'
+      - 'PRODUCT.md'
   workflow_dispatch:
 
 concurrency:
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.5"
+          go-version: '1.26.5'
           check-latest: true
           cache: true
       # "nodashboard" stubs out the embedded frontend (dashboard/embed_stub.go)
@@ -54,7 +54,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.5"
+          go-version: '1.26.5'
           check-latest: true
           cache: true
       # No Node/pnpm or frontend build needed: no Go test references the

@@ -20,7 +20,7 @@
     if (!inputText || inputText.includes('*')) return [];
     const lower = inputText.toLowerCase();
     return dashboard.policyModels
-      .filter(m => m.toLowerCase().startsWith(lower) && !models.includes(m))
+      .filter((m) => m.toLowerCase().startsWith(lower) && !models.includes(m))
       .slice(0, 8);
   });
 
@@ -147,7 +147,11 @@
     <div class="policy-summary">
       <span class="tag policy-mode">{modeLabel(dashboard.policy.mode)}</span>
       {#if dashboard.policy.models.length > 0}
-        <span class="policy-count">{dashboard.policy.models.length} pattern{dashboard.policy.models.length !== 1 ? 's' : ''}</span>
+        <span class="policy-count"
+          >{dashboard.policy.models.length} pattern{dashboard.policy.models.length !== 1
+            ? 's'
+            : ''}</span
+        >
       {/if}
       <button class="btn-sm" onclick={startEdit}>Edit</button>
     </div>
@@ -169,11 +173,18 @@
 
     {#if editMode !== 'allow_all'}
       <div class="token-input-wrap">
-        <div class="token-input" class:token-input-focus={listOpen || document.activeElement === inputEl}>
+        <div
+          class="token-input"
+          class:token-input-focus={listOpen || document.activeElement === inputEl}
+        >
           {#each models as model, i (model)}
             <span class="token-chip">
               {model}
-              <button class="token-remove" onclick={() => removeModel(i)} aria-label="Remove {model}">&times;</button>
+              <button
+                class="token-remove"
+                onclick={() => removeModel(i)}
+                aria-label="Remove {model}">&times;</button
+              >
             </span>
           {/each}
           <input
@@ -183,13 +194,17 @@
             bind:value={inputText}
             onkeydown={onInputKeydown}
             onblur={onInputBlur}
-            onfocus={() => { if (suggestions.length > 0) listOpen = true; }}
+            onfocus={() => {
+              if (suggestions.length > 0) listOpen = true;
+            }}
             placeholder={models.length === 0 ? 'Type a model name or pattern…' : 'Add model…'}
             role="combobox"
             aria-autocomplete="list"
             aria-expanded={listOpen}
             aria-controls="policy-listbox"
-            aria-activedescendant={listOpen && activeIndex >= 0 ? `policy-opt-${activeIndex}` : undefined}
+            aria-activedescendant={listOpen && activeIndex >= 0
+              ? `policy-opt-${activeIndex}`
+              : undefined}
             autocomplete="off"
           />
         </div>
@@ -208,7 +223,10 @@
                 aria-selected={i === activeIndex}
                 class="model-listbox-option"
                 class:active={i === activeIndex}
-                onmousedown={(e) => { e.preventDefault(); acceptSuggestion(i); }}
+                onmousedown={(e) => {
+                  e.preventDefault();
+                  acceptSuggestion(i);
+                }}
               >
                 {suggestion}
               </li>
@@ -216,7 +234,10 @@
           </ul>
         {/if}
       </div>
-      <p class="token-hint">Type to search known models, or enter any pattern. Use <code>*</code> for prefix matching (e.g. <code>gpt-*</code>).</p>
+      <p class="token-hint">
+        Type to search known models, or enter any pattern. Use <code>*</code> for prefix matching
+        (e.g. <code>gpt-*</code>).
+      </p>
     {/if}
 
     <div class="policy-actions">

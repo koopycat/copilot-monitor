@@ -6,11 +6,15 @@
   const requests = $derived(intl(dashboard.current.session?.request_count ?? 0));
   const tokens = $derived(intl(dashboard.current.session?.token_count ?? 0));
   const compressionRemoved = $derived(
-    dashboard.current.models.reduce((sum, m) => sum + (m.compression_removed_tokens ?? 0), 0)
+    dashboard.current.models.reduce((sum, m) => sum + (m.compression_removed_tokens ?? 0), 0),
   );
 </script>
 
-<div class="live-session" class:active={dashboard.liveSessionActive} class:pulse={dashboard.sessionPulse}>
+<div
+  class="live-session"
+  class:active={dashboard.liveSessionActive}
+  class:pulse={dashboard.sessionPulse}
+>
   <div class="live-session-head">
     <div class="live-session-title">Live Session</div>
     <div class="live-session-status">
@@ -22,7 +26,9 @@
   <div class="live-session-grid">
     <div class="live-session-item"><span>Requests</span><strong>{requests}</strong></div>
     <div class="live-session-item"><span>Tokens</span><strong>{tokens}</strong></div>
-    <div class="live-session-item"><span>Duration</span><strong>{dashboard.sessionDurationText}</strong></div>
+    <div class="live-session-item">
+      <span>Duration</span><strong>{dashboard.sessionDurationText}</strong>
+    </div>
   </div>
   <div class="live-session-models">Models: {dashboard.sessionModelsText}</div>
   {#if compressionRemoved > 0}

@@ -14,8 +14,15 @@
       <tbody>
         {#each routes as r}
           <tr>
-            <td><code>{r.path}</code>{#if r.label} <span class="tag">{r.label}</span>{/if}</td>
-            <td>{r.upstream_host}{#if r.upstream_path_prefix}<span class="tag">{r.upstream_path_prefix}</span>{/if}</td>
+            <td
+              ><code>{r.path}</code>{#if r.label}
+                <span class="tag">{r.label}</span>{/if}</td
+            >
+            <td
+              >{r.upstream_host}{#if r.upstream_path_prefix}<span class="tag"
+                  >{r.upstream_path_prefix}</span
+                >{/if}</td
+            >
             <td><span class="tag">{r.capture}</span></td>
           </tr>
         {/each}

@@ -1,7 +1,7 @@
 {
   "name": "e2e",
   "version": "1.0.0",
-  "description": "End-to-end Playwright tests for copilot-monitor dashboard",
+  "description": "End-to-end Playwright tests for llm-proxy dashboard",
   "type": "module",
   "scripts": {
     "test": "playwright test",

@@ -68,7 +68,13 @@ export interface CurrentSession {
     token_count: number;
     cost: number;
   } | null;
-  models: Array<{ model: ModelId; requests: number; tokens?: number; cost?: number; compression_removed_tokens?: number }>;
+  models: Array<{
+    model: ModelId;
+    requests: number;
+    tokens?: number;
+    cost?: number;
+    compression_removed_tokens?: number;
+  }>;
 }
 
 export interface RouteConfig {
