@@ -142,6 +142,58 @@ func TestPutAndGetPolicy(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec3.Code)
 }
 
+func TestPutPolicyInvalidModels(t *testing.T) {
+	s, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	defer s.Close()
+	h := NewHandler(s)
+
+	// Empty string in models
+	body := bytes.NewBuffer(nil)
+	require.NoError(t, json.NewEncoder(body).Encode(policy.Policy{Mode: policy.Blocklist, Models: []string{"gpt-4o", ""}}))
+	req := httptest.NewRequest(http.MethodPut, "/api/policy", body)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Contains(t, rec.Body.String(), "empty")
+
+	// Whitespace-only string in models
+	body = bytes.NewBuffer(nil)
+	require.NoError(t, json.NewEncoder(body).Encode(policy.Policy{Mode: policy.Blocklist, Models: []string{"  ", "gpt-4o"}}))
+	req = httptest.NewRequest(http.MethodPut, "/api/policy", body)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Duplicate models
+	body = bytes.NewBuffer(nil)
+	require.NoError(t, json.NewEncoder(body).Encode(policy.Policy{Mode: policy.Blocklist, Models: []string{"gpt-4o", "gpt-4o"}}))
+	req = httptest.NewRequest(http.MethodPut, "/api/policy", body)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Contains(t, rec.Body.String(), "duplicate")
+
+	// Models with whitespace around them should be trimmed and pass
+	body = bytes.NewBuffer(nil)
+	require.NoError(t, json.NewEncoder(body).Encode(policy.Policy{Mode: policy.Blocklist, Models: []string{"  gpt-4o  ", "claude"}}))
+	req = httptest.NewRequest(http.MethodPut, "/api/policy", body)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	var p policy.Policy
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&p))
+	assert.Equal(t, []string{"gpt-4o", "claude"}, p.Models)
+
+	// Whitespace trimming leading to duplicate should fail
+	body = bytes.NewBuffer(nil)
+	require.NoError(t, json.NewEncoder(body).Encode(policy.Policy{Mode: policy.Blocklist, Models: []string{"gpt-4o", "  gpt-4o  "}}))
+	req = httptest.NewRequest(http.MethodPut, "/api/policy", body)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
 func TestGetPolicyModels(t *testing.T) {
 	s, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
 	require.NoError(t, err)

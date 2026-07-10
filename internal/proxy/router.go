@@ -104,37 +104,28 @@ func copilotRoutePath(path string) (Route, bool) {
 	}
 }
 
-type prefixRoute struct {
-	prefix string
-	route  Route
-}
-
-// modelExactRoute pairs an exact path with a Route, for ordered model-based matching.
-type modelExactRoute struct {
-	path  string
-	route Route
-}
-
-// modelPrefixRoute pairs a prefix with a Route, for ordered model-based matching.
-type modelPrefixRoute struct {
-	prefix string
+// routeEntry holds a single route entry which is either an exact path match or a prefix match.
+// Exactly one of path or prefix is non-empty.
+type routeEntry struct {
+	path   string // exact path if non-empty
+	prefix string // prefix match if non-empty
 	route  Route
 }
 
 type Router struct {
-	configRoutes      map[string]Route
-	prefixRoutes      []prefixRoute
-	modelRoutes       []modelExactRoute
-	modelPrefixRoutes []modelPrefixRoute
+	exactRoutes map[string]Route // fast lookup for path-only exact matches
+	entries     []routeEntry     // exact entries (insertion order) then prefix entries (longest first)
 }
 
 func NewRouter(cfg *ProxyConfig) *Router {
 	r := &Router{
-		configRoutes: make(map[string]Route),
+		exactRoutes: make(map[string]Route),
 	}
 	if cfg == nil {
 		return r
 	}
+	var exactEntries []routeEntry
+	var prefixEntries []routeEntry
 	for _, rc := range cfg.Routes {
 		endpoint := Endpoint(rc.Path)
 		if rc.Label != "" {
@@ -148,41 +139,35 @@ func NewRouter(cfg *ProxyConfig) *Router {
 			Models:             rc.Models,
 		}
 		if rc.PrefixMatch {
-			r.prefixRoutes = append(r.prefixRoutes, prefixRoute{
-				prefix: rc.Path,
-				route:  route,
-			})
-			r.modelPrefixRoutes = append(r.modelPrefixRoutes, modelPrefixRoute{
+			prefixEntries = append(prefixEntries, routeEntry{
 				prefix: rc.Path,
 				route:  route,
 			})
 		} else {
-			r.configRoutes[rc.Path] = route
-			r.modelRoutes = append(r.modelRoutes, modelExactRoute{
+			r.exactRoutes[rc.Path] = route
+			exactEntries = append(exactEntries, routeEntry{
 				path:  rc.Path,
 				route: route,
 			})
 		}
 	}
-	sort.Slice(r.prefixRoutes, func(i, j int) bool {
-		return len(r.prefixRoutes[i].prefix) > len(r.prefixRoutes[j].prefix)
+	// Sort prefix entries by longest prefix first
+	sort.Slice(prefixEntries, func(i, j int) bool {
+		return len(prefixEntries[i].prefix) > len(prefixEntries[j].prefix)
 	})
-	sort.Slice(r.modelPrefixRoutes, func(i, j int) bool {
-		return len(r.modelPrefixRoutes[i].prefix) > len(r.modelPrefixRoutes[j].prefix)
-	})
+	r.entries = append(exactEntries, prefixEntries...)
 	return r
 }
 
 // Match returns the Route for the given path, ignoring model fields.
 // This is used by combinedDashProxy in run.go for path-only matching.
 func (r *Router) Match(path string) (Route, bool) {
-	route, ok := r.configRoutes[path]
-	if ok {
+	if route, ok := r.exactRoutes[path]; ok {
 		return route, true
 	}
-	for _, pr := range r.prefixRoutes {
-		if strings.HasPrefix(path, pr.prefix) {
-			return pr.route, true
+	for _, e := range r.entries {
+		if e.prefix != "" && strings.HasPrefix(path, e.prefix) {
+			return e.route, true
 		}
 	}
 	return copilotRoutePath(path)
@@ -195,15 +180,15 @@ func (r *Router) Match(path string) (Route, bool) {
 // routes acts as the default fallback.
 func (r *Router) MatchModel(path, model string) (Route, bool) {
 	// Exact path match with model filter (insertion order)
-	for _, mr := range r.modelRoutes {
-		if mr.path == path && mr.route.routeMatchesModel(model) {
-			return mr.route, true
+	for _, e := range r.entries {
+		if e.path != "" && e.path == path && e.route.routeMatchesModel(model) {
+			return e.route, true
 		}
 	}
 	// Prefix match with model filter (longest prefix first)
-	for _, pr := range r.modelPrefixRoutes {
-		if strings.HasPrefix(path, pr.prefix) && pr.route.routeMatchesModel(model) {
-			return pr.route, true
+	for _, e := range r.entries {
+		if e.prefix != "" && strings.HasPrefix(path, e.prefix) && e.route.routeMatchesModel(model) {
+			return e.route, true
 		}
 	}
 	// Built-in Copilot fallback (no model filtering)

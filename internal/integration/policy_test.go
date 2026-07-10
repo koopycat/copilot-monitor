@@ -1,18 +1,16 @@
+//go:build testonly
+
 package integration
 
 import (
 	"context"
 	"crypto/tls"
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"reflect"
 	"strings"
 	"testing"
-	"time"
-	"unsafe"
 
 	"copilot-monitoring/internal/log"
 	"copilot-monitoring/internal/policy"
@@ -22,22 +20,6 @@ import (
 
 // fakeUpstreamJSON is the response body the fake upstream returns for any request.
 const fakeUpstreamJSON = `{"usage":{"prompt_tokens":100,"completion_tokens":50,"total_tokens":150}}`
-
-// setUnexportedField replaces an unexported struct field using unsafe/reflect.
-// Necessary because integration tests cannot access unexported fields across packages.
-func setUnexportedField(obj any, fieldName string, value any) {
-	v := reflect.ValueOf(obj).Elem().FieldByName(fieldName)
-	rv := reflect.NewAt(v.Type(), unsafe.Pointer(v.UnsafeAddr())).Elem()
-	rv.Set(reflect.ValueOf(value))
-}
-
-// storeDB extracts the *sql.DB from a *store.Store via reflection so we can
-// run raw queries for detailed verification of persisted request records.
-func storeDB(st *store.Store) *sql.DB {
-	v := reflect.ValueOf(st).Elem().FieldByName("db")
-	rv := reflect.NewAt(v.Type(), unsafe.Pointer(v.UnsafeAddr())).Elem()
-	return rv.Interface().(*sql.DB)
-}
 
 // setupPolicyTest creates the full test harness:
 //  1. In-memory SQLite store
@@ -91,7 +73,7 @@ func setupPolicyTest(t *testing.T) (*store.Store, *proxy.Handler, *httptest.Serv
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
-	setUnexportedField(h, "client", &http.Client{Transport: tr})
+	h.SetTestClient(&http.Client{Transport: tr})
 
 	return st, h, fakeUpstream
 }
@@ -373,7 +355,7 @@ func TestIntegration_PolicyChangeTakesEffect(t *testing.T) {
 	}
 
 	// Step 3: Expire the policy cache so the next request re-fetches
-	setUnexportedField(h, "policyUntil", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
+	h.ExpirePolicyCache()
 
 	// Step 4: Now gpt-4o should be allowed
 	rec = sendRequest(t, h, `{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
@@ -405,7 +387,7 @@ func TestIntegration_BlockedRequestPersisted(t *testing.T) {
 	}
 
 	// Query the store's DB directly to verify exact row contents
-	db := storeDB(st)
+	db := st.RawDB()
 	rows, err := db.QueryContext(ctx, `
 		SELECT model, status,
 		       COALESCE(prompt_tokens, 0),
@@ -468,7 +450,7 @@ func TestIntegration_UnblockedRequestPersisted(t *testing.T) {
 	}
 
 	// Verify the request was persisted with correct token counts
-	db := storeDB(st)
+	db := st.RawDB()
 	rows, err := db.QueryContext(ctx, `
 		SELECT model, status,
 		       COALESCE(prompt_tokens, 0),

@@ -32,6 +32,8 @@ func ParseRequestMetadata(body []byte) RequestMetadata {
 	}
 	if model, ok := findStringKey(value, "model"); ok {
 		meta.Model = model
+	} else if model, ok := findNestedModel(value); ok {
+		meta.Model = model
 	}
 	if stream, ok := findBoolKey(value, "stream"); ok {
 		meta.Stream = stream
@@ -41,46 +43,49 @@ func ParseRequestMetadata(body []byte) RequestMetadata {
 }
 
 func findStringKey(value any, key string) (string, bool) {
-	switch typed := value.(type) {
-	case map[string]any:
-		if raw, ok := typed[key]; ok {
-			if s, ok := raw.(string); ok {
-				return s, true
-			}
-		}
-		for _, v := range typed {
-			if s, ok := findStringKey(v, key); ok {
-				return s, true
-			}
-		}
-	case []any:
-		for _, item := range typed {
-			if s, ok := findStringKey(item, key); ok {
-				return s, true
-			}
+	m, ok := value.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	if raw, ok := m[key]; ok {
+		if s, ok := raw.(string); ok {
+			return s, true
 		}
 	}
 	return "", false
 }
 
+// findNestedModel checks for the common Copilot Responses API nested path response.model.
+// It only descends one level into the "response" key — not arbitrary depth.
+func findNestedModel(value any) (string, bool) {
+	m, ok := value.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	respRaw, ok := m["response"]
+	if !ok {
+		return "", false
+	}
+	respMap, ok := respRaw.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	raw, ok := respMap["model"]
+	if !ok {
+		return "", false
+	}
+	s, ok := raw.(string)
+	return s, ok
+}
+
 func findBoolKey(value any, key string) (bool, bool) {
-	switch typed := value.(type) {
-	case map[string]any:
-		if raw, ok := typed[key]; ok {
-			if b, ok := raw.(bool); ok {
-				return b, true
-			}
-		}
-		for _, v := range typed {
-			if b, ok := findBoolKey(v, key); ok {
-				return b, true
-			}
-		}
-	case []any:
-		for _, item := range typed {
-			if b, ok := findBoolKey(item, key); ok {
-				return b, true
-			}
+	m, ok := value.(map[string]any)
+	if !ok {
+		return false, false
+	}
+	if raw, ok := m[key]; ok {
+		if b, ok := raw.(bool); ok {
+			return b, true
 		}
 	}
 	return false, false

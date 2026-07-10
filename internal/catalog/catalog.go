@@ -122,7 +122,7 @@ func inferProvider(model string) string {
 	switch {
 	case strings.Contains(model, "claude"):
 		return "anthropic"
-	case strings.HasPrefix(model, "gpt-") || strings.HasPrefix(model, "o1") || strings.HasPrefix(model, "o3") || strings.HasPrefix(model, "o4"):
+	case strings.HasPrefix(model, "gpt-") || strings.HasPrefix(model, "o1-") || strings.HasPrefix(model, "o3-") || strings.HasPrefix(model, "o4-"):
 		return "openai"
 	case strings.Contains(model, "gemini"):
 		return "google"

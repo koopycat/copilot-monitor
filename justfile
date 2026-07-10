@@ -27,7 +27,7 @@ test:
 
 # HTTP-level integration tests (no browser)
 integration:
-    go test ./internal/integration/...
+    go test -tags testonly ./internal/integration/...
 
 e2e:
     cd internal/e2e && pnpm test

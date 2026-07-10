@@ -2,7 +2,9 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"copilot-monitoring/internal/policy"
 )
@@ -40,6 +42,23 @@ func (h *Handler) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		if p.Models == nil {
 			p.Models = []string{}
 		}
+
+		// Validate and clean models
+		seen := make(map[string]bool, len(p.Models))
+		for i, m := range p.Models {
+			m = strings.TrimSpace(m)
+			p.Models[i] = m
+			if m == "" {
+				http.Error(w, "models must not contain empty strings", http.StatusBadRequest)
+				return
+			}
+			if seen[m] {
+				http.Error(w, fmt.Sprintf("duplicate model pattern: %s", m), http.StatusBadRequest)
+				return
+			}
+			seen[m] = true
+		}
+
 		if err := h.db.SetPolicy(r.Context(), &p); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
