@@ -161,7 +161,7 @@ func (w *Writer) formatLine(rl RequestLog) string {
 	tokens := "--"
 	cost := "--"
 	if rl.TokensCaptured {
-		tokens = fmt.Sprintf("⬇ %s ⬆ %s", formatHumanCount(rl.PromptTokens), formatHumanCount(rl.CompletionTokens))
+		tokens = fmt.Sprintf("⬆ %s ⬇ %s", formatHumanCount(rl.PromptTokens), formatHumanCount(rl.CompletionTokens))
 		cost = formatCost(rl.CostUSD)
 	} else if rl.UsageMissing {
 		tokens = "miss"
@@ -191,7 +191,7 @@ func (w *Writer) formatLine(rl RequestLog) string {
 // renderHeader renders the running totals header line.
 func (w *Writer) renderHeader() string {
 	uptime := formatDuration(time.Since(w.startTime))
-	header := fmt.Sprintf("── copilot-monitor ──  %d req  ⬇ %s tok ⬆ %s tok  %s  %s ──",
+	header := fmt.Sprintf("── copilot-monitor ──  %d req  ⬆ %s tok ⬇ %s tok  %s  %s ──",
 		w.requestCount,
 		formatHumanCount(int(w.totalPromptTokens)),
 		formatHumanCount(int(w.totalCompletionTokens)),
