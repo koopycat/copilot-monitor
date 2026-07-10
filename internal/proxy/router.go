@@ -96,15 +96,6 @@ func matchModelPattern(pattern, model string) bool {
 	return pattern == model
 }
 
-// routeMatchesModel returns true if the route should handle this model.
-// A route with nil/empty Models matches any model.
-func (r Route) routeMatchesProvider(detectedProvider string) bool {
-	if r.Provider == "" {
-		return true
-	}
-	return r.Provider == detectedProvider
-}
-
 func (r Route) routeMatchesModel(model string) bool {
 	if len(r.Models) == 0 {
 		return true
