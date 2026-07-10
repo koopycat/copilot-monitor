@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"llm-proxy/internal/compression/headroom"
-	"llm-proxy/internal/log"
-	"llm-proxy/internal/policy"
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/compression/headroom"
+	"copilot-monitoring/internal/log"
+	"copilot-monitoring/internal/policy"
+	"copilot-monitoring/internal/store"
 )
 
 const policyCacheTTL = 5 * time.Second

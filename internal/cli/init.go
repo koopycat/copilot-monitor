@@ -48,7 +48,7 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 	}
 
 	fmt.Fprintf(stdout, "Created %s\n", configPath)
-	fmt.Fprintf(stdout, "Run: llm-proxy run --routes-config %s\n", configPath)
+	fmt.Fprintf(stdout, "Run: copilot-monitor run --routes-config %s\n", configPath)
 	return 0
 }
 
@@ -110,7 +110,7 @@ func buildInitRoutes() []routeStub {
 	return routes
 }
 
-// xdgConfigDir returns $XDG_CONFIG_HOME/llm-proxy, falling back to ~/.config/llm-proxy.
+// xdgConfigDir returns $XDG_CONFIG_HOME/copilot-monitor, falling back to ~/.config/copilot-monitor.
 func xdgConfigDir() string {
 	dir := os.Getenv("XDG_CONFIG_HOME")
 	if dir == "" {
@@ -120,5 +120,5 @@ func xdgConfigDir() string {
 		}
 		dir = filepath.Join(home, ".config")
 	}
-	return filepath.Join(dir, "llm-proxy")
+	return filepath.Join(dir, "copilot-monitor")
 }

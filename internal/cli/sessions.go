@@ -9,7 +9,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/store"
 )
 
 func runSessions(args []string, stdout, stderr io.Writer) int {

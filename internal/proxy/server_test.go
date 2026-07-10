@@ -17,9 +17,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"llm-proxy/internal/log"
-	"llm-proxy/internal/policy"
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/log"
+	"copilot-monitoring/internal/policy"
+	"copilot-monitoring/internal/store"
 )
 
 // testRouter returns a Router configured with typical routes used by server tests.

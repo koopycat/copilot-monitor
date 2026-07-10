@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"llm-proxy/internal/policy"
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/policy"
+	"copilot-monitoring/internal/store"
 )
 
 func TestCurrentSessionEndpoint(t *testing.T) {

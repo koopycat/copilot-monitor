@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"llm-proxy/internal/proxy"
+	"copilot-monitoring/internal/proxy"
 )
 
 func runValidate(args []string, stdout, stderr io.Writer) int {

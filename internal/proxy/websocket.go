@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/store"
 )
 
 func isWebSocketUpgrade(r *http.Request) bool {

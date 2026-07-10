@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"llm-proxy/internal/compression/headroom"
+	"copilot-monitoring/internal/compression/headroom"
 )
 
 var errCompressionRequired = errors.New("request compression failed")

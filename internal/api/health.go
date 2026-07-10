@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/store"
 )
 
 var serverStartTime = time.Now()

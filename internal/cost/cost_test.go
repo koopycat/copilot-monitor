@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"llm-proxy/internal/catalog"
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/catalog"
+	"copilot-monitoring/internal/store"
 )
 
 func TestCalculateWithCachedAndCacheWriteTokens(t *testing.T) {

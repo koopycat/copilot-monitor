@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"llm-proxy/internal/compression/headroom"
-	"llm-proxy/internal/log"
-	"llm-proxy/internal/proxy"
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/compression/headroom"
+	"copilot-monitoring/internal/log"
+	"copilot-monitoring/internal/proxy"
+	"copilot-monitoring/internal/store"
 )
 
 // ---------------------------------------------------------------------------
