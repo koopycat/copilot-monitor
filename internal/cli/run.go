@@ -15,6 +15,7 @@ import (
 
 	"copilot-monitoring/dashboard"
 	"copilot-monitoring/internal/api"
+	"copilot-monitoring/internal/catalog"
 	"copilot-monitoring/internal/compression/headroom"
 	"copilot-monitoring/internal/log"
 	"copilot-monitoring/internal/proxy"
@@ -32,7 +33,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	routesConfig := fs.String("routes-config", "", "JSON file with route definitions (required)")
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
 	dashboardFlag := fs.Bool("dashboard", false, "also serve the dashboard API and UI on the same port (no need for a separate serve command)")
-	logFormat := fs.String("log-format", "json", "log output format; json or human")
+	logFormat := fs.String("log-format", "human", "log output format: human (rich colored output, default) or json (one JSON object per line)")
 	headroomURL := fs.String("headroom-url", "", "optional loopback Headroom compression endpoint")
 	headroomTimeout := fs.Duration("headroom-timeout", 30*time.Second, "Headroom compression request timeout")
 	headroomRequired := fs.Bool("headroom-required", false, "fail requests when Headroom compression is unavailable")
@@ -112,16 +113,32 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 
 	router := proxy.NewRouter(proxyCfg)
 
+	// Validate log format.
+	var lf log.LogFormat
+	switch *logFormat {
+	case "human", "json":
+		lf = log.LogFormat(*logFormat)
+	default:
+		fmt.Fprintf(stderr, "error: --log-format must be 'human' or 'json', got %q\n", *logFormat)
+		return 1
+	}
+
 	// The request log goes to stderr by default. When the live view is active
 	// (TTY + not --no-live), the log writer is silenced so the two streams
 	// don't interleave and corrupt the live display. Users who need the log
 	// can re-run with --no-live.
-	logWriter := log.NewWriterWithFormat(stderr, log.LogFormat(*logFormat))
+	logWriter := log.NewWriterWithFormat(stderr, lf)
 	if !*noLive && log.IsTerminal(stderr) {
 		logWriter = log.Disabled()
 	}
 
 	proxyHandler := proxy.NewHandlerWithRouter(logWriter, st, *project, usageDebug, router)
+	cat, err := catalog.LoadDefault()
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to load pricing catalog: %v\n", err)
+		return 1
+	}
+	proxyHandler.SetCatalog(cat)
 	proxyHandler.SetRawLogger(rawLogger)
 	if compressor != nil {
 		proxyHandler.ConfigureCompression(compressor, *headroomRequired)

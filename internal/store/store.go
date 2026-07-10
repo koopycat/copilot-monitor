@@ -174,6 +174,8 @@ func (s *Store) init(ctx context.Context) error {
 	}
 	// Migration: add columns that may not exist in older schemas
 	for _, m := range []struct{ name, def string }{
+		{"not_billed", "INTEGER NOT NULL DEFAULT 0"},
+		{"provider", "TEXT NOT NULL DEFAULT ''"},
 		{"usage_missing", "INTEGER NOT NULL DEFAULT 0"},
 		{"compression_status", "TEXT"},
 		{"compression_original_tokens", "INTEGER"},

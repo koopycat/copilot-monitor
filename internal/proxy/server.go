@@ -11,7 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"copilot-monitoring/internal/catalog"
 	"copilot-monitoring/internal/compression/headroom"
+	costcalc "copilot-monitoring/internal/cost"
 	"copilot-monitoring/internal/log"
 	"copilot-monitoring/internal/policy"
 	"copilot-monitoring/internal/store"
@@ -27,6 +29,7 @@ type Handler struct {
 	usageDebug          *UsageDebugLogger
 	rawLogger           *RawLogger
 	router              *Router
+	cat                 catalog.Catalog
 	compressor          headroom.MessageCompressor
 	compressionRequired bool
 	nextID              atomic.Uint64
@@ -77,6 +80,11 @@ func NewHandlerWithRouter(log *log.Writer, st *store.Store, project string, usag
 			DisableCompression: true,
 		}},
 	}
+}
+
+// SetCatalog sets the pricing catalog used for per-request cost estimation.
+func (h *Handler) SetCatalog(cat catalog.Catalog) {
+	h.cat = cat
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -280,7 +288,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.writeRawLog(started, id, route, r, meta, body, resp, provider, compMeta, true)
 
 	// Emit structured log line
-	h.log.RequestLogEntry(log.RequestLog{
+	entry := log.RequestLog{
 		RequestID:      id,
 		Method:         r.Method,
 		Path:           r.URL.RequestURI(),
@@ -291,7 +299,34 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CaptureMode:    string(route.Capture),
 		TokensCaptured: usageSeen,
 		UsageMissing:   !usageSeen && route.Capture == CaptureUsage,
-	})
+		Endpoint:       string(route.Endpoint),
+		Provider:       route.Provider,
+	}
+	if usageSeen && observer != nil {
+		entry.PromptTokens = observer.Usage.PromptTokens
+		entry.CompletionTokens = observer.Usage.CompletionTokens
+		entry.CachedTokens = observer.Usage.CachedInputTokens
+		modelForCost := meta.Model
+		if modelForCost == "" && observer.Model != "" {
+			modelForCost = observer.Model
+		}
+		lookup := h.cat.Lookup(modelForCost)
+		pricing := lookup.Pricing
+		if lookup.Fallback && route.Provider != "" {
+			if pf, ok := h.cat.ProviderFallbacks[strings.ToLower(route.Provider)]; ok {
+				pricing = pf
+			}
+		}
+		entry.CostUSD = costcalc.CostForUsage(
+			observer.Usage.PromptTokens,
+			observer.Usage.CachedInputTokens,
+			observer.Usage.CacheWriteTokens,
+			observer.Usage.CompletionTokens,
+			pricing,
+			route.NotBilled,
+		)
+	}
+	h.log.RequestLogEntry(entry)
 }
 
 func streamLogValue(meta RequestMetadata) string {

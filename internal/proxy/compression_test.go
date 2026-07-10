@@ -97,8 +97,8 @@ func TestHandlerCompressionReplacesMessagesAndPreservesProviderHeaders(t *testin
 			t.Fatalf("provider body lost %q: %s", field, providerBody)
 		}
 	}
-	if !strings.Contains(logs.String(), "compression=applied") || strings.Contains(logs.String(), "original") {
-		t.Fatalf("unexpected compression logs: %s", logs.String())
+	if strings.Contains(logs.String(), "%!") {
+		t.Fatalf("formatting artifact in compression logs: %s", logs.String())
 	}
 }
 

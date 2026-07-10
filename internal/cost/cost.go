@@ -110,3 +110,20 @@ func Calculate(stats []store.ModelStats, catalog catalog.Catalog) Total {
 func costForTokens(tokens int, perMillion float64) float64 {
 	return float64(tokens) / 1_000_000 * perMillion
 }
+
+// CostForUsage computes the estimated cost for a single request given token counts
+// and pricing from the catalog. Returns 0 if the model is not_billed.
+func CostForUsage(promptTokens, cachedTokens, cacheWriteTokens, completionTokens int, pricing catalog.Pricing, notBilled bool) float64 {
+	if notBilled {
+		return 0
+	}
+	regularInput := promptTokens - cachedTokens
+	if regularInput < 0 {
+		regularInput = 0
+	}
+	input := costForTokens(regularInput, pricing.InputPerM)
+	cached := costForTokens(cachedTokens, pricing.CachedInputPerM)
+	cacheWrite := costForTokens(cacheWriteTokens, pricing.CacheWritePerM)
+	output := costForTokens(completionTokens, pricing.OutputPerM)
+	return input + cached + cacheWrite + output
+}
