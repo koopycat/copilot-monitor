@@ -13,6 +13,7 @@
     pre-commit
     gotools
     gitleaks
+    trufflehog
   ];
 
   enterShell = ''
