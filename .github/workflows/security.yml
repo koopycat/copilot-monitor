@@ -1,0 +1,44 @@
+name: security
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 8 * * 1" # weekly on Monday
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy:
+    name: trivy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy vulnerability scanner in fs mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: 1
+
+  osv-scanner:
+    name: osv-scanner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run OSV-Scanner
+        uses: google/osv-scanner-action@v2
+        with:
+          scan-args: --recursive ./
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
