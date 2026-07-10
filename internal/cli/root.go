@@ -48,7 +48,8 @@ func printUsage(w io.Writer) {
 	fmt.Fprint(w, strings.TrimSpace(`copilot-monitor monitors GitHub Copilot model API usage through a local HTTP reverse proxy.
 
 Usage:
-  copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path] [--routes-config path] [--headroom-url URL] [--headroom-timeout 30s] [--headroom-required] [--no-live] [--dashboard]
+  copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path] [--no-live] [--dashboard]
+  copilot-monitor configure-vscode [--addr 127.0.0.1:7733]
   copilot-monitor stats [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor today [--db path] [--project name] [--endpoint chat]
