@@ -1,7 +1,7 @@
-# Gitleaks configuration for copilot-monitor
+# Gitleaks configuration for llm-proxy
 # https://github.com/zricethezav/gitleaks
 
-title = "copilot-monitor gitleaks config"
+title = "llm-proxy gitleaks config"
 
 [allowlist]
   description = "global allowlist"

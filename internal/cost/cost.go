@@ -1,8 +1,8 @@
 package cost
 
 import (
-	"copilot-monitoring/internal/catalog"
-	"copilot-monitoring/internal/store"
+	"llm-proxy/internal/catalog"
+	"llm-proxy/internal/store"
 )
 
 type Row struct {

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"copilot-monitoring/internal/catalog"
-	costcalc "copilot-monitoring/internal/cost"
+	"llm-proxy/internal/catalog"
+	costcalc "llm-proxy/internal/cost"
 )
 
 type currentSessionResponse struct {

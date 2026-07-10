@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"copilot-monitoring/internal/cli"
+	"llm-proxy/internal/cli"
 )
 
 func main() {
