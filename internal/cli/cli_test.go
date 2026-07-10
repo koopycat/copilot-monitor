@@ -75,7 +75,7 @@ func TestCostCommand(t *testing.T) {
 		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
 	}
 	out := stdout.String()
-	for _, want := range []string{"Estimated equivalent GitHub Copilot AI-credit list-price cost", "gpt-5-mini", "openai", "1.193750", "TOTAL"} {
+	for _, want := range []string{"Estimated equivalent provider list-price cost", "gpt-5-mini", "openai", "1.193750", "TOTAL"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output missing %q:\n%s", want, out)
 		}
