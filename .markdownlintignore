@@ -1,0 +1,6 @@
+# OpenSpec-generated files (not owned by this project)
+.pi/prompts/
+.pi/skills/
+
+# OpenSpec change artifacts (delta specs use ## ADDED/MODIFIED headers)
+openspec/changes/

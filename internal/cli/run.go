@@ -28,6 +28,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
 	project := fs.String("project", "", "optional project label")
 	usageDebugPath := fs.String("usage-debug-log", "", "optional JSONL path for usage-only debug metadata")
+	rawLogPath := fs.String("raw-log", "", "optional JSONL path for raw request debugging (logs truncated bodies, headers; treat output as sensitive)")
 	routesConfig := fs.String("routes-config", "", "JSON file with route definitions (required)")
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
 	dashboardFlag := fs.Bool("dashboard", false, "also serve the dashboard API and UI on the same port (no need for a separate serve command)")
@@ -81,6 +82,17 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 	defer usageDebug.Close()
 
+	rawLogger, err := proxy.OpenRawLogger(*rawLogPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to open raw debug log %q: %v\n", *rawLogPath, err)
+		return 1
+	}
+	defer rawLogger.Close()
+
+	if *rawLogPath != "" {
+		fmt.Fprintf(stderr, "raw debug logging is enabled: request bodies (up to %d bytes) are written to %s. This file may contain source code and prompts. Treat it as sensitive.\n", 1024, *rawLogPath)
+	}
+
 	if *routesConfig == "" {
 		fmt.Fprintln(stderr, "error: --routes-config is required. See examples/routes/ for sample configs or specify a JSON routes file.")
 		return 1
@@ -110,6 +122,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 
 	proxyHandler := proxy.NewHandlerWithRouter(logWriter, st, *project, usageDebug, router)
+	proxyHandler.SetRawLogger(rawLogger)
 	if compressor != nil {
 		proxyHandler.ConfigureCompression(compressor, *headroomRequired)
 		fmt.Fprintf(stdout, "headroom compression: %s timeout=%s mode=%s\n",
