@@ -2,7 +2,7 @@
 // All state lives in a single $state object. Side effects (fetch, timer, observer)
 // are wired up in init() and torn down in destroy().
 
-import { exportHrefFor, fetchPolicy, fetchPolicyModels, fetchUpstreams, loadDashboard, putPolicy } from '../lib/api';
+import { exportHrefFor, fetchConfig, fetchPolicy, fetchPolicyModels, fetchUpstreams, loadDashboard, putPolicy } from '../lib/api';
 import { drawChart } from '../lib/chart';
 import { modelColor } from '../lib/colors';
 import { dur, intl, usd } from '../lib/format';
@@ -14,6 +14,7 @@ import type {
   ModelStats,
   PeriodKey,
   Policy,
+  RouteConfig,
   Session,
   TimelineEntry,
 } from '../lib/types';
@@ -46,6 +47,7 @@ class DashboardStore {
 
   upstream: string = $state('');
   upstreams: string[] = $state([]);
+  routes: RouteConfig[] = $state([]);
   periodIsEmpty: boolean = $state(false);
 
   sessionPulse = $state(false);
@@ -234,6 +236,11 @@ class DashboardStore {
       if (this.upstreams.length === 0) {
         fetchUpstreams(signal).then((hosts) => {
           if (!signal.aborted) this.upstreams = hosts;
+        }).catch(() => {});
+      }
+      if (this.routes.length === 0) {
+        fetchConfig(signal).then((cfg) => {
+          if (!signal.aborted) this.routes = cfg.routes;
         }).catch(() => {});
       }
 

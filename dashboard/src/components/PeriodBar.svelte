@@ -14,6 +14,7 @@
     <button
       class="period-btn"
       class:active={active === p.key}
+      aria-current={active === p.key ? 'page' : undefined}
       onclick={() => onchange(p.key)}
     >
       {p.label}
