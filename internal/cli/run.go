@@ -9,9 +9,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"copilot-monitoring/dashboard"
+	"copilot-monitoring/internal/api"
 	"copilot-monitoring/internal/log"
 	"copilot-monitoring/internal/proxy"
 	"copilot-monitoring/internal/store"
@@ -24,7 +27,9 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
 	project := fs.String("project", "", "optional project label")
 	usageDebugPath := fs.String("usage-debug-log", "", "optional JSONL path for usage-only debug metadata")
+	routesConfig := fs.String("routes-config", "", "optional JSON file with additional route definitions")
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
+	dashboardFlag := fs.Bool("dashboard", false, "also serve the dashboard API and UI on the same port (no need for a separate serve command)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -43,6 +48,16 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 	defer usageDebug.Close()
 
+	proxyCfg, err := proxy.LoadConfig(*routesConfig)
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to load routes config: %v\n", err)
+		return 1
+	}
+	router := proxy.NewRouter(proxyCfg)
+	if proxyCfg != nil {
+		fmt.Fprintf(stdout, "routes config: %s (%d additional routes)\n", store.FormatPath(*routesConfig), len(proxyCfg.Routes))
+	}
+
 	// The request log goes to stderr by default. When the live view is active
 	// (TTY + not --no-live), the log writer is silenced so the two streams
 	// don't interleave and corrupt the live display. Users who need the log
@@ -52,10 +67,17 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		logWriter = log.Disabled()
 	}
 
-	handler := proxy.NewHandlerWithStoreAndUsageDebug(logWriter, st, *project, usageDebug)
+	proxyHandler := proxy.NewHandlerWithRouter(logWriter, st, *project, usageDebug, router)
+
+	var serverHandler http.Handler = proxyHandler
+	if *dashboardFlag {
+		serverHandler = combinedDashProxy(proxyHandler, router, api.NewHandler(st), dashboard.Handler())
+		fmt.Fprintf(stdout, "dashboard: http://%s (UI)  http://%s/api/ (API)\n", settingsAddr(*addr), settingsAddr(*addr))
+	}
+
 	server := &http.Server{
 		Addr:              *addr,
-		Handler:           handler,
+		Handler:           serverHandler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -64,6 +86,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	if *usageDebugPath != "" {
 		fmt.Fprintf(stdout, "usage debug log: %s\n", store.FormatPath(*usageDebugPath))
 	}
+
 	fmt.Fprintf(stdout, "VSCode settings:\n")
 	printVSCodeSettings(stdout, *addr)
 
@@ -81,7 +104,8 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
-		_ = server.Shutdown(context.Background())
+		ctx := context.Background()
+		_ = server.Shutdown(ctx)
 	}()
 
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, context.Canceled) {
@@ -134,6 +158,28 @@ func clearTail(w io.Writer, n int) {
 	// CSI n A: cursor up n lines
 	// CSI 0 J: erase from cursor to end of screen
 	fmt.Fprintf(w, "\x1b[%dA\x1b[0J", n)
+}
+
+// combinedDashProxy returns a handler that serves the dashboard/API and proxied
+// LLM traffic on the same port. LLM paths recognized by the proxy router are
+// forwarded; everything else falls through to the dashboard (static files at /,
+// API at /api/).
+func combinedDashProxy(proxyHandler http.Handler, router *proxy.Router, apiHandler http.Handler, dashHandler http.Handler) http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("/api/", apiHandler)
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := router.Match(r.URL.Path); ok {
+			proxyHandler.ServeHTTP(w, r)
+			return
+		}
+		// Redirect /api (no trailing slash) to /api/ so the API mux picks it up.
+		if strings.TrimRight(r.URL.Path, "/") == "/api" {
+			http.Redirect(w, r, "/api/", http.StatusMovedPermanently)
+			return
+		}
+		dashHandler.ServeHTTP(w, r)
+	}))
+	return mux
 }
 
 // writeLines writes the given text and returns the number of lines it occupied.
