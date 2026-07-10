@@ -1,14 +1,13 @@
 default: all
 
-all: vet secrets test build dashboard-build  # fast targets only (excludes integration, e2e)
+all: vet secrets test build  # fast targets only (excludes integration, e2e)
 
 setup:
     mise install
     cd dashboard && pnpm install --frozen-lockfile
     @echo "Install go tools: go install honnef.co/go/tools/cmd/staticcheck@latest golang.org/x/vuln/cmd/govulncheck@latest"
 
-build:
-    cd dashboard && pnpm build
+build: dashboard-build
     go build -o ./bin/copilot-monitor ./cmd/copilot-monitor
 
 dashboard-build:
