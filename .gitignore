@@ -40,3 +40,4 @@ internal/e2e/playwright-report/
 dashboard/dist/
 dashboard/.svelte-kit/
 dashboard/node_modules/
+test.jsonl
