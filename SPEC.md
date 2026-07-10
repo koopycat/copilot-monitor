@@ -7,10 +7,10 @@ documentation.
 
 Requirements describe what the product must do and avoid implementation details.
 
-| Document                                                         | Scope                                                                            |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| [`specs/product-requirements.md`](specs/product-requirements.md) | Product behavior, supported workflows, reporting, routing, and data expectations |
-| [`specs/privacy-requirements.md`](specs/privacy-requirements.md) | Privacy, local-storage, data minimization, and debug-output invariants           |
+| Document                                                         | Scope                                                                                              |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [`specs/product-requirements.md`](specs/product-requirements.md) | Product behavior, route configuration schema, CLI commands, routing, policy, health, and reporting |
+| [`specs/privacy-requirements.md`](specs/privacy-requirements.md) | Privacy, local-storage, data minimization, and debug-output invariants                             |
 
 ## Current Documentation
 
