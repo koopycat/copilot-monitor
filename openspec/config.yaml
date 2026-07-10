@@ -1,0 +1,39 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Go 1.22+, SQLite (modernc.org/sqlite), Svelte 5 dashboard (embedded via go:embed)
+  Architecture: Local reverse proxy + embedded dashboard + SQLite store
+  Domain: LLM API usage monitoring for GitHub Copilot and compatible providers
+
+  ## Design Constraints
+
+  ### Quality Attributes
+  - QUAL-001: The proxy must not buffer an entire streaming response before forwarding it.
+  - QUAL-002: Core proxy behavior changes must be covered by automated tests.
+  - QUAL-003: The dashboard must be served from pre-built static assets embedded at compile time with no runtime build, install, or package-manager step.
+  - QUAL-004: Structured log entries must omit body text, credentials, and API keys.
+
+  ### Resilience
+  - NFR-005: The SQLite database must use WAL journal mode.
+  - NFR-006: Schema changes must not cause data loss on existing databases.
+  - NFR-008: The product must ship as a single self-contained binary.
+  - NFR-010: Concurrent database writes must not fail due to concurrent readers.
+
+  ### Information Architecture
+  - IA-001: Every captured and reported field must use the same snake_case name in CLI flags, API query parameters, JSON keys, and CSV column headers.
+  - IA-002: All JSON output must use snake_case field names.
+  - IA-005: Collection API endpoints must return index-style listings sorted in a stable, meaningful order.
+  - IA-006: CSV column names must match the corresponding JSON field names.
+  - IA-008: CLI commands that accept the same filter concept must use the same flag name.
+
+  ### Developer Experience
+  - DX-003: Fatal errors must include actionable guidance, not just a description of what went wrong.
+  - DX-007: Configuration validation must be available as a standalone, side-effect-free command.
+  - DX-009: CLI output must be composable into shell pipelines and external tooling.
+  - DX-011: Route configuration files must support inline comments.
+
+  ## Naming Conventions
+  - CLI flags: --kebab-case
+  - API params / JSON keys / CSV columns: snake_case
+  - Go packages: lowercase, single word
+  - Endpoint labels: lowercase, kebab-case in config, human-readable in reports
