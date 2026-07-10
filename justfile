@@ -2,6 +2,11 @@ default: all
 
 all: vet test build dashboard-build
 
+setup:
+    mise install
+    cd dashboard && pnpm install --frozen-lockfile
+    @echo "Install go tools: go install honnef.co/go/tools/cmd/staticcheck@latest golang.org/x/vuln/cmd/govulncheck@latest"
+
 build:
     cd dashboard && pnpm build
     go build ./cmd/copilot-monitor

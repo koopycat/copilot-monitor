@@ -1,0 +1,16 @@
+# mise.toml — copilot_monitoring
+# Migrated from devenv.nix. Kept as reference, not deleted.
+
+[tools]
+go = "1.26"
+node = "24"
+just = "latest"
+
+# System tools / go-installed tools not managed by mise:
+#   pre-commit — `brew install pre-commit` or `pipx install pre-commit`
+#   gotools    — `go install golang.org/x/tools/...@latest`
+#   staticcheck — `go install honnef.co/go/tools/cmd/staticcheck@latest`
+#   govulncheck — `go install golang.org/x/vuln/cmd/govulncheck@latest`
+#   air        — `go install github.com/air-verse/air@latest`
+
+# Note: dashboard/ uses pnpm (via node). Run `pnpm install` in dashboard/ after mise install.
