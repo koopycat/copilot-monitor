@@ -163,10 +163,10 @@ func TestFormatLineWithTokens(t *testing.T) {
 	if !strings.Contains(line, "1.2s") {
 		t.Errorf("line missing latency: %s", line)
 	}
-	if !strings.Contains(line, "⬇ 1.5k") {
+	if !strings.Contains(line, "⬆ 1.5k") {
 		t.Errorf("line missing input tokens: %s", line)
 	}
-	if !strings.Contains(line, "⬆ 342") {
+	if !strings.Contains(line, "⬇ 342") {
 		t.Errorf("line missing output tokens: %s", line)
 	}
 	if !strings.Contains(line, "$0.02") {
