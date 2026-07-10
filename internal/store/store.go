@@ -40,15 +40,17 @@ type RequestRecord struct {
 }
 
 type StatsFilter struct {
-	Since    time.Time
-	Until    time.Time
-	Project  string
-	Endpoint string
+	Since        time.Time
+	Until        time.Time
+	Project      string
+	Endpoint     string
+	UpstreamHost string
 }
 
 type ModelStats struct {
 	Model             string  `json:"model"`
 	Endpoint          string  `json:"endpoint"`
+	UpstreamHost      string  `json:"upstream_host,omitempty"`
 	Requests          int     `json:"requests"`
 	PromptTokens      int     `json:"prompt_tokens"`
 	CachedInputTokens int     `json:"cached_input_tokens"`
@@ -62,6 +64,7 @@ type TimelineBucket struct {
 	Date             string  `json:"date"`
 	Hour             int     `json:"hour,omitempty"`
 	Model            string  `json:"model"`
+	UpstreamHost     string  `json:"upstream_host,omitempty"`
 	Requests         int     `json:"requests"`
 	PromptTokens     int     `json:"prompt_tokens"`
 	CompletionTokens int     `json:"completion_tokens"`
@@ -179,6 +182,7 @@ func (s *Store) Stats(ctx context.Context, filter StatsFilter) ([]ModelStats, er
 SELECT
   COALESCE(NULLIF(model, ''), '<unknown>') AS model,
   endpoint,
+  upstream_host,
   COUNT(*) AS requests,
   COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
   COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens,
@@ -191,7 +195,8 @@ WHERE (? = '' OR ts >= ?)
   AND (? = '' OR ts < ?)
   AND (? = '' OR project = ?)
   AND (? = '' OR endpoint = ?)
-GROUP BY model, endpoint
+  AND (? = '' OR upstream_host = ?)
+GROUP BY model, endpoint, upstream_host
 ORDER BY total_tokens DESC, requests DESC, model ASC, endpoint ASC`
 	since := ""
 	if !filter.Since.IsZero() {
@@ -201,7 +206,7 @@ ORDER BY total_tokens DESC, requests DESC, model ASC, endpoint ASC`
 	if !filter.Until.IsZero() {
 		until = filter.Until.UTC().Format(time.RFC3339Nano)
 	}
-	return s.queryModelStats(ctx, query, since, since, until, until, filter.Project, filter.Project, filter.Endpoint, filter.Endpoint)
+	return s.queryModelStats(ctx, query, since, since, until, until, filter.Project, filter.Project, filter.Endpoint, filter.Endpoint, filter.UpstreamHost, filter.UpstreamHost)
 }
 
 func (s *Store) queryModelStats(ctx context.Context, query string, args ...any) ([]ModelStats, error) {
@@ -214,7 +219,7 @@ func (s *Store) queryModelStats(ctx context.Context, query string, args ...any) 
 	var out []ModelStats
 	for rows.Next() {
 		var row ModelStats
-		if err := rows.Scan(&row.Model, &row.Endpoint, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens, &row.AvgLatencyMS); err != nil {
+		if err := rows.Scan(&row.Model, &row.Endpoint, &row.UpstreamHost, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens, &row.AvgLatencyMS); err != nil {
 			return nil, err
 		}
 		out = append(out, row)
@@ -249,6 +254,7 @@ func (s *Store) Timeline(ctx context.Context, filter StatsFilter, granularity st
 SELECT
   %s,
   COALESCE(NULLIF(model, ''), '<unknown>') AS model,
+  upstream_host,
   COUNT(*) AS requests,
   COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
   COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
@@ -258,11 +264,12 @@ WHERE (? = '' OR ts >= ?)
   AND (? = '' OR ts < ?)
   AND (? = '' OR project = ?)
   AND (? = '' OR endpoint = ?)
+  AND (? = '' OR upstream_host = ?)
   AND model IS NOT NULL AND model != ''
-GROUP BY %s, model
-ORDER BY date ASC, hour ASC, model ASC`, dateExpr, groupExpr)
+GROUP BY %s, model, upstream_host
+ORDER BY date ASC, hour ASC, model ASC, upstream_host ASC`, dateExpr, groupExpr)
 
-	rows, err := s.db.QueryContext(ctx, query, since, since, until, until, filter.Project, filter.Project, filter.Endpoint, filter.Endpoint)
+	rows, err := s.db.QueryContext(ctx, query, since, since, until, until, filter.Project, filter.Project, filter.Endpoint, filter.Endpoint, filter.UpstreamHost, filter.UpstreamHost)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +278,7 @@ ORDER BY date ASC, hour ASC, model ASC`, dateExpr, groupExpr)
 	var out []TimelineBucket
 	for rows.Next() {
 		var row TimelineBucket
-		if err := rows.Scan(&row.Date, &row.Hour, &row.Model, &row.Requests, &row.PromptTokens, &row.CompletionTokens, &row.TotalTokens); err != nil {
+		if err := rows.Scan(&row.Date, &row.Hour, &row.Model, &row.UpstreamHost, &row.Requests, &row.PromptTokens, &row.CompletionTokens, &row.TotalTokens); err != nil {
 			return nil, err
 		}
 		out = append(out, row)
@@ -279,7 +286,7 @@ ORDER BY date ASC, hour ASC, model ASC`, dateExpr, groupExpr)
 	return out, rows.Err()
 }
 
-func (s *Store) ExportRequests(ctx context.Context, since, until time.Time) ([]ExportRow, error) {
+func (s *Store) ExportRequests(ctx context.Context, since, until time.Time, upstreamHost string) ([]ExportRow, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("nil store")
 	}
@@ -298,9 +305,10 @@ SELECT ts, endpoint, COALESCE(model,''), status, latency_ms,
 FROM requests
 WHERE (? = '' OR ts >= ?)
   AND (? = '' OR ts < ?)
+  AND (? = '' OR upstream_host = ?)
   AND model IS NOT NULL AND model != ''
   AND status = 200
-ORDER BY ts DESC`, sinceStr, sinceStr, untilStr, untilStr)
+ORDER BY ts DESC`, sinceStr, sinceStr, untilStr, untilStr, upstreamHost, upstreamHost)
 	if err != nil {
 		return nil, err
 	}
@@ -317,6 +325,27 @@ ORDER BY ts DESC`, sinceStr, sinceStr, untilStr, untilStr)
 		out = append(out, row)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) DistinctUpstreamHosts(ctx context.Context) ([]string, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("nil store")
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT upstream_host FROM requests WHERE upstream_host != '' ORDER BY upstream_host`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var hosts = make([]string, 0)
+	for rows.Next() {
+		var host string
+		if err := rows.Scan(&host); err != nil {
+			return nil, err
+		}
+		hosts = append(hosts, host)
+	}
+	return hosts, rows.Err()
 }
 
 func nullString(value string) any {

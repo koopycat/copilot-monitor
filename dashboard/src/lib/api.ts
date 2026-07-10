@@ -34,14 +34,19 @@ export async function loadDashboard(
   period: PeriodKey,
   granularity: Granularity,
   signal: AbortSignal,
+  upstream?: string,
 ): Promise<DashboardData> {
   const pq = periodQuery(period);
 
-  const sinceParams = buildParams({ since: pq.since, ...(pq.until ? { until: pq.until } : {}) });
+  const extra: Record<string, string> = {};
+  if (upstream) extra.upstream = upstream;
+
+  const sinceParams = buildParams({ since: pq.since, ...(pq.until ? { until: pq.until } : {}), ...extra });
   const timelineParams = buildParams({
     since: pq.since,
     ...(pq.until ? { until: pq.until } : {}),
     granularity,
+    ...extra,
   });
 
   const [stats, cost, sessions, timeline, current] = await Promise.all([
@@ -61,8 +66,25 @@ export async function loadDashboard(
   };
 }
 
-export function exportHrefFor(period: PeriodKey): string {
+export function exportHrefFor(period: PeriodKey, upstream?: string): string {
   const pq = periodQuery(period);
-  const params = buildParams({ since: pq.since, ...(pq.until ? { until: pq.until } : {}) });
+  const params = buildParams({
+    since: pq.since,
+    ...(pq.until ? { until: pq.until } : {}),
+    ...(upstream ? { upstream } : {}),
+  });
   return `/api/export?${params}`;
 }
+
+export async function fetchUpstreams(signal: AbortSignal): Promise<string[]> {
+  try {
+    const r = await fetch('/api/upstreams', { signal });
+    if (!r.ok) return [];
+    return (await r.json()) as string[];
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') throw e;
+    return [];
+  }
+}
+
+

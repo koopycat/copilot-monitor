@@ -39,3 +39,4 @@ CREATE INDEX IF NOT EXISTS idx_requests_model    ON requests(model);
 CREATE INDEX IF NOT EXISTS idx_requests_project  ON requests(project);
 CREATE INDEX IF NOT EXISTS idx_requests_session  ON requests(session_id);
 CREATE INDEX IF NOT EXISTS idx_requests_endpoint ON requests(endpoint);
+CREATE INDEX IF NOT EXISTS idx_requests_upstream_host ON requests(upstream_host);

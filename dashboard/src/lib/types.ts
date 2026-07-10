@@ -6,6 +6,7 @@ export type ModelId = string;
 export interface ModelStats {
   model: ModelId;
   endpoint: Endpoint;
+  upstream_host: string;
   requests: number;
   prompt_tokens: number;
   cached_input_tokens: number;
@@ -18,6 +19,7 @@ export interface ModelStats {
 export interface CostRow {
   model: ModelId;
   endpoint: Endpoint;
+  upstream_host: string;
   total_usd: number;
   fallback: boolean;
   not_billed: boolean;
@@ -34,6 +36,7 @@ export interface TimelineEntry {
   date: string;
   hour?: number;
   model: ModelId;
+  upstream_host?: string;
   requests: number;
   total_tokens: number;
 }
@@ -67,3 +70,5 @@ export interface Period {
   key: PeriodKey;
   label: string;
 }
+
+

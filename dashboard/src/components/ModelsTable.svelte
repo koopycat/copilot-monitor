@@ -11,6 +11,7 @@
   <thead>
     <tr>
       <th>Model</th>
+      <th>Upstream</th>
       <th>Requests</th>
       <th>Cache&nbsp;%</th>
       <th>Total Tokens</th>
@@ -19,7 +20,7 @@
     </tr>
   </thead>
   <tbody>
-    {#each rows as s, i (s.model + s.endpoint)}
+    {#each rows as s, i (s.model + s.endpoint + s.upstream_host)}
       <tr title={s.detail}>
         <td>
           <span class="bar-cell">
@@ -33,6 +34,7 @@
             {#if s.not_billed}<span class="tag nb">not billed</span>{/if}
           </span>
         </td>
+        <td class="num"><span class="tag">{s.upstream_host || '–'}</span></td>
         <td class="num">{intl(s.requests)}</td>
         <td class="num">{s.cache_hit_pct}%</td>
         <td class="num">{intl(s.total_tokens)}</td>
