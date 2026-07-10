@@ -1,0 +1,20 @@
+# Gitleaks configuration for copilot-monitor
+# https://github.com/zricethezav/gitleaks
+
+title = "copilot-monitor gitleaks config"
+
+[allowlist]
+  description = "global allowlist"
+  paths = [
+    '''.devenv/''',
+    '''.firecrawl/''',
+    '''node_modules/''',
+    '''vendor/''',
+    '''\.pnpm/''',
+  ]
+
+# Custom rules can be added here if needed:
+# [[rules]]
+#   id = "custom-rule"
+#   description = "description"
+#   regex = '''pattern'''

@@ -9,7 +9,7 @@ setup:
 
 build:
     cd dashboard && pnpm build
-    go build ./cmd/copilot-monitor
+    go build -o ./bin/copilot-monitor ./cmd/copilot-monitor
 
 dashboard-build:
     cd dashboard && pnpm install --frozen-lockfile && pnpm build
@@ -40,4 +40,4 @@ watch:
     {{AIR}}
 
 clean:
-    rm -rf copilot-monitor tmp build-errors.log dashboard/dist
+    rm -rf bin tmp build-errors.log dashboard/dist

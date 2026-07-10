@@ -12,6 +12,7 @@
   packages = with pkgs; [
     pre-commit
     gotools
+    gitleaks
   ];
 
   enterShell = ''
