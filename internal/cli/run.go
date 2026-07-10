@@ -15,7 +15,6 @@ import (
 
 	"copilot-monitoring/dashboard"
 	"copilot-monitoring/internal/api"
-	"copilot-monitoring/internal/compression/headroom"
 	"copilot-monitoring/internal/log"
 	"copilot-monitoring/internal/proxy"
 	"copilot-monitoring/internal/store"
@@ -31,11 +30,6 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	routesConfig := fs.String("routes-config", "", "optional JSON file with additional route definitions")
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
 	dashboardFlag := fs.Bool("dashboard", false, "also serve the dashboard API and UI on the same port (no need for a separate serve command)")
-	headroomURL := fs.String("headroom-url", "", "optional loopback Headroom compression endpoint")
-	headroomTimeout := fs.Duration("headroom-timeout", 30*time.Second, "Headroom compression request timeout")
-	headroomRequired := fs.Bool("headroom-required", false, "fail requests when Headroom compression is unavailable")
-	headroomCompressUsers := fs.Bool("headroom-compress-user-messages", false, "allow Headroom to transform user messages")
-	headroomTargetRatio := fs.Float64("headroom-target-ratio", 0, "optional Headroom target ratio (0 < ratio <= 1)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -100,14 +94,6 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 
 	proxyHandler := proxy.NewHandlerWithRouter(logWriter, st, *project, usageDebug, router)
-	if compressor != nil {
-		proxyHandler.ConfigureCompression(compressor, *headroomRequired)
-		fmt.Fprintf(stdout, "headroom compression: %s timeout=%s mode=%s\n",
-			*headroomURL,
-			*headroomTimeout,
-			compressionMode(*headroomRequired),
-		)
-	}
 
 	var serverHandler http.Handler = proxyHandler
 	if *dashboardFlag {
@@ -126,6 +112,9 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	if *usageDebugPath != "" {
 		fmt.Fprintf(stdout, "usage debug log: %s\n", store.FormatPath(*usageDebugPath))
 	}
+
+	fmt.Fprintf(stdout, "VSCode settings:\n")
+	printVSCodeSettings(stdout, *addr)
 
 	// Live session tail. Active by default; runs only when stderr is a TTY.
 	// Disabled with --no-live or when the user redirected stderr to a file/pipe.
