@@ -217,7 +217,7 @@ INSERT INTO requests (
 		nullString(rec.CompressionStatus),
 		nullInt(rec.CompressionOriginalTokens),
 		nullInt(rec.CompressionFinalTokens),
-		nullInt(int(rec.CompressionLatencyMS)),
+		nullInt64(rec.CompressionLatencyMS),
 	)
 	return err
 }
@@ -473,6 +473,13 @@ func nullString(value string) any {
 }
 
 func nullInt(value int) any {
+	if value == 0 {
+		return nil
+	}
+	return value
+}
+
+func nullInt64(value int64) any {
 	if value == 0 {
 		return nil
 	}
