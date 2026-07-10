@@ -15,3 +15,23 @@ updates:
     schedule:
       interval: 'weekly'
     open-pull-requests-limit: 3
+
+  - package-ecosystem: 'npm'
+    directory: '/dashboard'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 5
+    groups:
+      dashboard-deps:
+        patterns:
+          - '*'
+
+  - package-ecosystem: 'npm'
+    directory: '/internal/e2e'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 3
+    groups:
+      e2e-deps:
+        patterns:
+          - '*'
