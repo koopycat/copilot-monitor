@@ -268,9 +268,11 @@ func (w *Writer) colored(color, label, format string, args ...any) {
 func (w *Writer) Request(format string, args ...any)  {} // no-op: suppressed in beautiful mode
 func (w *Writer) Response(format string, args ...any) {} // no-op: suppressed in beautiful mode
 func (w *Writer) Error(format string, args ...any) {
-	// Error calls for non-request events still emit (e.g., store errors).
-	// Request-level errors are captured in RequestLog already.
-	w.write("✗ "+format, args...)
+	if w.format == FormatHuman {
+		// Error calls for non-request events still emit (e.g., store errors).
+		// Request-level errors are captured in RequestLog already.
+		w.colored(red, "✗", format, args...)
+	}
 }
 func (w *Writer) Info(format string, args ...any) {} // no-op: suppressed in beautiful mode
 func (w *Writer) Websocket(format string, args ...any) {

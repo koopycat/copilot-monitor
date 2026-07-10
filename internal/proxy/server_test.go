@@ -240,7 +240,7 @@ func TestHandlerPersistsSSEUsage(t *testing.T) {
 	if strings.Contains(logs.String(), "%!") {
 		t.Fatalf("response log has formatting artifact: %s", logs.String())
 	}
-	for _, want := range []string{"gpt-4o", "200", "⬇7", "⬆3"} {
+	for _, want := range []string{"gpt-4o", "200", "⬆ 7", "⬇ 3"} {
 		if !strings.Contains(logs.String(), want) {
 			t.Fatalf("response log missing %q: %s", want, logs.String())
 		}
