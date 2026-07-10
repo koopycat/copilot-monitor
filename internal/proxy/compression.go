@@ -105,11 +105,10 @@ func compressionErrorCategory(ctx context.Context, err error) string {
 		}
 		return "http_5xx"
 	}
+	// Fallback: classify by error message substring for Headroom response errors.
+	// The raw error text is not logged — only this stable category string is emitted.
 	if strings.Contains(err.Error(), "response") || strings.Contains(err.Error(), "metrics") || strings.Contains(err.Error(), "messages") {
 		return "invalid_response"
-	}
-	if err == nil {
-		return "unknown"
 	}
 	return "transport"
 }
