@@ -6,46 +6,6 @@ import (
 	"strings"
 )
 
-const (
-	GitHubCopilotAPIHost   = "api.githubcopilot.com"
-	GitHubCopilotProxyHost = "copilot-proxy.githubusercontent.com"
-)
-
-// KnownProviders lists the recognized URL path prefixes for provider routing.
-var KnownProviders = map[string]bool{
-	"copilot": true,
-	"openai":  true,
-	"kilo":    true,
-}
-
-// StripProviderPrefix extracts a known provider prefix from the first path segment
-// and returns the provider name with the remaining path.
-// "/copilot/chat/completions" → ("copilot", "/chat/completions")
-// "/copilot" → ("copilot", "/")
-// "/unknown/path" → ("", "/unknown/path")
-func StripProviderPrefix(urlPath string) (provider, remaining string) {
-	if urlPath == "" || urlPath == "/" {
-		return "", urlPath
-	}
-	rest := strings.TrimPrefix(urlPath, "/")
-	idx := strings.Index(rest, "/")
-	var first string
-	if idx < 0 {
-		first = rest
-		rest = ""
-	} else {
-		first = rest[:idx]
-		rest = rest[idx:]
-	}
-	if KnownProviders[first] {
-		if rest == "" {
-			return first, "/"
-		}
-		return first, rest
-	}
-	return "", urlPath
-}
-
 type CaptureMode string
 
 const (
@@ -56,18 +16,7 @@ const (
 	CaptureLocal    CaptureMode = "local"
 )
 
-type Endpoint string
-
-const (
-	EndpointChat          Endpoint = "chat"
-	EndpointAgent         Endpoint = "agent"
-	EndpointModels        Endpoint = "models"
-	EndpointModelsSession Endpoint = "models-session"
-	EndpointResponses     Endpoint = "responses-websocket"
-	EndpointEmbeddings    Endpoint = "embeddings"
-	EndpointCompletions   Endpoint = "completions"
-	EndpointPing          Endpoint = "ping"
-)
+type Endpoint = string
 
 type Route struct {
 	Endpoint           Endpoint
@@ -111,33 +60,6 @@ func (r Route) routeMatchesModel(model string) bool {
 	return false
 }
 
-func copilotRoutePath(path string) (Route, bool) {
-	switch {
-	case path == "/_ping":
-		return Route{Endpoint: EndpointPing, Capture: CaptureLocal, Local: true}, true
-	case path == "/chat/completions":
-		return Route{Endpoint: EndpointChat, Upstream: GitHubCopilotAPIHost, Capture: CaptureUsage}, true
-	case path == "/agents" || strings.HasPrefix(path, "/agents/"):
-		return Route{Endpoint: EndpointAgent, Upstream: GitHubCopilotAPIHost, Capture: CaptureUsage}, true
-	case path == "/models":
-		return Route{Endpoint: EndpointModels, Upstream: GitHubCopilotAPIHost, Capture: CaptureNone}, true
-	case path == "/models/session":
-		return Route{Endpoint: EndpointModelsSession, Upstream: GitHubCopilotAPIHost, Capture: CaptureNone}, true
-	case path == "/responses":
-		return Route{Endpoint: EndpointResponses, Upstream: GitHubCopilotAPIHost, Capture: CaptureUsage}, true
-	case path == "/embeddings":
-		return Route{Endpoint: EndpointEmbeddings, Upstream: GitHubCopilotAPIHost, Capture: CaptureMetadata}, true
-	case strings.HasPrefix(path, "/v1/engines/"):
-		return Route{Endpoint: EndpointCompletions, Upstream: GitHubCopilotProxyHost, Capture: CaptureUsage}, true
-	case path == "/v1/completions":
-		return Route{Endpoint: EndpointCompletions, Upstream: GitHubCopilotProxyHost, Capture: CaptureUsage}, true
-	case path == "/v1/messages" || strings.HasPrefix(path, "/v1/messages/"):
-		return Route{Endpoint: EndpointChat, Upstream: GitHubCopilotAPIHost, Capture: CaptureUsage}, true
-	default:
-		return Route{}, false
-	}
-}
-
 // routeEntry holds a single route entry which is either an exact path match or a prefix match.
 // Exactly one of path or prefix is non-empty.
 type routeEntry struct {
@@ -174,6 +96,7 @@ func NewRouter(cfg *ProxyConfig) *Router {
 			Upstream:           rc.UpstreamHost,
 			UpstreamPathPrefix: rc.UpstreamPathPrefix,
 			Capture:            CaptureMode(rc.Capture),
+			Local:              rc.Capture == "local",
 			Models:             rc.Models,
 			Provider:           rc.Provider,
 		}
@@ -210,7 +133,7 @@ func (r *Router) Match(urlPath string) (Route, bool) {
 			return e.route, true
 		}
 	}
-	return copilotRoutePath(urlPath)
+	return Route{}, false
 }
 
 // MatchModel returns the Route for the given path and model.
@@ -230,10 +153,6 @@ func (r *Router) MatchModel(path, model, provider string) (Route, bool) {
 		if e.prefix != "" && strings.HasPrefix(path, e.prefix) && e.routeMatchesProvider(provider) && e.route.routeMatchesModel(model) {
 			return e.route, true
 		}
-	}
-	// Built-in Copilot fallback — only applies when no explicit provider or copilot
-	if provider == "" || provider == "copilot" {
-		return copilotRoutePath(path)
 	}
 	return Route{}, false
 }

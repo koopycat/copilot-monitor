@@ -74,15 +74,21 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 	defer usageDebug.Close()
 
-	proxyCfg, err := proxy.LoadConfig(*routesConfig)
-	if err != nil {
-		fmt.Fprintf(stderr, "failed to load routes config: %v\n", err)
+	if *routesConfig == "" {
+		fmt.Fprintln(stderr, "error: --routes-config is required. See examples/routes/ for sample configs or specify a JSON routes file.")
 		return 1
 	}
-	router := proxy.NewRouter(proxyCfg)
-	if proxyCfg != nil {
-		fmt.Fprintf(stdout, "routes config: %s (%d additional routes)\n", store.FormatPath(*routesConfig), len(proxyCfg.Routes))
+	proxyCfg, err := proxy.LoadConfig(*routesConfig)
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to load routes config %q: %v\n", *routesConfig, err)
+		return 1
 	}
+	if len(proxyCfg.Routes) == 0 {
+		fmt.Fprintf(stderr, "error: routes config %q contains no routes\n", *routesConfig)
+		return 1
+	}
+	fmt.Fprintf(stdout, "routes config: %s (%d routes)\n", store.FormatPath(*routesConfig), len(proxyCfg.Routes))
+	router := proxy.NewRouter(proxyCfg)
 
 	// The request log goes to stderr by default. When the live view is active
 	// (TTY + not --no-live), the log writer is silenced so the two streams

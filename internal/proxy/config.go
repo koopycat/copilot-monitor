@@ -52,8 +52,8 @@ func (c *ProxyConfig) Validate() error {
 		if !strings.HasPrefix(rc.Path, "/") {
 			return fmt.Errorf("route %d (%q): path must start with /", i, rc.Path)
 		}
-		if rc.UpstreamHost == "" {
-			return fmt.Errorf("route %d (%q): upstream_host is required", i, rc.Path)
+		if rc.UpstreamHost == "" && rc.Capture != "local" {
+			return fmt.Errorf("route %d (%q): upstream_host is required (unless capture is 'local')", i, rc.Path)
 		}
 		if rc.Label != "" && strings.TrimSpace(rc.Label) == "" {
 			return fmt.Errorf("route %d (%q): label must not be empty", i, rc.Path)

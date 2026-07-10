@@ -22,13 +22,28 @@ import (
 	"copilot-monitoring/internal/store"
 )
 
+// testRouter returns a Router configured with typical routes used by server tests.
+func testRouter() *Router {
+	return NewRouter(&ProxyConfig{
+		Routes: []RouteConfig{
+			{Label: "ping", Path: "/_ping", UpstreamHost: "", Capture: "local"},
+			{Label: "chat", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+			{Label: "agent", Path: "/agents", UpstreamHost: "api.githubcopilot.com", Capture: "usage", PrefixMatch: true},
+			{Path: "/models/session", UpstreamHost: "api.githubcopilot.com", Capture: "none"},
+			{Path: "/responses", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+			{Path: "/embeddings", UpstreamHost: "api.githubcopilot.com", Capture: "metadata"},
+			{Path: "/v1/chat/completions", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+		},
+	})
+}
+
 func TestMakeUpstreamRequestPreservesAuthAndRewritesTarget(t *testing.T) {
 	in := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions?x=1", strings.NewReader(`{"model":"gpt-4o"}`))
 	in.Header.Set("Authorization", "Bearer secret")
 	in.Header.Set("Content-Type", "application/json")
 	in.Header.Set("Connection", "keep-alive")
 
-	route, ok := NewRouter(nil).Match("/chat/completions")
+	route, ok := testRouter().Match("/chat/completions")
 	if !ok {
 		t.Fatal("missing chat route")
 	}
@@ -40,14 +55,14 @@ func TestMakeUpstreamRequestPreservesAuthAndRewritesTarget(t *testing.T) {
 	if out.URL.Scheme != "https" {
 		t.Fatalf("scheme = %q, want https", out.URL.Scheme)
 	}
-	if out.URL.Host != GitHubCopilotAPIHost {
-		t.Fatalf("host = %q, want %q", out.URL.Host, GitHubCopilotAPIHost)
+	if out.URL.Host != "api.githubcopilot.com" {
+		t.Fatalf("host = %q, want api.githubcopilot.com", out.URL.Host)
 	}
 	if out.URL.RequestURI() != "/chat/completions?x=1" {
 		t.Fatalf("request URI = %q", out.URL.RequestURI())
 	}
-	if out.Host != GitHubCopilotAPIHost {
-		t.Fatalf("out.Host = %q, want %q", out.Host, GitHubCopilotAPIHost)
+	if out.Host != "api.githubcopilot.com" {
+		t.Fatalf("out.Host = %q, want api.githubcopilot.com", out.Host)
 	}
 	if got := out.Header.Get("Authorization"); got != "Bearer secret" {
 		t.Fatalf("Authorization = %q", got)
@@ -86,7 +101,7 @@ func TestStripHopByHopHeadersAlsoStripsConnectionTokens(t *testing.T) {
 
 func TestHandlerPing(t *testing.T) {
 	var logs bytes.Buffer
-	h := NewHandler(log.NewWriter(&logs))
+	h := NewHandlerWithRouter(log.NewWriter(&logs), nil, "", nil, testRouter())
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/_ping", nil)
 	rr := httptest.NewRecorder()
 
@@ -106,7 +121,7 @@ func TestHandlerPing(t *testing.T) {
 
 func TestHandlerUnknownPath(t *testing.T) {
 	var logs bytes.Buffer
-	h := NewHandler(log.NewWriter(&logs))
+	h := NewHandlerWithRouter(log.NewWriter(&logs), nil, "", nil, NewRouter(nil))
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/nope", nil)
 	rr := httptest.NewRecorder()
 
@@ -128,10 +143,10 @@ func TestHandlerPersistsSSEUsage(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithStore(log.NewWriter(&logs), st, "test-project")
+	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "test-project", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		if req.URL.Host != GitHubCopilotAPIHost {
-			t.Fatalf("host = %q, want %q", req.URL.Host, GitHubCopilotAPIHost)
+		if req.URL.Host != "api.githubcopilot.com" {
+			t.Fatalf("host = %q, want api.githubcopilot.com", req.URL.Host)
 		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -180,7 +195,7 @@ func TestHandlerPersistsJSONUsage(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithStore(log.NewWriter(&logs), st, "test-project")
+	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "test-project", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -222,7 +237,7 @@ func TestHandlerDoesNotRetainUpstreamErrorBody(t *testing.T) {
 
 	const sensitive = "do not keep this prompt text"
 	var logs bytes.Buffer
-	h := NewHandlerWithStore(log.NewWriter(&logs), st, "")
+	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
@@ -266,7 +281,7 @@ func TestHandlerWritesUsageDebugRecord(t *testing.T) {
 	}
 
 	var logs bytes.Buffer
-	h := NewHandlerWithStoreAndUsageDebug(log.NewWriter(&logs), nil, "", usageDebug)
+	h := NewHandlerWithRouter(log.NewWriter(&logs), nil, "", usageDebug, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -316,7 +331,7 @@ func TestHandlerDoesNotPersistZeroUsageAgentRoutes(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithStore(log.NewWriter(&logs), st, "")
+	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -348,7 +363,7 @@ func TestHandlerPrefersRequestModelOverResponseModel(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithStore(log.NewWriter(&logs), st, "")
+	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -450,7 +465,7 @@ func TestPolicyBlocklistBlocksModel(t *testing.T) {
 
 	// 3. Create handler with store
 	var logs bytes.Buffer
-	h := NewHandlerWithStore(log.NewWriter(&logs), st, "")
+	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: 200,
@@ -488,7 +503,7 @@ func TestPolicyBlocklistBlocksModel(t *testing.T) {
 func TestPolicyNotAppliedWhenNoStore(t *testing.T) {
 	// Handler without store — policy evaluation skipped
 	var logs bytes.Buffer
-	h := NewHandler(log.NewWriter(&logs))
+	h := NewHandlerWithRouter(log.NewWriter(&logs), nil, "", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: 200,
@@ -514,7 +529,7 @@ func TestPolicyCacheRefreshOnExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	var logs bytes.Buffer
-	h := NewHandlerWithStore(log.NewWriter(&logs), st, "")
+	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: 200,

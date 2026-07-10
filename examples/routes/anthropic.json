@@ -1,0 +1,16 @@
+{
+  "routes": [
+    {
+      "label": "ping",
+      "path": "/_ping",
+      "upstream_host": "",
+      "capture": "local"
+    },
+    {
+      "label": "chat",
+      "path": "/v1/messages",
+      "upstream_host": "api.anthropic.com",
+      "capture": "usage"
+    }
+  ]
+}

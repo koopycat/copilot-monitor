@@ -1,0 +1,67 @@
+{
+  "routes": [
+    {
+      "label": "ping",
+      "path": "/_ping",
+      "upstream_host": "",
+      "capture": "local"
+    },
+    {
+      "label": "chat",
+      "path": "/chat/completions",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "usage"
+    },
+    {
+      "label": "agent",
+      "path": "/agents",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "usage",
+      "prefix_match": true
+    },
+    {
+      "label": "models",
+      "path": "/models",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "none"
+    },
+    {
+      "label": "models-session",
+      "path": "/models/session",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "none"
+    },
+    {
+      "label": "responses-websocket",
+      "path": "/responses",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "usage"
+    },
+    {
+      "label": "embeddings",
+      "path": "/embeddings",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "metadata"
+    },
+    {
+      "label": "completions",
+      "path": "/v1/engines",
+      "upstream_host": "copilot-proxy.githubusercontent.com",
+      "capture": "usage",
+      "prefix_match": true
+    },
+    {
+      "label": "completions",
+      "path": "/v1/completions",
+      "upstream_host": "copilot-proxy.githubusercontent.com",
+      "capture": "usage"
+    },
+    {
+      "label": "chat",
+      "path": "/v1/messages",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "usage",
+      "prefix_match": true
+    }
+  ]
+}

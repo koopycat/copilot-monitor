@@ -188,7 +188,7 @@ func (w *wsInspector) copyInspected(dst io.Writer, src io.Reader) {
 }
 
 // inspectTextFrame parses a text frame payload as JSON and looks for
-// model and usage data from Copilot Responses API events.
+// model and usage data from upstream WebSocket events.
 func (w *wsInspector) inspectTextFrame(payload []byte) {
 	var msg map[string]any
 	if err := json.Unmarshal(payload, &msg); err != nil {

@@ -90,12 +90,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Route by path + model + provider
 	route, ok := h.router.MatchModel(r.URL.Path, meta.Model, provider)
 	if !ok {
-		h.log.Error("id=%d path=%q provider=%q route=unknown status=502\n", id, originalURI, provider)
-		http.Error(w, "unknown Copilot path", http.StatusBadGateway)
+		h.log.Error("id=%d path=%q route=unknown status=502\n", id, r.URL.RequestURI())
+		http.Error(w, "unknown route", http.StatusBadGateway)
 		return
 	}
 
-	if route.Local && route.Endpoint == EndpointPing {
+	if route.Local {
 		h.log.Ping("id=%d path=%q endpoint=%s\n", id, r.URL.RequestURI(), route.Endpoint)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
@@ -288,9 +288,9 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 	model := meta.Model
 	usage := Usage{}
 	if observer != nil {
-		// Prefer the request model because Copilot often emits response model names for
-		// internal helper calls. The response model is only a fallback when the request
-		// body did not expose a model.
+		// Prefer the request model because upstreams may emit different model names
+		// for internal helper calls. The response model is only a fallback when the
+		// request body did not expose a model.
 		if model == "" && observer.Model != "" {
 			model = observer.Model
 		}
