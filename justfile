@@ -1,6 +1,6 @@
 default: all
 
-all: vet test build dashboard-build
+all: vet secrets test build dashboard-build
 
 setup:
     mise install
@@ -30,6 +30,14 @@ vet:
     go vet ./...
     go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
     go run golang.org/x/vuln/cmd/govulncheck@v1.5.0 ./...
+
+# Fast pattern-based secret scan (pre-commit also runs this)
+secrets:
+    @devenv shell -- gitleaks detect --no-git
+
+# Deep scan with live credential verification (requires network)
+secrets-deep: secrets
+    @devenv shell -- trufflehog git "file://$(pwd)" --only-verified --fail
 
 fmt:
     go fmt ./...
