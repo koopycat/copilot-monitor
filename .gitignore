@@ -40,4 +40,4 @@ dashboard/dist/
 dashboard/.svelte-kit/
 dashboard/node_modules/
 test.jsonl
-copilot-monitor
+/copilot-monitor
