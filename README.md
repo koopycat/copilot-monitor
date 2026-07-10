@@ -4,13 +4,17 @@
 [![Go 1.26](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/koopycat/copilot-monitor)](https://github.com/koopycat/copilot-monitor/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-**Know exactly what GitHub Copilot is doing on your machine.**
+**Know exactly what your AI tools are costing you.**
 
-A local HTTP reverse proxy that sits between VSCode and `api.githubcopilot.com`,
-recording per-request metadata, token counts, latency, and an estimated
-AI-credit cost. Everything is stored in a SQLite database on your machine.
+A local HTTP reverse proxy that sits between your tools and LLM APIs,
+recording per-request metadata, token counts, latency, and estimated cost.
+Everything is stored in a SQLite database on your machine.
 No cloud. No telemetry. No prompts, completions, source code, or auth headers
 are ever written to disk.
+
+Works with GitHub Copilot out of the box, and any OpenAI-compatible or
+Anthropic-compatible API via configurable routes (pi-agent, Claude Code,
+aider, direct API calls, etc.).
 
 ```sh
 # run the proxy
@@ -138,6 +142,130 @@ curl http://127.0.0.1:7733/_ping
 
 Stop long-running processes with `Ctrl+C` when finished.
 Run `just all` before submitting changes.
+
+## Using with Pi Agent and Other LLM Tools
+
+Copilot Monitor can proxy any OpenAI-compatible or Anthropic-compatible API
+by configuring additional routes via `--routes-config`.
+
+### Pi Agent (KiloCode gateway)
+
+Configure pi to route its API calls through the proxy:
+
+**1. Create a routes config** (`routes.json`):
+
+```json
+{
+  "routes": [
+    {
+      "path": "/chat/completions",
+      "upstream_host": "api.kilo.ai",
+      "upstream_path_prefix": "/api/gateway",
+      "capture": "usage"
+    },
+    {
+      "path": "/models",
+      "upstream_host": "api.kilo.ai",
+      "upstream_path_prefix": "/api/gateway",
+      "capture": "none"
+    }
+  ]
+}
+```
+
+**2. Start the proxy** with the routes config:
+
+```sh
+./copilot-monitor run --routes-config routes.json
+```
+
+**3. Start pi** with its base URL pointing at the proxy:
+
+```sh
+KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi
+```
+
+Pi will now send all API requests through the proxy.
+Token counts, model names, latency, and estimated cost are captured and visible
+in the dashboard and CLI reports, just like Copilot traffic.
+
+### Other tools (OpenAI, Anthropic, Ollama, etc.)
+
+The same pattern works for any tool that speaks OpenAI-compatible or
+Anthropic-compatible HTTP. Set the tool's base URL to `http://127.0.0.1:7733`
+and add the corresponding routes:
+
+```json
+{
+  "routes": [
+    {
+      "path": "/v1/chat/completions",
+      "upstream_host": "api.openai.com",
+      "capture": "usage"
+    },
+    {
+      "path": "/v1/messages",
+      "upstream_host": "api.anthropic.com",
+      "capture": "usage",
+      "prefix_match": true
+    },
+    {
+      "path": "/v1/chat/completions",
+      "upstream_host": "localhost:11434",
+      "capture": "usage"
+    }
+  ]
+}
+```
+
+Each route maps an incoming request path to an upstream host.
+Set `capture` to `"usage"` (track tokens), `"metadata"` (track requests
+without token counts), or `"none"` (forward without recording).
+Use `prefix_match: true` for routes that match a path and all sub-paths
+(e.g., Anthropic's `/v1/messages` and `/v1/messages/count_tokens`).
+
+### Running proxy and dashboard together
+
+```sh
+# Terminal 1: proxy captures API traffic
+./copilot-monitor run --routes-config routes.json
+
+# Terminal 2: dashboard shows captured data
+./copilot-monitor serve
+
+# Terminal 3 (or herdr pane): your tool pointing at the proxy
+KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi
+```
+
+### Policy — Model Allow/Block
+
+The proxy can enforce a global model policy to control which AI models your tools can use.
+
+**Modes:**
+- `allow_all` (default) — all models pass through
+- `blocklist` — listed models are blocked (use `gpt-*` for prefix matching)
+- `allowlist` — only listed models are allowed
+
+**Via the dashboard:**
+Open the dashboard at http://127.0.0.1:7734 and look for the "Security Policy" panel at the bottom. Click "Edit" to switch modes and add model patterns.
+
+**Via the API:**
+```bash
+# Block gpt-4o and all gpt-4.1 variants
+curl -X PUT http://127.0.0.1:7734/api/policy \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"blocklist","models":["gpt-4o","gpt-4.1-*"]}'
+
+# View current policy
+curl http://127.0.0.1:7734/api/policy
+
+# Reset to allow all
+curl -X PUT http://127.0.0.1:7734/api/policy \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"allow_all","models":[]}'
+```
+
+Blocked requests return HTTP 403 and are logged to the dashboard.
 
 ## Development
 
