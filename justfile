@@ -48,6 +48,10 @@ secrets-deep: secrets
 fmt-go:
     go fmt ./...
 
+# Lint markdown files (same checks as pre-commit markdownlint hook)
+lint-md:
+    markdownlint --dot '*.md' 'docs/*.md' 'specs/*.md' '.github/*.md'
+
 # Format all code: Go (gofmt + goimports) + JS/CSS/Svelte/HTML/MD/JSON/YAML (prettier)
 format: fmt-go
     go run golang.org/x/tools/cmd/goimports@latest -w .
