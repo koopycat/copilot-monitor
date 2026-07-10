@@ -249,6 +249,20 @@
       "cache_write_per_m": 0.5,
       "output_per_m": 2.0
     },
+    "deepseek/deepseek-v4-flash:discounted": {
+      "provider": "deepseek",
+      "input_per_m": 0.14,
+      "cached_input_per_m": 0.0028,
+      "cache_write_per_m": 0.14,
+      "output_per_m": 0.28
+    },
+    "deepseek/deepseek-v4-pro:discounted": {
+      "provider": "deepseek",
+      "input_per_m": 0.435,
+      "cached_input_per_m": 0.003625,
+      "cache_write_per_m": 0.435,
+      "output_per_m": 0.87
+    },
     "deepseek-reasoner": {
       "provider": "deepseek",
       "input_per_m": 0.55,

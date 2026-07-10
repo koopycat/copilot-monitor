@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"copilot-monitoring/internal/policy"
@@ -20,8 +21,10 @@ import (
 var schemaFS embed.FS
 
 type Store struct {
-	db   *sql.DB
-	path string
+	db          *sql.DB
+	path        string
+	rebuildMu   sync.Mutex
+	lastRebuild time.Time
 }
 
 type RequestRecord struct {

@@ -51,6 +51,13 @@ func (s *Store) RebuildSessions(ctx context.Context, gap time.Duration) error {
 		return errors.New("gap must be positive")
 	}
 
+	s.rebuildMu.Lock()
+	defer s.rebuildMu.Unlock()
+
+	if time.Since(s.lastRebuild) < 10*time.Second {
+		return nil
+	}
+
 	requests, err := s.sessionRequests(ctx)
 	if err != nil {
 		return err
@@ -76,7 +83,11 @@ func (s *Store) RebuildSessions(ctx context.Context, gap time.Duration) error {
 			return err
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.lastRebuild = time.Now()
+	return nil
 }
 
 func (s *Store) sessionRequests(ctx context.Context) ([]sessionRequest, error) {
