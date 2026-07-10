@@ -21,7 +21,8 @@ import (
 var schemaFS embed.FS
 
 type Store struct {
-	db *sql.DB
+	db   *sql.DB
+	path string
 }
 
 type RequestRecord struct {
@@ -100,6 +101,14 @@ type ExportRow struct {
 	CompressionLatencyMS      int64  `json:"compression_latency_ms,omitempty"`
 }
 
+// DBPath returns the path the store was opened with.
+func (s *Store) DBPath() string {
+	if s == nil {
+		return DefaultPath()
+	}
+	return s.path
+}
+
 func DefaultPath() string {
 	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
 		return filepath.Join(xdg, "llm-proxy", "store.db")
@@ -122,7 +131,7 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	store := &Store{db: db}
+	store := &Store{db: db, path: path}
 	if err := store.init(context.Background()); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -156,7 +165,10 @@ func (s *Store) init(ctx context.Context) error {
 		return err
 	}
 	// Migration: add usage_missing column if it doesn't exist (for existing DBs)
-	_, _ = s.db.ExecContext(ctx, "ALTER TABLE requests ADD COLUMN usage_missing INTEGER NOT NULL DEFAULT 0")
+	var count int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pragma_table_info('requests') WHERE name = 'usage_missing'").Scan(&count); err == nil && count == 0 {
+		_, _ = s.db.ExecContext(ctx, "ALTER TABLE requests ADD COLUMN usage_missing INTEGER NOT NULL DEFAULT 0")
+	}
 	return nil
 }
 

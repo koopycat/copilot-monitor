@@ -108,7 +108,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				json.NewEncoder(w).Encode(resp)
 				return
 			}
-			if fi, err := os.Stat(store.DefaultPath()); err == nil {
+			if fi, err := os.Stat(h.store.DBPath()); err == nil {
 				resp["db_size_bytes"] = fi.Size()
 			}
 		}
