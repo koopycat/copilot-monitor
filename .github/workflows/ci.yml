@@ -3,6 +3,9 @@ name: ci
 on:
   push:
   pull_request:
+  schedule:
+    - cron: '0 6 * * 1'  # weekly Monday 6am UTC
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -10,6 +13,7 @@ permissions:
 jobs:
   go:
     name: go-checks
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,3 +42,16 @@ jobs:
           go run golang.org/x/vuln/cmd/govulncheck@v1.5.0 ./...
           go test ./...
         shell: bash
+
+  trufflehog:
+    name: trufflehog-verified
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: TruffleHog full-history verified scan
+        run: |
+          docker run --rm -v "$PWD:/pwd" ghcr.io/trufflesecurity/trufflehog:latest \
+            git file:///pwd --only-verified --fail
