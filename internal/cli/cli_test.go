@@ -21,9 +21,7 @@ func TestConfigureVSCode(t *testing.T) {
 	}
 	out := stdout.String()
 	for _, want := range []string{
-		`"debug.overrideProxyUrl": "http://127.0.0.1:9999"`,
-		`"debug.overrideCapiUrl": "http://127.0.0.1:9999"`,
-		`"authProvider": "github"`,
+		`"debug.overrideCapiUrl": "http://127.0.0.1:9999/copilot"`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output missing %q:\n%s", want, out)

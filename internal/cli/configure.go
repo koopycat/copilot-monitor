@@ -19,12 +19,10 @@ func runConfigure(args []string, stdout, stderr io.Writer) int {
 }
 
 func printVSCodeSettings(w io.Writer, addr string) {
-	baseURL := "http://" + settingsAddr(addr)
+	baseURL := "http://" + settingsAddr(addr) + "/copilot"
 	fmt.Fprintf(w, "{\n")
 	fmt.Fprintf(w, "  \"github.copilot.advanced\": {\n")
-	fmt.Fprintf(w, "    \"debug.overrideProxyUrl\": %q,\n", baseURL)
-	fmt.Fprintf(w, "    \"debug.overrideCapiUrl\": %q,\n", baseURL)
-	fmt.Fprintf(w, "    \"authProvider\": \"github\"\n")
+	fmt.Fprintf(w, "    \"debug.overrideCapiUrl\": %q\n", baseURL)
 	fmt.Fprintf(w, "  }\n")
 	fmt.Fprintf(w, "}\n")
 }
