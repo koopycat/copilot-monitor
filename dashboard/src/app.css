@@ -460,6 +460,39 @@ tbody tr:hover {
   animation-duration: 200ms;
 }
 
+.routes-panel {
+  margin: 1.5rem 0 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.78rem;
+}
+
+.routes-panel summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 500;
+  padding: 0.25rem 0;
+  user-select: none;
+}
+
+.routes-panel summary:hover {
+  color: var(--ink);
+}
+
+.routes-panel table {
+  margin-top: 0.75rem;
+  margin-bottom: 0;
+  font-size: 0.72rem;
+}
+
+.routes-panel code {
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, monospace;
+  font-size: 0.72rem;
+  color: var(--accent);
+}
+
 /* --- Policy Panel --- */
 
 .policy-panel {

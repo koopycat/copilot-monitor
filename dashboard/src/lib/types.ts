@@ -64,6 +64,15 @@ export interface CurrentSession {
   models: Array<{ model: ModelId; requests: number }>;
 }
 
+export interface RouteConfig {
+  path: string;
+  upstream_host: string;
+  upstream_path_prefix?: string;
+  capture: string;
+  prefix_match?: boolean;
+  label?: string;
+}
+
 export type PeriodKey = 'today' | 'yesterday' | '7d' | '30d' | '90d' | '365d';
 
 export interface Period {

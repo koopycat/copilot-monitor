@@ -4,6 +4,7 @@
   import ModelsTable from './components/ModelsTable.svelte';
   import PeriodBar from './components/PeriodBar.svelte';
   import PolicyPanel from './components/PolicyPanel.svelte';
+  import RoutesPanel from './components/RoutesPanel.svelte';
   import SessionsTable from './components/SessionsTable.svelte';
   import ToggleGroup from './components/ToggleGroup.svelte';
   import UpstreamFilter from './components/UpstreamFilter.svelte';
@@ -59,6 +60,7 @@
 <h2>Recent Sessions</h2>
 <SessionsTable />
 
+<RoutesPanel />
 <PolicyPanel />
 
 <footer class="footer">

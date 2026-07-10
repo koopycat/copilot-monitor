@@ -88,6 +88,17 @@ export async function fetchUpstreams(signal: AbortSignal): Promise<string[]> {
   }
 }
 
+export async function fetchConfig(signal: AbortSignal): Promise<{ routes: RouteConfig[] }> {
+  try {
+    const r = await fetch('/api/config', { signal });
+    if (!r.ok) return { routes: [] };
+    return (await r.json()) as { routes: RouteConfig[] };
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') throw e;
+    return { routes: [] };
+  }
+}
+
 export async function fetchPolicy(signal: AbortSignal): Promise<Policy | null> {
   return safeFetch<Policy>('/api/policy', signal);
 }
