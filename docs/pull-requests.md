@@ -11,17 +11,17 @@
 
 ## PR scope
 
-A PR must be focused — it has a clear thesis. You can state in one sentence why
+A PR must be focused: it has a clear thesis. You can state in one sentence why
 all the changes belong together. Multiple files and edits are fine as long as
 they serve the same goal. If the PR body needs bullet-point sections for
 unrelated things, it's too many PRs.
 
-**Focused:** "Make security scanning results visible and reliable" — pins
-trivy-action, adds SARIF uploads for both Trivy and OSV-Scanner. Two files, one
-goal.
+**Focused:** "Make security scanning results visible and reliable." This pins
+trivy-action and adds SARIF uploads for both Trivy and OSV-Scanner. Two files,
+one goal.
 
-**Unfocused:** "Fix pnpm version, add SARIF, bump Node, add Dependabot entries"
-— four unrelated concerns jammed into one PR.
+**Unfocused:** "Fix pnpm version, add SARIF, bump Node, add Dependabot entries."
+Four unrelated concerns jammed into one PR.
 
 ## Before opening a PR
 
