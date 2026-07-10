@@ -86,6 +86,43 @@ func TestLoadRejectsInvalidPricing(t *testing.T) {
 	}
 }
 
+func TestLookupNewCatalogModels(t *testing.T) {
+	catalog, err := LoadDefault()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		model    string
+		expected string
+		fallback bool
+	}{
+		{model: "deepseek-chat", expected: "deepseek", fallback: false},
+		{model: "deepseek-reasoner", expected: "deepseek", fallback: false},
+		{model: "gpt-4o", expected: "openai", fallback: false},
+		{model: "gpt-4o-mini", expected: "openai", fallback: false},
+		{model: "gpt-4.1", expected: "openai", fallback: false},
+		{model: "claude-3.5-sonnet", expected: "anthropic", fallback: false},
+		{model: "claude-3.5-haiku", expected: "anthropic", fallback: false},
+		{model: "gemini-2.0-flash", expected: "google", fallback: false},
+		{model: "gemini-2.5-flash", expected: "google", fallback: false},
+		{model: "o4-mini", expected: "openai", fallback: false},
+		{model: "deepseek-v3", expected: "deepseek-fallback", fallback: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			got := catalog.Lookup(tt.model)
+			if got.Fallback != tt.fallback {
+				t.Fatalf("fallback = %t, want %t", got.Fallback, tt.fallback)
+			}
+			if got.Pricing.Provider != tt.expected {
+				t.Fatalf("provider = %q, want %q", got.Pricing.Provider, tt.expected)
+			}
+		})
+	}
+}
+
 func testCatalogJSON() string {
 	return `{
 		"currency":"USD",

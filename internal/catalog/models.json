@@ -7,7 +7,8 @@
     "anthropic": {"provider": "anthropic-fallback", "input_per_m": 3.00, "cached_input_per_m": 0.30, "cache_write_per_m": 3.75, "output_per_m": 15.00},
     "google": {"provider": "google-fallback", "input_per_m": 1.25, "cached_input_per_m": 0.125, "cache_write_per_m": 1.25, "output_per_m": 10.00},
     "github": {"provider": "github-fallback", "input_per_m": 0.25, "cached_input_per_m": 0.025, "cache_write_per_m": 0.25, "output_per_m": 2.00},
-    "microsoft": {"provider": "microsoft-fallback", "input_per_m": 0.75, "cached_input_per_m": 0.075, "cache_write_per_m": 0.75, "output_per_m": 4.50}
+    "microsoft": {"provider": "microsoft-fallback", "input_per_m": 0.75, "cached_input_per_m": 0.075, "cache_write_per_m": 0.75, "output_per_m": 4.50},
+    "deepseek": {"provider": "deepseek-fallback", "input_per_m": 0.50, "cached_input_per_m": 0.05, "cache_write_per_m": 0.50, "output_per_m": 2.00}
   },
   "models": {
     "gpt-5-mini": {"provider": "openai", "input_per_m": 0.25, "cached_input_per_m": 0.025, "cache_write_per_m": 0.25, "output_per_m": 2.00},
@@ -36,6 +37,16 @@
     "gemini-3.1-pro-long-context": {"provider": "google", "input_per_m": 4.00, "cached_input_per_m": 0.40, "cache_write_per_m": 4.00, "output_per_m": 18.00},
     "gemini-3.5-flash": {"provider": "google", "input_per_m": 1.50, "cached_input_per_m": 0.15, "cache_write_per_m": 1.50, "output_per_m": 9.00},
     "raptor-mini": {"provider": "github", "input_per_m": 0.25, "cached_input_per_m": 0.025, "cache_write_per_m": 0.25, "output_per_m": 2.00},
-    "mai-code-1-flash": {"provider": "microsoft", "input_per_m": 0.75, "cached_input_per_m": 0.075, "cache_write_per_m": 0.75, "output_per_m": 4.50}
+    "mai-code-1-flash": {"provider": "microsoft", "input_per_m": 0.75, "cached_input_per_m": 0.075, "cache_write_per_m": 0.75, "output_per_m": 4.50},
+    "deepseek-chat": {"provider": "deepseek", "input_per_m": 0.50, "cached_input_per_m": 0.05, "cache_write_per_m": 0.50, "output_per_m": 2.00},
+    "deepseek-reasoner": {"provider": "deepseek", "input_per_m": 0.55, "cached_input_per_m": 0.055, "cache_write_per_m": 0.55, "output_per_m": 2.19},
+    "gpt-4o": {"provider": "openai", "input_per_m": 2.50, "cached_input_per_m": 1.25, "cache_write_per_m": 2.50, "output_per_m": 10.00},
+    "gpt-4o-mini": {"provider": "openai", "input_per_m": 0.15, "cached_input_per_m": 0.075, "cache_write_per_m": 0.15, "output_per_m": 0.60},
+    "gpt-4.1": {"provider": "openai", "input_per_m": 2.00, "cached_input_per_m": 0.50, "cache_write_per_m": 2.00, "output_per_m": 8.00},
+    "claude-3.5-sonnet": {"provider": "anthropic", "input_per_m": 3.00, "cached_input_per_m": 0.30, "cache_write_per_m": 3.75, "output_per_m": 15.00},
+    "claude-3.5-haiku": {"provider": "anthropic", "input_per_m": 0.80, "cached_input_per_m": 0.08, "cache_write_per_m": 1.00, "output_per_m": 4.00},
+    "gemini-2.0-flash": {"provider": "google", "input_per_m": 0.10, "cached_input_per_m": 0.025, "cache_write_per_m": 0.10, "output_per_m": 0.40},
+    "gemini-2.5-flash": {"provider": "google", "input_per_m": 0.15, "cached_input_per_m": 0.0375, "cache_write_per_m": 0.15, "output_per_m": 0.60},
+    "o4-mini": {"provider": "openai", "input_per_m": 1.10, "cached_input_per_m": 0.275, "cache_write_per_m": 1.10, "output_per_m": 4.40}
   }
 }
