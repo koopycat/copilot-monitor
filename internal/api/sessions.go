@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"llm-proxy/internal/catalog"
-	costcalc "llm-proxy/internal/cost"
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/catalog"
+	costcalc "copilot-monitoring/internal/cost"
+	"copilot-monitoring/internal/store"
 )
 
 func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {

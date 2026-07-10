@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/store"
 )
 
 func (h *Handler) handleTimeline(w http.ResponseWriter, r *http.Request) {

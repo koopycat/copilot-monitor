@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"llm-proxy/internal/proxy"
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/proxy"
+	"copilot-monitoring/internal/store"
 )
 
 type Handler struct {

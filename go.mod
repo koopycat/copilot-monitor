@@ -1,4 +1,4 @@
-module llm-proxy
+module copilot-monitoring
 
 go 1.26.4
 

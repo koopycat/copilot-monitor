@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"llm-proxy/internal/catalog"
-	costcalc "llm-proxy/internal/cost"
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/catalog"
+	costcalc "copilot-monitoring/internal/cost"
+	"copilot-monitoring/internal/store"
 )
 
 func TestVersion(t *testing.T) {
@@ -20,7 +20,7 @@ func TestVersion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "llm-proxy") {
+	if !strings.Contains(stdout.String(), "copilot-monitor") {
 		t.Fatalf("unexpected version output: %s", stdout.String())
 	}
 }
@@ -75,7 +75,7 @@ func TestCostCommand(t *testing.T) {
 		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
 	}
 	out := stdout.String()
-	for _, want := range []string{"Estimated equivalent LLM API list-price cost", "gpt-5-mini", "openai", "1.193750", "TOTAL"} {
+	for _, want := range []string{"Estimated equivalent GitHub Copilot AI-credit list-price cost", "gpt-5-mini", "openai", "1.193750", "TOTAL"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output missing %q:\n%s", want, out)
 		}
@@ -486,8 +486,8 @@ func TestInitCommand_CreatesFile(t *testing.T) {
 	if !strings.Contains(out, "routes.json") {
 		t.Fatalf("expected routes.json path in output: %s", out)
 	}
-	if !strings.Contains(out, "llm-proxy run --routes-config") {
-		t.Fatalf("expected 'run --routes-config' in output: %s", out)
+	if !strings.Contains(out, "copilot-monitor run --routes-config") {
+		t.Fatalf("expected 'copilot-monitor run --routes-config' in output: %s", out)
 	}
 }
 

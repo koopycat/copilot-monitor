@@ -13,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
-	"llm-proxy/dashboard"
-	"llm-proxy/internal/api"
-	"llm-proxy/internal/compression/headroom"
-	"llm-proxy/internal/log"
-	"llm-proxy/internal/proxy"
-	"llm-proxy/internal/store"
+	"copilot-monitoring/dashboard"
+	"copilot-monitoring/internal/api"
+	"copilot-monitoring/internal/compression/headroom"
+	"copilot-monitoring/internal/log"
+	"copilot-monitoring/internal/proxy"
+	"copilot-monitoring/internal/store"
 )
 
 func runServer(args []string, stdout, stderr io.Writer) int {
@@ -96,7 +96,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// First-line startup banner — must appear before any other output.
-	fmt.Fprintf(stderr, "llm-proxy: listening on %s (%d routes) - curl http://%s/_ping\n", settingsAddr(*addr), len(proxyCfg.Routes), settingsAddr(*addr))
+	fmt.Fprintf(stderr, "copilot-monitor: listening on %s (%d routes) - curl http://%s/_ping\n", settingsAddr(*addr), len(proxyCfg.Routes), settingsAddr(*addr))
 
 	router := proxy.NewRouter(proxyCfg)
 
@@ -131,7 +131,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	fmt.Fprintf(stdout, "llm-proxy listening on http://%s\n", settingsAddr(*addr))
+	fmt.Fprintf(stdout, "copilot-monitor listening on http://%s\n", settingsAddr(*addr))
 	fmt.Fprintf(stdout, "database: %s\n", store.FormatPath(*dbPath))
 	if *usageDebugPath != "" {
 		fmt.Fprintf(stdout, "usage debug log: %s\n", store.FormatPath(*usageDebugPath))

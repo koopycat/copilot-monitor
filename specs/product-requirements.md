@@ -1,13 +1,13 @@
 # Product Requirements
 
-These requirements define what llm-proxy must provide. They avoid
+These requirements define what copilot-monitor must provide. They avoid
 implementation-specific paths, package names, and implementation plans.
 
 ## Scope
 
-llm-proxy is a single-user, local developer utility for observing LLM API usage
-through a transparent local HTTP proxy. It captures metadata and token counts
-from proxied requests and surfaces them through CLI reports and a local
+copilot-monitor is a single-user, local developer utility for observing LLM API
+usage through a transparent local HTTP proxy. It captures metadata and token
+counts from proxied requests and surfaces them through CLI reports and a local
 dashboard. All routing is configuration-driven — no provider is hardcoded or
 privileged.
 

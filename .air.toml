@@ -6,10 +6,10 @@ tmp_dir = "tmp"
 
 [build]
   args_bin = []
-  bin = "./llm-proxy"
-  cmd = "go build -o ./llm-proxy ./cmd/llm-proxy"
+  bin = "./copilot-monitor"
+  cmd = "go build -o ./copilot-monitor ./cmd/copilot-monitor"
   delay = 1000
-  entrypoint = ["./llm-proxy", "serve", "--addr", "127.0.0.1:7734"]
+  entrypoint = ["./copilot-monitor", "serve", "--addr", "127.0.0.1:7734"]
   exclude_dir = [".git", ".devenv", ".firecrawl", "tmp", "vendor", "testdata"]
   exclude_file = []
   exclude_regex = ["_test.go"]

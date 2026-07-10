@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"time"
 
-	"llm-proxy/dashboard"
-	"llm-proxy/internal/api"
-	"llm-proxy/internal/proxy"
-	"llm-proxy/internal/store"
+	"copilot-monitoring/dashboard"
+	"copilot-monitoring/internal/api"
+	"copilot-monitoring/internal/proxy"
+	"copilot-monitoring/internal/store"
 )
 
 func runServe(args []string, stdout, stderr io.Writer) int {
@@ -48,7 +48,7 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	fmt.Fprintf(stdout, "llm-proxy API listening on http://%s\n", settingsAddr(*addr))
+	fmt.Fprintf(stdout, "copilot-monitor API listening on http://%s\n", settingsAddr(*addr))
 	fmt.Fprintf(stdout, "database: %s\n", store.FormatPath(*dbPath))
 
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, context.Canceled) {

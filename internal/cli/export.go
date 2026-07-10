@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/store"
 )
 
 func runExport(args []string, stdout, stderr io.Writer) int {

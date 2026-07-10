@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"llm-proxy/internal/policy"
+	"copilot-monitoring/internal/policy"
 
 	_ "modernc.org/sqlite"
 )
@@ -119,13 +119,13 @@ func (s *Store) DBPath() string {
 
 func DefaultPath() string {
 	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
-		return filepath.Join(xdg, "llm-proxy", "store.db")
+		return filepath.Join(xdg, "copilot-monitor", "store.db")
 	}
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
-		return filepath.Join(".", "llm-proxy.db")
+		return filepath.Join(".", "copilot-monitor.db")
 	}
-	return filepath.Join(home, ".local", "share", "llm-proxy", "store.db")
+	return filepath.Join(home, ".local", "share", "copilot-monitor", "store.db")
 }
 
 func Open(path string) (*Store, error) {

@@ -3,8 +3,8 @@ package cost
 import (
 	"strings"
 
-	"llm-proxy/internal/catalog"
-	"llm-proxy/internal/store"
+	"copilot-monitoring/internal/catalog"
+	"copilot-monitoring/internal/store"
 )
 
 type Row struct {

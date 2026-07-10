@@ -8,7 +8,7 @@ import (
 
 var version = "0.1.0-dev"
 
-const binaryName = "llm-proxy"
+const binaryName = "copilot-monitor"
 
 func Run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
@@ -58,20 +58,20 @@ func settingsAddr(addr string) string {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprint(w, strings.TrimSpace(`llm-proxy monitors LLM API usage through a local HTTP reverse proxy.
+	fmt.Fprint(w, strings.TrimSpace(`copilot-monitor monitors GitHub Copilot model API usage through a local HTTP reverse proxy.
 
 Usage:
-  llm-proxy run [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path] [--no-live] [--dashboard]
-  llm-proxy stats [--db path] [--since 30d] [--project name] [--endpoint chat]
-  llm-proxy cost [--db path] [--since 30d] [--project name] [--endpoint chat]
-  llm-proxy today [--db path] [--project name] [--endpoint chat]
-  llm-proxy sessions [--db path] [--since 30d] [--project name] [--limit 50]
-  llm-proxy live [--db path] [--json] [--watch]
-  llm-proxy serve [--addr 127.0.0.1:7734] [--db path]
-  llm-proxy export [--since 30d] [--db path]
-  llm-proxy init [--force]
-  llm-proxy validate --routes-config path.json
-  llm-proxy version
+  copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path] [--no-live] [--dashboard]
+  copilot-monitor stats [--db path] [--since 30d] [--project name] [--endpoint chat]
+  copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
+  copilot-monitor today [--db path] [--project name] [--endpoint chat]
+  copilot-monitor sessions [--db path] [--since 30d] [--project name] [--limit 50]
+  copilot-monitor live [--db path] [--json] [--watch]
+  copilot-monitor serve [--addr 127.0.0.1:7734] [--db path]
+  copilot-monitor export [--since 30d] [--db path]
+  copilot-monitor init [--force]
+  copilot-monitor validate --routes-config path.json
+  copilot-monitor version
 
 Commands:
   run               Start the local HTTP proxy listener (also shows a live session tail when stderr is a TTY).
