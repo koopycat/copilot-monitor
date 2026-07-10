@@ -8,6 +8,7 @@ import (
 )
 
 type RouteConfig struct {
+	Provider           string   `json:"provider,omitempty"`
 	Label              string   `json:"label,omitempty"`
 	Path               string   `json:"path"`
 	UpstreamHost       string   `json:"upstream_host"`

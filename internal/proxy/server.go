@@ -76,8 +76,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	meta := ParseRequestMetadata(body)
 
-	// Route by path + model
-	route, ok := h.router.MatchModel(r.URL.Path, meta.Model)
+	provider := DetectProvider(r.Header.Get("Authorization"))
+
+	// Route by path + model + provider
+	route, ok := h.router.MatchModel(r.URL.Path, meta.Model, provider)
 	if !ok {
 		h.log.Error("id=%d path=%q route=unknown status=502\n", id, r.URL.RequestURI())
 		http.Error(w, "unknown Copilot path", http.StatusBadGateway)
@@ -135,13 +137,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.log.Request("id=%d method=%s path=%q endpoint=%s upstream=%s capture=%s model=%q stream=%s\n",
+	h.log.Request("id=%d method=%s path=%q endpoint=%s upstream=%s capture=%s provider=%q model=%q stream=%s\n",
 		id,
 		r.Method,
 		r.URL.RequestURI(),
 		route.Endpoint,
 		route.Upstream,
 		route.Capture,
+		provider,
 		meta.Model,
 		streamLogValue(meta),
 	)

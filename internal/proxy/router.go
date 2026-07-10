@@ -41,6 +41,7 @@ type Route struct {
 	Capture            CaptureMode
 	Local              bool
 	Models             []string
+	Provider           string
 }
 
 // matchModelPattern returns true if the given model name matches the pattern.
@@ -62,6 +63,13 @@ func matchModelPattern(pattern, model string) bool {
 
 // routeMatchesModel returns true if the route should handle this model.
 // A route with nil/empty Models matches any model.
+func (r Route) routeMatchesProvider(detectedProvider string) bool {
+	if r.Provider == "" {
+		return true
+	}
+	return r.Provider == detectedProvider
+}
+
 func (r Route) routeMatchesModel(model string) bool {
 	if len(r.Models) == 0 {
 		return true
@@ -112,6 +120,10 @@ type routeEntry struct {
 	route  Route
 }
 
+func (e routeEntry) routeMatchesProvider(provider string) bool {
+	return e.route.Provider == "" || e.route.Provider == provider
+}
+
 type Router struct {
 	exactRoutes map[string]Route // fast lookup for path-only exact matches
 	entries     []routeEntry     // exact entries (insertion order) then prefix entries (longest first)
@@ -137,6 +149,7 @@ func NewRouter(cfg *ProxyConfig) *Router {
 			UpstreamPathPrefix: rc.UpstreamPathPrefix,
 			Capture:            CaptureMode(rc.Capture),
 			Models:             rc.Models,
+			Provider:           rc.Provider,
 		}
 		if rc.PrefixMatch {
 			prefixEntries = append(prefixEntries, routeEntry{
@@ -178,21 +191,24 @@ func (r *Router) Match(path string) (Route, bool) {
 // Routes are checked in insertion order; the first matching route wins.
 // Routes without Models match any model, so a catch-all route after model-specific
 // routes acts as the default fallback.
-func (r *Router) MatchModel(path, model string) (Route, bool) {
-	// Exact path match with model filter (insertion order)
+func (r *Router) MatchModel(path, model, provider string) (Route, bool) {
+	// Exact path match with model and provider filter (insertion order)
 	for _, e := range r.entries {
-		if e.path != "" && e.path == path && e.route.routeMatchesModel(model) {
+		if e.path != "" && e.path == path && e.routeMatchesProvider(provider) && e.route.routeMatchesModel(model) {
 			return e.route, true
 		}
 	}
-	// Prefix match with model filter (longest prefix first)
+	// Prefix match with model and provider filter (longest prefix first)
 	for _, e := range r.entries {
-		if e.prefix != "" && strings.HasPrefix(path, e.prefix) && e.route.routeMatchesModel(model) {
+		if e.prefix != "" && strings.HasPrefix(path, e.prefix) && e.routeMatchesProvider(provider) && e.route.routeMatchesModel(model) {
 			return e.route, true
 		}
 	}
-	// Built-in Copilot fallback (no model filtering)
-	return copilotRoutePath(path)
+	// Built-in Copilot fallback — only applies when no explicit provider or copilot
+	if provider == "" || provider == "copilot" {
+		return copilotRoutePath(path)
+	}
+	return Route{}, false
 }
 
 func (r Route) ApplyPathPrefix(inPath, inRawPath string) (path, rawPath string) {

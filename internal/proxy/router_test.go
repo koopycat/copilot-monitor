@@ -151,7 +151,7 @@ func TestMatchModel_ExactModelMatch(t *testing.T) {
 	r := NewRouter(cfg)
 
 	// gpt-4o matches the OpenAI route
-	route, ok := r.MatchModel("/v1/chat/completions", "gpt-4o")
+	route, ok := r.MatchModel("/v1/chat/completions", "gpt-4o", "")
 	if !ok {
 		t.Fatal("expected route for gpt-4o")
 	}
@@ -170,7 +170,7 @@ func TestMatchModel_WildcardModelMatch(t *testing.T) {
 
 	for _, model := range []string{"claude-opus", "claude-sonnet-4", "claude-3.5-haiku"} {
 		t.Run(model, func(t *testing.T) {
-			route, ok := r.MatchModel("/v1/chat/completions", model)
+			route, ok := r.MatchModel("/v1/chat/completions", model, "")
 			if !ok {
 				t.Fatal("expected route")
 			}
@@ -191,7 +191,7 @@ func TestMatchModel_NoModelsFieldDefaults(t *testing.T) {
 
 	for _, model := range []string{"gpt-4o", "claude-opus", ""} {
 		t.Run(model, func(t *testing.T) {
-			route, ok := r.MatchModel("/v1/chat/completions", model)
+			route, ok := r.MatchModel("/v1/chat/completions", model, "")
 			if !ok {
 				t.Fatal("expected route")
 			}
@@ -214,7 +214,7 @@ func TestMatchModel_ModelSpecificBeforeDefault(t *testing.T) {
 	r := NewRouter(cfg)
 
 	// gpt-4o should match the model-specific route, not the default
-	route, ok := r.MatchModel("/v1/chat/completions", "gpt-4o")
+	route, ok := r.MatchModel("/v1/chat/completions", "gpt-4o", "")
 	if !ok {
 		t.Fatal("expected route for gpt-4o")
 	}
@@ -223,7 +223,7 @@ func TestMatchModel_ModelSpecificBeforeDefault(t *testing.T) {
 	}
 
 	// Unmatched model falls to default route
-	route, ok = r.MatchModel("/v1/chat/completions", "gemini-pro")
+	route, ok = r.MatchModel("/v1/chat/completions", "gemini-pro", "")
 	if !ok {
 		t.Fatal("expected route for gemini-pro")
 	}
@@ -242,7 +242,7 @@ func TestMatchModel_EmptyModelFallsThrough(t *testing.T) {
 	r := NewRouter(cfg)
 
 	// Empty model should not match model-specific routes; falls to default
-	route, ok := r.MatchModel("/v1/chat/completions", "")
+	route, ok := r.MatchModel("/v1/chat/completions", "", "")
 	if !ok {
 		t.Fatal("expected route for empty model")
 	}
@@ -260,7 +260,7 @@ func TestMatchModel_NoMatchReturnsFalse(t *testing.T) {
 	r := NewRouter(cfg)
 
 	// right path, wrong model -> no configured route matches, no built-in fallback for /v1/chat/completions
-	_, ok := r.MatchModel("/v1/chat/completions", "claude-sonnet")
+	_, ok := r.MatchModel("/v1/chat/completions", "claude-sonnet", "")
 	if ok {
 		t.Fatal("expected no route for /v1/chat/completions with claude-sonnet")
 	}
@@ -276,7 +276,7 @@ func TestMatchModel_PrefixWithModel(t *testing.T) {
 	r := NewRouter(cfg)
 
 	// gpt-4o through prefix with model filter
-	route, ok := r.MatchModel("/v1/chat/completions", "gpt-4o")
+	route, ok := r.MatchModel("/v1/chat/completions", "gpt-4o", "")
 	if !ok {
 		t.Fatal("expected route for gpt-4o")
 	}
@@ -285,7 +285,7 @@ func TestMatchModel_PrefixWithModel(t *testing.T) {
 	}
 
 	// Other model through prefix without model filter
-	route, ok = r.MatchModel("/v1/completions", "claude-3")
+	route, ok = r.MatchModel("/v1/completions", "claude-3", "")
 	if !ok {
 		t.Fatal("expected route for claude-3")
 	}
@@ -297,7 +297,7 @@ func TestMatchModel_PrefixWithModel(t *testing.T) {
 func TestMatchModel_BuiltinRoutesIgnoreModels(t *testing.T) {
 	r := NewRouter(nil)
 	// Built-in routes always match regardless of model
-	route, ok := r.MatchModel("/chat/completions", "any-model")
+	route, ok := r.MatchModel("/chat/completions", "any-model", "")
 	if !ok {
 		t.Fatal("expected built-in route")
 	}
