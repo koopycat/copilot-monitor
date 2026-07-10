@@ -8,11 +8,10 @@ import (
 )
 
 type SessionFilter struct {
-	Since        time.Time
-	Until        time.Time
-	Project      string
-	UpstreamHost string
-	Limit        int
+	Since   time.Time
+	Until   time.Time
+	Project string
+	Limit   int
 }
 
 type SessionStats struct {

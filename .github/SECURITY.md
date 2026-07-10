@@ -24,6 +24,8 @@ trufflehog git file://$(pwd) --since-commit HEAD~500 --only-verified
 trufflehog filesystem .
 ```
 
-## Reporting a vulnerability
+## Known limitations
+
+**WebSocket `/responses` endpoint is not covered by model policy.** The policy engine blocks models based on the request body's `model` field. WebSocket upgrade requests have no body, so the model is only known after the connection is established (inside `response.create` frames). Until frame-level policy inspection is implemented, `/responses` traffic bypasses the model allow/block policy.
 
 If you discover a security issue, please do **not** open a public issue. Instead, report it via [GitHub's private vulnerability reporting](https://github.com/koopycat/copilot-monitor/security/advisories/new).

@@ -101,10 +101,11 @@ func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Reque
 
 	// Create the frame inspector for upstream→client traffic.
 	inspector := &wsInspector{
-		h:      h,
-		idBase: id,
-		route:  route,
-		r:      r,
+		h:       h,
+		idBase:  id,
+		route:   route,
+		r:       r,
+		started: time.Now(),
 	}
 
 	var wg sync.WaitGroup
@@ -127,17 +128,21 @@ func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Reque
 // wsInspector reads WebSocket frames from upstream and forwards them to the
 // client while inspecting text frames for model and usage data.
 type wsInspector struct {
-	h      *Handler
-	idBase uint64
-	route  Route
-	r      *http.Request
-	model  string // tracked from response.create events
+	h       *Handler
+	idBase  uint64
+	route   Route
+	r       *http.Request
+	model   string    // tracked from response.create events
+	started time.Time // connection start time for latency
 }
 
 // copyInspected reads WebSocket frames from src and writes them to dst,
 // inspecting text frame payloads for model and usage data.
+// Every frame is forwarded as-is (preserving opcode and fin).
+// Text frames are reassembled in a separate buffer for JSON inspection
+// without affecting what the client receives.
 func (w *wsInspector) copyInspected(dst io.Writer, src io.Reader) {
-	var fragBuf []byte
+	var inspectBuf []byte
 	for {
 		payload, opcode, fin, err := readWSFrame(src)
 		if err != nil {
@@ -147,35 +152,33 @@ func (w *wsInspector) copyInspected(dst io.Writer, src io.Reader) {
 			return
 		}
 
-		switch opcode {
-		case wsTextFrame:
-			if !fin {
-				fragBuf = append(fragBuf, payload...)
-				continue
-			}
-			if len(fragBuf) > 0 {
-				payload = append(fragBuf, payload...)
-				fragBuf = fragBuf[:0]
-			}
-			w.inspectTextFrame(payload)
-
-		case wsContFrame:
-			fragBuf = append(fragBuf, payload...)
-			if fin {
-				payload = fragBuf
-				fragBuf = fragBuf[:0]
-				w.inspectTextFrame(payload)
-			}
-			continue
-
-		case wsPingFrame:
-			// Forward pings; pong frames are handled automatically by skipping below.
-		case wsCloseFrame:
-			// Close frame — forward and stop.
-		}
-
+		// Forward every frame as-is to the client.
 		if err := writeWSFrame(dst, opcode, payload); err != nil {
 			return
+		}
+
+		// Reassemble fragmented text frames for inspection only.
+		switch opcode {
+		case wsTextFrame:
+			if len(inspectBuf)+len(payload) <= wsMaxPayloadLen {
+				inspectBuf = append(inspectBuf, payload...)
+			}
+			if fin {
+				if len(inspectBuf) > 0 {
+					w.inspectTextFrame(inspectBuf)
+				}
+				inspectBuf = inspectBuf[:0]
+			}
+		case wsContFrame:
+			if len(inspectBuf)+len(payload) <= wsMaxPayloadLen {
+				inspectBuf = append(inspectBuf, payload...)
+			}
+			if fin {
+				if len(inspectBuf) > 0 {
+					w.inspectTextFrame(inspectBuf)
+				}
+				inspectBuf = inspectBuf[:0]
+			}
 		}
 
 		if opcode == wsCloseFrame {
@@ -231,7 +234,7 @@ func (w *wsInspector) inspectTextFrame(payload []byte) {
 		// Persist and log.
 		id := w.h.nextID.Add(1)
 		ts := time.Now().UTC()
-		latencyMS := int64(0) // WebSocket latency is not measured per-message
+		latencyMS := ts.Sub(w.started).Milliseconds()
 
 		if w.h.store != nil {
 			if err := w.h.store.InsertRequest(context.Background(), storeRequestRecord(
@@ -257,12 +260,12 @@ func (h *Handler) writeUsageDebugWS(id uint64, route Route, r *http.Request, mod
 		return
 	}
 	record := UsageDebugRecord{
-		Timestamp:    time.Now().UTC(),
-		RequestID:    id,
-		Endpoint:     string(route.Endpoint),
-		Path:         r.URL.RequestURI(),
-		RequestModel: model,
-		Status:       200,
+		Timestamp:     time.Now().UTC(),
+		RequestID:     id,
+		Endpoint:      string(route.Endpoint),
+		Path:          r.URL.RequestURI(),
+		RequestModel:  model,
+		Status:        200,
 		UsageDetected: usageSeen,
 	}
 	_ = h.usageDebug.Write(record)
@@ -276,6 +279,8 @@ const (
 	wsPingFrame  = 0x9
 	wsPongFrame  = 0xA
 )
+
+const wsMaxPayloadLen = 1 << 20 // 1 MiB
 
 // readWSFrame reads a single WebSocket frame from r.
 // Returns payload, opcode, fin flag, and any error.
@@ -304,6 +309,9 @@ func readWSFrame(r io.Reader) (payload []byte, opcode byte, fin bool, err error)
 		payloadLen = binary.BigEndian.Uint64(ext)
 	}
 
+	if payloadLen > wsMaxPayloadLen {
+		return nil, 0, false, fmt.Errorf("frame payload too large: %d > %d", payloadLen, wsMaxPayloadLen)
+	}
 	payload = make([]byte, payloadLen)
 	if payloadLen > 0 {
 		if _, err := io.ReadFull(r, payload); err != nil {
