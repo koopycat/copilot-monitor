@@ -23,7 +23,7 @@ func TestMakeUpstreamRequestPreservesAuthAndRewritesTarget(t *testing.T) {
 	in.Header.Set("Content-Type", "application/json")
 	in.Header.Set("Connection", "keep-alive")
 
-	route, ok := RoutePath("/chat/completions")
+	route, ok := NewRouter(nil).Match("/chat/completions")
 	if !ok {
 		t.Fatal("missing chat route")
 	}
@@ -373,6 +373,62 @@ func TestHandlerPrefersRequestModelOverResponseModel(t *testing.T) {
 	}
 	if stats[0].Model != "claude-sonnet-4" {
 		t.Fatalf("model = %q, want request model", stats[0].Model)
+	}
+}
+
+func TestHandlerRoutesByModel(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	// Create config with two routes on same path, different models
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{Path: "/v1/chat/completions", UpstreamHost: "openai.example.com", Capture: "usage", Models: []string{"gpt-4o"}},
+			{Path: "/v1/chat/completions", UpstreamHost: "anthropic.example.com", Capture: "usage", Models: []string{"claude-*"}},
+		},
+	}
+	router := NewRouter(cfg)
+
+	var logs bytes.Buffer
+	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "", nil, router)
+
+	var capturedHost string
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		capturedHost = req.URL.Host
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": {"application/json"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}`)),
+		}, nil
+	})}
+
+	// gpt-4o should go to OpenAI upstream
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-4o","stream":false}`))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	if capturedHost != "openai.example.com" {
+		t.Fatalf("host = %q, want openai.example.com", capturedHost)
+	}
+
+	// claude-sonnet should go to Anthropic upstream
+	req = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"claude-sonnet-4","stream":false}`))
+	req.Header.Set("Content-Type", "application/json")
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	if capturedHost != "anthropic.example.com" {
+		t.Fatalf("host = %q, want anthropic.example.com", capturedHost)
 	}
 }
 
