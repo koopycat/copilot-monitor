@@ -26,6 +26,7 @@ current browser dashboard may use a documented hosted runtime dependency.
 | PROD-009 | Export must provide portable reporting data for captured request rows. | CSV export includes the stored metadata fields used by reports for rows that meet the export filters, and omits bodies and secrets. |
 | PROD-010 | Sessions must group activity using an inactivity gap. | Session reports group requests using a 30-minute inactivity threshold. |
 | PROD-011 | The product must expose a derived current-session view. | The current-session view reflects the most recent derived session and can indicate whether it is active or idle using the same inactivity gap. |
+| PROD-012 | The product must allow users to block specific AI models from being used through configured providers. | Users can set policy mode and model list through API; blocked models return 403; allowed models pass through normally. |
 
 ## Routing Requirements
 
@@ -34,8 +35,23 @@ current browser dashboard may use a documented hosted runtime dependency.
 | ROUTE-001 | Unknown inbound paths must fail closed instead of silently proxying. |
 | ROUTE-002 | Local health/ping traffic must not be forwarded upstream. |
 | ROUTE-003 | Model metadata routes must not persist request rows. |
-| ROUTE-004 | WebSocket response traffic must be tunneled without usage persistence. |
+| ROUTE-004 | WebSocket response traffic must capture model and usage from `response.create` and `response.completed` events. |
 | ROUTE-005 | Capture mode must be explicit for every supported route. |
+
+## Policy Requirements
+
+| ID | Requirement |
+|---|---|
+| POL-001 | The proxy must support a global model allow/block policy. |
+| POL-002 | Default behavior with no policy configured must allow all models. |
+| POL-003 | Blocked models must return HTTP 403 with a JSON error body identifying the blocked model. |
+| POL-004 | Blocked attempts must be persisted to the requests table with status 403 and zero token counts. |
+| POL-005 | Policy must support three modes: allow_all, blocklist, and allowlist. |
+| POL-006 | Model patterns must support `*` suffix for prefix matching (e.g., `gpt-*`). |
+| POL-007 | The policy must be manageable through read-only dashboard API endpoints. |
+| POL-008 | The policy must be updatable through dashboard API endpoints. |
+| POL-009 | Policy evaluation must fail open: unknown modes, nil policy, empty model, and store errors all default to allowing the request. |
+| POL-010 | Model discovery endpoint must return all unique model names from captured request history. |
 
 ## Reporting Requirements
 

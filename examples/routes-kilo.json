@@ -1,0 +1,16 @@
+{
+  "routes": [
+    {
+      "path": "/chat/completions",
+      "upstream_host": "api.kilo.ai",
+      "upstream_path_prefix": "/api/gateway",
+      "capture": "usage"
+    },
+    {
+      "path": "/models",
+      "upstream_host": "api.kilo.ai",
+      "upstream_path_prefix": "/api/gateway",
+      "capture": "none"
+    }
+  ]
+}

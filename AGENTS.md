@@ -30,6 +30,7 @@ Follow standard Go style: tabs via `gofmt`, small packages, explicit error handl
 - `specs/` contains implementation-independent requirements. Do not include code paths, file paths, package names, or implementation plans there.
 - `docs/` contains durable documentation for the current implementation, such as architecture, API behavior, operations, and troubleshooting. `docs/api.md` and `docs/architecture.md` are the technical reference pages served by GitHub Pages.
 - `docs/index.html` is the GitHub Pages marketing landing page; it links to the technical docs and the GitHub repo.
+- `plans/` is used for planning artifacts (*.md etc). Cleanup if done.
 
 GitHub Pages is served from `/docs` on the default branch. The landing page is at `docs/index.html` (URL: `/`). Technical docs are at `docs/api.md` and `docs/architecture.md` (URLs: `/api` and `/architecture` via Jekyll's `.md` extension stripping).
 

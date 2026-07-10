@@ -14,6 +14,7 @@ Self-service, single-user, local tool.
 Monitor GitHub Copilot API calls transparently.
 Capture per-model token counts, latency, and estimated cost.
 Provide a CLI and a local dashboard for inspecting usage patterns.
+Control which AI models are allowed through the proxy with an allow/block policy.
 The product is a utility, not a platform.
 It should get out of the way and show the data clearly.
 
