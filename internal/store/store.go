@@ -396,7 +396,7 @@ func (s *Store) DistinctModels(ctx context.Context) ([]string, error) {
 		return nil, nil
 	}
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT DISTINCT COALESCE(NULLIF(model, ''), '<unknown>') FROM requests WHERE model IS NOT NULL AND model != '' ORDER BY model",
+		"SELECT DISTINCT model FROM requests WHERE model IS NOT NULL AND model != '' ORDER BY model",
 	)
 	if err != nil {
 		return nil, err

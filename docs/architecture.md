@@ -42,6 +42,8 @@ The proxy evaluates a global model policy between request body parsing and upstr
 - **Fail-open**: nil policy, empty model, unknown mode, or store errors all default to allowing the request
 - **Persistence**: blocked attempts are stored in the `requests` table with status 403 and zero token counts
 
+- **WebSocket gap**: WebSocket `/responses` traffic bypasses model policy because the model is only known after the connection is established (see [Known limitations](../.github/SECURITY.md#known-limitations)).
+
 Policy management is through the dashboard API: `GET/PUT /api/policy` and model discovery via `GET /api/policy/models`.
 
 ## Persistence and Privacy Rules
@@ -71,7 +73,7 @@ When changing persisted data:
 
 - Add or change a proxied route: for Copilot routes, edit `internal/proxy/router.go` (the `copilotRoutePath` switch). For configurable third-party routes, create or edit the JSON routes file passed to `--routes-config`.
 - Route definitions: `internal/proxy/config.go` (types and loader), `internal/proxy/router.go` (matching logic). Update router tests when changing matching behavior.
-- Change usage parsing: edit `internal/proxy/capture.go` or `internal/proxy/sse.go`, with tests beside the files.
+- Change usage parsing: edit `internal/proxy/capture.go`, `internal/proxy/sse.go`, or `internal/proxy/websocket.go`, with tests beside the files.
 - Change pricing or model normalization: edit `internal/catalog/models.json`, `internal/catalog/catalog.go`, or `internal/cost/cost.go`.
 - Change session behavior: look at `internal/store/sessions.go` and the `sessions` command and API handlers.
 - Change model policy: edit `internal/policy/policy.go` (evaluation and cache), `internal/api/policy.go` (API handlers), and `internal/store/store.go` (persistence). Update `internal/policy/policy_test.go` for policy behavior and `internal/api/api_test.go` for API handlers.
