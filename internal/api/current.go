@@ -27,11 +27,12 @@ type currentSessionInfo struct {
 }
 
 type currentSessionModel struct {
-	Model    string  `json:"model"`
-	Endpoint string  `json:"endpoint"`
-	Requests int     `json:"requests"`
-	Tokens   int     `json:"tokens"`
-	Cost     float64 `json:"cost"`
+	Model                    string  `json:"model"`
+	Endpoint                 string  `json:"endpoint"`
+	Requests                 int     `json:"requests"`
+	Tokens                   int     `json:"tokens"`
+	Cost                     float64 `json:"cost"`
+	CompressionRemovedTokens int     `json:"compression_removed_tokens"`
 }
 
 func (h *Handler) handleCurrentSession(w http.ResponseWriter, r *http.Request) {
@@ -65,11 +66,12 @@ func (h *Handler) handleCurrentSession(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, row := range cost.Rows {
 			response.Models = append(response.Models, currentSessionModel{
-				Model:    row.Model,
-				Endpoint: row.Endpoint,
-				Requests: row.Requests,
-				Tokens:   row.TotalTokens,
-				Cost:     row.TotalUSD,
+				Model:                    row.Model,
+				Endpoint:                 row.Endpoint,
+				Requests:                 row.Requests,
+				Tokens:                   row.TotalTokens,
+				Cost:                     row.TotalUSD,
+				CompressionRemovedTokens: row.CompressionRemovedTokens,
 			})
 		}
 	}

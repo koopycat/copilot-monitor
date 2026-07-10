@@ -224,6 +224,30 @@ without token counts), or `"none"` (forward without recording).
 Use `prefix_match: true` for routes that match a path and all sub-paths
 (e.g., Anthropic's `/v1/messages` and `/v1/messages/count_tokens`).
 
+### Optional local request compression
+
+Run a local [Headroom](https://github.com/headroomai/headroom) process and
+point the proxy at its compression endpoint:
+
+```sh
+./bin/copilot-monitor run \
+  --routes-config routes.json \
+  --headroom-url http://127.0.0.1:8787/v1/compress
+```
+
+Compression applies automatically to supported OpenAI-compatible chat requests
+after routing and model policy checks. The default is fail-open: if Headroom is
+unavailable, the original request is forwarded. Add `--headroom-required` to
+return HTTP 502 instead. `--headroom-compress-user-messages` and
+`--headroom-target-ratio 0.5` expose the corresponding Headroom policy controls.
+The compression endpoint must be loopback HTTP; no separate privacy consent
+step is used for this personal, single-user tool.
+
+**Privacy**: Headroom is a separate local process and may retain original
+content in its CCR (Compress-Cache-Retrieve) store according to its own
+configuration. Run Headroom with `--stateless` to disable all filesystem writes.
+Copilot Monitor's own database never stores request or response bodies.
+
 ### Running proxy and dashboard together
 
 ```sh
@@ -348,6 +372,11 @@ Press `Ctrl+C` to stop.
 | `--db` | `~/.local/share/copilot-monitor/store.db` | SQLite database path |
 | `--project` | none | optional project label for reporting |
 | `--usage-debug-log` | none | optional JSONL path for pricing research |
+| `--headroom-url` | none | loopback Headroom `/v1/compress` endpoint |
+| `--headroom-timeout` | `30s` | Headroom compression request timeout |
+| `--headroom-required` | false | fail requests instead of forwarding uncompressed |
+| `--headroom-compress-user-messages` | false | allow Headroom to transform user messages |
+| `--headroom-target-ratio` | 0 | optional Headroom target ratio (0 < ratio <= 1) |
 
 `--usage-debug-log` is for local pricing research only. It should remain
 metadata-only: no prompts, completions, source code, auth headers, cookies, or
@@ -357,6 +386,7 @@ API keys.
 
 The database stores request metadata, endpoint, model name, token counts, latency, status, and project.
 Token categories include input, cached input, cache write, and output tokens where available.
+When Headroom compression is configured, estimated compression metrics (status, original tokens, final tokens, compression latency) are persisted as nullable columns.
 No prompts, completions, source code, or auth tokens are stored.
 
 ## What is not stored

@@ -57,9 +57,13 @@ func runStats(args []string, stdout, stderr io.Writer) int {
 
 func printStatsRows(w io.Writer, rows []store.ModelStats) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "MODEL\tENDPOINT\tREQUESTS\tPROMPT_TOK\tCACHED_TOK\tCACHE_WRITE_TOK\tCOMPL_TOK\tTOTAL")
+	fmt.Fprintln(tw, "MODEL\tENDPOINT\tREQUESTS\tPROMPT_TOK\tCACHED_TOK\tCACHE_WRITE_TOK\tCOMPL_TOK\tTOTAL\tTOKENS_REMOVED")
 	for _, row := range rows {
-		fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\n", row.Model, row.Endpoint, row.Requests, row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens, row.CompletionTokens, row.TotalTokens)
+		removed := "-"
+		if row.CompressedRequests > 0 {
+			removed = fmt.Sprintf("%d", row.CompressionRemovedTokens)
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", row.Model, row.Endpoint, row.Requests, row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens, row.CompletionTokens, row.TotalTokens, removed)
 	}
 	_ = tw.Flush()
 }

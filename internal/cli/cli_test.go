@@ -53,6 +53,15 @@ func TestVersion(t *testing.T) {
 	}
 }
 
+func TestCompressionMode(t *testing.T) {
+	if got := compressionMode(false); got != "fail-open" {
+		t.Fatalf("compressionMode(false) = %q", got)
+	}
+	if got := compressionMode(true); got != "required" {
+		t.Fatalf("compressionMode(true) = %q", got)
+	}
+}
+
 func TestStatsCommand(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "store.db")
 	st, err := store.Open(dbPath)

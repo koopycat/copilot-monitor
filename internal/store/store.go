@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"copilot-monitoring/internal/policy"
@@ -24,22 +25,26 @@ type Store struct {
 }
 
 type RequestRecord struct {
-	Timestamp         time.Time
-	Endpoint          string
-	Method            string
-	Path              string
-	UpstreamHost      string
-	Model             string
-	Stream            bool
-	Status            int
-	Error             string
-	LatencyMS         int64
-	PromptTokens      int
-	CachedInputTokens int
-	CacheWriteTokens  int
-	CompletionTokens  int
-	TotalTokens       int
-	Project           string
+	Timestamp                 time.Time
+	Endpoint                  string
+	Method                    string
+	Path                      string
+	UpstreamHost              string
+	Model                     string
+	Stream                    bool
+	Status                    int
+	Error                     string
+	LatencyMS                 int64
+	PromptTokens              int
+	CachedInputTokens         int
+	CacheWriteTokens          int
+	CompletionTokens          int
+	TotalTokens               int
+	Project                   string
+	CompressionStatus         string
+	CompressionOriginalTokens int
+	CompressionFinalTokens    int
+	CompressionLatencyMS      int64
 }
 
 type StatsFilter struct {
@@ -51,16 +56,21 @@ type StatsFilter struct {
 }
 
 type ModelStats struct {
-	Model             string  `json:"model"`
-	Endpoint          string  `json:"endpoint"`
-	UpstreamHost      string  `json:"upstream_host,omitempty"`
-	Requests          int     `json:"requests"`
-	PromptTokens      int     `json:"prompt_tokens"`
-	CachedInputTokens int     `json:"cached_input_tokens"`
-	CacheWriteTokens  int     `json:"cache_write_tokens"`
-	CompletionTokens  int     `json:"completion_tokens"`
-	TotalTokens       int     `json:"total_tokens"`
-	AvgLatencyMS      float64 `json:"avg_latency_ms"`
+	Model                     string  `json:"model"`
+	Endpoint                  string  `json:"endpoint"`
+	UpstreamHost              string  `json:"upstream_host,omitempty"`
+	Requests                  int     `json:"requests"`
+	PromptTokens              int     `json:"prompt_tokens"`
+	CachedInputTokens         int     `json:"cached_input_tokens"`
+	CacheWriteTokens          int     `json:"cache_write_tokens"`
+	CompletionTokens          int     `json:"completion_tokens"`
+	TotalTokens               int     `json:"total_tokens"`
+	AvgLatencyMS              float64 `json:"avg_latency_ms"`
+	CompressedRequests        int     `json:"compressed_requests"`
+	CompressionOriginalTokens int     `json:"compression_original_tokens"`
+	CompressionFinalTokens    int     `json:"compression_final_tokens"`
+	CompressionRemovedTokens  int     `json:"compression_removed_tokens"`
+	AvgCompressionRatio       float64 `json:"avg_compression_ratio"`
 }
 
 type TimelineBucket struct {
@@ -76,17 +86,21 @@ type TimelineBucket struct {
 }
 
 type ExportRow struct {
-	Timestamp         string `json:"ts"`
-	Endpoint          string `json:"endpoint"`
-	Model             string `json:"model"`
-	Status            int    `json:"status"`
-	LatencyMS         int64  `json:"latency_ms"`
-	PromptTokens      int    `json:"prompt_tokens"`
-	CachedInputTokens int    `json:"cached_input_tokens"`
-	CacheWriteTokens  int    `json:"cache_write_tokens"`
-	CompletionTokens  int    `json:"completion_tokens"`
-	TotalTokens       int    `json:"total_tokens"`
-	Project           string `json:"project"`
+	Timestamp                 string `json:"ts"`
+	Endpoint                  string `json:"endpoint"`
+	Model                     string `json:"model"`
+	Status                    int    `json:"status"`
+	LatencyMS                 int64  `json:"latency_ms"`
+	PromptTokens              int    `json:"prompt_tokens"`
+	CachedInputTokens         int    `json:"cached_input_tokens"`
+	CacheWriteTokens          int    `json:"cache_write_tokens"`
+	CompletionTokens          int    `json:"completion_tokens"`
+	TotalTokens               int    `json:"total_tokens"`
+	Project                   string `json:"project"`
+	CompressionStatus         string `json:"compression_status,omitempty"`
+	CompressionOriginalTokens int    `json:"compression_original_tokens,omitempty"`
+	CompressionFinalTokens    int    `json:"compression_final_tokens,omitempty"`
+	CompressionLatencyMS      int64  `json:"compression_latency_ms,omitempty"`
 }
 
 func DefaultPath() string {
@@ -140,8 +154,34 @@ func (s *Store) init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, string(schema))
-	return err
+	if _, err = s.db.ExecContext(ctx, string(schema)); err != nil {
+		return err
+	}
+	return s.runMigrations(ctx)
+}
+
+func (s *Store) runMigrations(ctx context.Context) error {
+	migrations := []string{
+		`ALTER TABLE requests ADD COLUMN compression_status TEXT`,
+		`ALTER TABLE requests ADD COLUMN compression_original_tokens INTEGER`,
+		`ALTER TABLE requests ADD COLUMN compression_final_tokens INTEGER`,
+		`ALTER TABLE requests ADD COLUMN compression_latency_ms INTEGER`,
+	}
+	for _, m := range migrations {
+		_, err := s.db.ExecContext(ctx, m)
+		if err != nil && !isDuplicateColumnError(err) {
+			return fmt.Errorf("migration %q: %w", m, err)
+		}
+	}
+	return nil
+}
+
+func isDuplicateColumnError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "duplicate column name")
 }
 
 func (s *Store) InsertRequest(ctx context.Context, rec RequestRecord) error {
@@ -155,8 +195,9 @@ func (s *Store) InsertRequest(ctx context.Context, rec RequestRecord) error {
 INSERT INTO requests (
   ts, endpoint, method, path, upstream_host, model, stream, status, error,
   latency_ms, prompt_tokens, cached_input_tokens, cache_write_tokens,
-  completion_tokens, total_tokens, project
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  completion_tokens, total_tokens, project,
+  compression_status, compression_original_tokens, compression_final_tokens, compression_latency_ms
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		rec.Timestamp.UTC().Format(time.RFC3339Nano),
 		rec.Endpoint,
 		rec.Method,
@@ -173,6 +214,10 @@ INSERT INTO requests (
 		nullInt(rec.CompletionTokens),
 		nullInt(rec.TotalTokens),
 		nullString(rec.Project),
+		nullString(rec.CompressionStatus),
+		nullInt(rec.CompressionOriginalTokens),
+		nullInt(rec.CompressionFinalTokens),
+		nullInt(int(rec.CompressionLatencyMS)),
 	)
 	return err
 }
@@ -192,7 +237,12 @@ SELECT
   COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens,
   COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
   COALESCE(SUM(total_tokens), 0) AS total_tokens,
-  COALESCE(AVG(latency_ms), 0) AS avg_latency_ms
+  COALESCE(AVG(latency_ms), 0) AS avg_latency_ms,
+  COUNT(CASE WHEN compression_status IN ('applied', 'no_change') THEN 1 END) AS compressed_requests,
+  COALESCE(SUM(compression_original_tokens), 0) AS compression_original_tokens,
+  COALESCE(SUM(compression_final_tokens), 0) AS compression_final_tokens,
+  COALESCE(SUM(compression_original_tokens - compression_final_tokens), 0) AS compression_removed_tokens,
+  COALESCE(AVG(NULLIF(compression_final_tokens, 0) * 1.0 / compression_original_tokens), 0) AS avg_compression_ratio
 FROM requests
 WHERE (? = '' OR ts >= ?)
   AND (? = '' OR ts < ?)
@@ -222,7 +272,7 @@ func (s *Store) queryModelStats(ctx context.Context, query string, args ...any) 
 	var out []ModelStats
 	for rows.Next() {
 		var row ModelStats
-		if err := rows.Scan(&row.Model, &row.Endpoint, &row.UpstreamHost, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens, &row.AvgLatencyMS); err != nil {
+		if err := rows.Scan(&row.Model, &row.Endpoint, &row.UpstreamHost, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens, &row.AvgLatencyMS, &row.CompressedRequests, &row.CompressionOriginalTokens, &row.CompressionFinalTokens, &row.CompressionRemovedTokens, &row.AvgCompressionRatio); err != nil {
 			return nil, err
 		}
 		out = append(out, row)
@@ -304,7 +354,8 @@ func (s *Store) ExportRequests(ctx context.Context, since, until time.Time, upst
 	rows, err := s.db.QueryContext(ctx, `
 SELECT ts, endpoint, COALESCE(model,''), status, latency_ms,
   COALESCE(prompt_tokens,0), COALESCE(cached_input_tokens,0), COALESCE(cache_write_tokens,0),
-  COALESCE(completion_tokens,0), COALESCE(total_tokens,0), COALESCE(project,'')
+  COALESCE(completion_tokens,0), COALESCE(total_tokens,0), COALESCE(project,''),
+  COALESCE(compression_status,''), COALESCE(compression_original_tokens,0), COALESCE(compression_final_tokens,0), COALESCE(compression_latency_ms,0)
 FROM requests
 WHERE (? = '' OR ts >= ?)
   AND (? = '' OR ts < ?)
@@ -322,7 +373,8 @@ ORDER BY ts DESC`, sinceStr, sinceStr, untilStr, untilStr, upstreamHost, upstrea
 		var row ExportRow
 		if err := rows.Scan(&row.Timestamp, &row.Endpoint, &row.Model, &row.Status, &row.LatencyMS,
 			&row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens,
-			&row.CompletionTokens, &row.TotalTokens, &row.Project); err != nil {
+			&row.CompletionTokens, &row.TotalTokens, &row.Project,
+			&row.CompressionStatus, &row.CompressionOriginalTokens, &row.CompressionFinalTokens, &row.CompressionLatencyMS); err != nil {
 			return nil, err
 		}
 		out = append(out, row)

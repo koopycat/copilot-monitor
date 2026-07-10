@@ -27,6 +27,8 @@ current browser dashboard may use a documented hosted runtime dependency.
 | PROD-010 | Sessions must group activity using an inactivity gap. | Session reports group requests using a 30-minute inactivity threshold. |
 | PROD-011 | The product must expose a derived current-session view. | The current-session view reflects the most recent derived session and can indicate whether it is active or idle using the same inactivity gap. |
 | PROD-012 | The product must allow users to block specific AI models from being used through configured providers. | Users can set policy mode and model list through API; blocked models return 403; allowed models pass through normally. |
+| PROD-013 | The product may transform request bodies through a configured local loopback processor before upstream forwarding. | When a loopback compression endpoint is configured, eligible OpenAI-compatible chat requests are transformed after routing and policy checks; only model and supported messages are sent to the processor; provider auth and headers are excluded. |
+| PROD-014 | The product must persist estimated compression metrics when compression is applied. | Compression status, estimated original tokens, estimated final tokens, and compression latency are stored as nullable columns; derived aggregates (tokens removed, ratio) appear in stats and export; provider usage remains authoritative for cost. |
 
 ## Routing Requirements
 
