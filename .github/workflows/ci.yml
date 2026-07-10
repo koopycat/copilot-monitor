@@ -61,3 +61,39 @@ jobs:
       # embedded dashboard assets, and -tags nodashboard stubs out the embed.
       - name: Test
         run: go test -race -count=1 -timeout 120s -tags nodashboard ./...
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.5'
+          check-latest: true
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.17.1'
+          run_install: false
+      - name: Install dashboard deps
+        working-directory: dashboard
+        run: pnpm install --frozen-lockfile
+      - name: Build dashboard
+        working-directory: dashboard
+        run: pnpm build
+      - name: Install e2e deps
+        working-directory: internal/e2e
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        working-directory: internal/e2e
+        run: pnpm playwright install --with-deps chromium
+      - name: Download Go modules
+        run: go mod download
+      - name: Run e2e tests
+        working-directory: internal/e2e
+        run: pnpm test

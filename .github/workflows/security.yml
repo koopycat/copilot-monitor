@@ -21,12 +21,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Run Trivy vulnerability scanner in fs mode
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.29.0
         with:
           scan-type: fs
           scan-ref: .
           severity: HIGH,CRITICAL
+          format: sarif
+          output: trivy-results.sarif
           exit-code: 1
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
 
   osv-scanner:
     name: osv-scanner
@@ -38,7 +45,14 @@ jobs:
         with:
           scan-args: |-
             --recursive
+            --format sarif
+            --output osv-results.sarif
             ./
+      - name: Upload OSV-Scanner SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: osv-results.sarif
 
   gitleaks:
     name: gitleaks
