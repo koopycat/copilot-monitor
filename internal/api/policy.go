@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"copilot-monitoring/internal/policy"
+	"llm-proxy/internal/policy"
 )
 
 func (h *Handler) handlePolicy(w http.ResponseWriter, r *http.Request) {

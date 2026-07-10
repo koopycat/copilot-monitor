@@ -13,11 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	"copilot-monitoring/dashboard"
-	"copilot-monitoring/internal/api"
-	"copilot-monitoring/internal/log"
-	"copilot-monitoring/internal/proxy"
-	"copilot-monitoring/internal/store"
+	"llm-proxy/dashboard"
+	"llm-proxy/internal/api"
+	"llm-proxy/internal/log"
+	"llm-proxy/internal/proxy"
+	"llm-proxy/internal/store"
 )
 
 func runServer(args []string, stdout, stderr io.Writer) int {
@@ -27,7 +27,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
 	project := fs.String("project", "", "optional project label")
 	usageDebugPath := fs.String("usage-debug-log", "", "optional JSONL path for usage-only debug metadata")
-	routesConfig := fs.String("routes-config", "", "optional JSON file with additional route definitions")
+	routesConfig := fs.String("routes-config", "", "JSON file with route definitions (required)")
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
 	dashboardFlag := fs.Bool("dashboard", false, "also serve the dashboard API and UI on the same port (no need for a separate serve command)")
 	if err := fs.Parse(args); err != nil {
@@ -113,7 +113,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	fmt.Fprintf(stdout, "copilot-monitor listening on http://%s\n", settingsAddr(*addr))
+	fmt.Fprintf(stdout, "llm-proxy listening on http://%s\n", settingsAddr(*addr))
 	fmt.Fprintf(stdout, "database: %s\n", store.FormatPath(*dbPath))
 	if *usageDebugPath != "" {
 		fmt.Fprintf(stdout, "usage debug log: %s\n", store.FormatPath(*usageDebugPath))

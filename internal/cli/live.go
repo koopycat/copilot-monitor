@@ -13,9 +13,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"copilot-monitoring/internal/catalog"
-	costcalc "copilot-monitoring/internal/cost"
-	"copilot-monitoring/internal/store"
+	"llm-proxy/internal/catalog"
+	costcalc "llm-proxy/internal/cost"
+	"llm-proxy/internal/store"
 )
 
 func runLive(args []string, stdout, stderr io.Writer) int {

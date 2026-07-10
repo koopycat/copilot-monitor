@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"copilot-monitoring/internal/store"
+	"llm-proxy/internal/store"
 )
 
 func (h *Handler) handleToday(w http.ResponseWriter, r *http.Request) {

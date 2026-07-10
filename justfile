@@ -9,7 +9,7 @@ setup:
 
 build:
     cd dashboard && pnpm build
-    go build -o ./bin/copilot-monitor ./cmd/copilot-monitor
+    go build -o ./bin/llm-proxy ./cmd/llm-proxy
 
 dashboard-build:
     cd dashboard && pnpm install --frozen-lockfile && pnpm build

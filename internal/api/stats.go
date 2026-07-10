@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"copilot-monitoring/internal/store"
+	"llm-proxy/internal/store"
 )
 
 func (h *Handler) handleStats(w http.ResponseWriter, r *http.Request) {
