@@ -5,6 +5,7 @@
   import PeriodBar from './components/PeriodBar.svelte';
   import SessionsTable from './components/SessionsTable.svelte';
   import ToggleGroup from './components/ToggleGroup.svelte';
+  import UpstreamFilter from './components/UpstreamFilter.svelte';
   import UsageChart from './components/UsageChart.svelte';
   import { usd } from './lib/format';
   import { dashboard } from './stores/dashboard.svelte';
@@ -21,7 +22,12 @@
 
 <p class="subtitle">
   {#if dashboard.lastUpdated}Updated {dashboard.lastUpdated}{:else}Loading…{/if}
+  <UpstreamFilter />
 </p>
+
+{#if dashboard.periodIsEmpty}
+  <p class="empty-state">No data for this period</p>
+{/if}
 
 <div class="row">
   <MetricCard value={costText} label={`est. AI-credit cost, ${dashboard.periodLabel}`} />

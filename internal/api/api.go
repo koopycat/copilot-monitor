@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -37,6 +38,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleTimeline(w, r)
 	case "/api/export":
 		h.handleExport(w, r)
+	case "/api/upstreams":
+		h.handleUpstreams(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -76,4 +79,18 @@ func parseSinceParam(r *http.Request) time.Time {
 
 func parseUntilParam(r *http.Request) time.Time {
 	return parseTimeParam(r, "until")
+}
+
+func parseUpstreamParam(r *http.Request) string {
+	return r.URL.Query().Get("upstream")
+}
+
+func (h *Handler) handleUpstreams(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	hosts, err := h.db.DistinctUpstreamHosts(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(hosts)
 }

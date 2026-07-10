@@ -14,10 +14,11 @@ func (h *Handler) handleTimeline(w http.ResponseWriter, r *http.Request) {
 		granularity = "day"
 	}
 	filter := store.StatsFilter{
-		Since:    parseSinceParam(r),
-		Until:    parseUntilParam(r),
-		Project:  r.URL.Query().Get("project"),
-		Endpoint: r.URL.Query().Get("endpoint"),
+		Since:        parseSinceParam(r),
+		Until:        parseUntilParam(r),
+		Project:      r.URL.Query().Get("project"),
+		Endpoint:     r.URL.Query().Get("endpoint"),
+		UpstreamHost: parseUpstreamParam(r),
 	}
 	buckets, err := h.db.Timeline(r.Context(), filter, granularity)
 	if err != nil {

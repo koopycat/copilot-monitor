@@ -8,10 +8,11 @@ import (
 )
 
 type SessionFilter struct {
-	Since   time.Time
-	Until   time.Time
-	Project string
-	Limit   int
+	Since        time.Time
+	Until        time.Time
+	Project      string
+	UpstreamHost string
+	Limit        int
 }
 
 type SessionStats struct {
@@ -213,6 +214,7 @@ func (s *Store) sessionModelStats(ctx context.Context, sessionID int64) ([]Model
 SELECT
   COALESCE(NULLIF(model, ''), '<unknown>') AS model,
   endpoint,
+  upstream_host,
   COUNT(*) AS requests,
   COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
   COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens,
@@ -222,7 +224,7 @@ SELECT
   COALESCE(AVG(latency_ms), 0) AS avg_latency_ms
 FROM requests
 WHERE session_id = ?
-GROUP BY model, endpoint
+GROUP BY model, endpoint, upstream_host
 ORDER BY total_tokens DESC, requests DESC, model ASC, endpoint ASC`, sessionID)
 }
 

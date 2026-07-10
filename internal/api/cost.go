@@ -11,10 +11,11 @@ import (
 
 func (h *Handler) handleCost(w http.ResponseWriter, r *http.Request) {
 	filter := store.StatsFilter{
-		Since:    parseSinceParam(r),
-		Until:    parseUntilParam(r),
-		Project:  r.URL.Query().Get("project"),
-		Endpoint: r.URL.Query().Get("endpoint"),
+		Since:        parseSinceParam(r),
+		Until:        parseUntilParam(r),
+		Project:      r.URL.Query().Get("project"),
+		Endpoint:     r.URL.Query().Get("endpoint"),
+		UpstreamHost: parseUpstreamParam(r),
 	}
 	rows, err := h.db.Stats(r.Context(), filter)
 	if err != nil {

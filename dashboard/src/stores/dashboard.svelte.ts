@@ -2,7 +2,7 @@
 // All state lives in a single $state object. Side effects (fetch, timer, observer)
 // are wired up in init() and torn down in destroy().
 
-import { exportHrefFor, loadDashboard } from '../lib/api';
+import { exportHrefFor, fetchUpstreams, loadDashboard } from '../lib/api';
 import { drawChart } from '../lib/chart';
 import { modelColor } from '../lib/colors';
 import { dur, intl, usd } from '../lib/format';
@@ -43,6 +43,10 @@ class DashboardStore {
   timeline: TimelineEntry[] = $state([]);
   current: CurrentSession = $state({ session: null, models: [] });
 
+  upstream: string = $state('');
+  upstreams: string[] = $state([]);
+  periodIsEmpty: boolean = $state(false);
+
   sessionPulse = $state(false);
 
   private _timer: ReturnType<typeof setInterval> | null = null;
@@ -73,10 +77,10 @@ class DashboardStore {
   get modelRows(): ModelRow[] {
     const costMap = new Map<string, CostRow>();
     for (const r of this.costRows) {
-      costMap.set(`${r.model}|${r.endpoint}`, r);
+      costMap.set(`${r.model}|${r.endpoint}|${r.upstream_host}`, r);
     }
     return this.stats.map((s) => {
-      const cost: Partial<CostRow> = costMap.get(`${s.model}|${s.endpoint}`) ?? {};
+      const cost: Partial<CostRow> = costMap.get(`${s.model}|${s.endpoint}|${s.upstream_host}`) ?? {};
       const cacheHit = s.prompt_tokens
         ? Math.round((s.cached_input_tokens / s.prompt_tokens) * 100)
         : 0;
@@ -131,7 +135,7 @@ class DashboardStore {
   }
 
   get exportHref(): string {
-    return exportHrefFor(this.period);
+    return exportHrefFor(this.period, this.upstream || undefined);
   }
 
   // Actions
@@ -153,6 +157,12 @@ class DashboardStore {
     if (m === this.metric) return;
     this.metric = m;
     this.runWithViewTransition(() => this.redrawChart());
+  }
+
+  switchUpstream(value: string): void {
+    if (value === this.upstream) return;
+    this.upstream = value;
+    this.runWithViewTransition(() => this.load());
   }
 
   barW(val: number, max: number): number {
@@ -186,16 +196,23 @@ class DashboardStore {
     this._abort = new AbortController();
     const { signal } = this._abort;
     try {
-      const data = await loadDashboard(this.period, this.gran, signal);
+      const data = await loadDashboard(this.period, this.gran, signal, this.upstream || undefined);
       if (signal.aborted) return;
       this.stats = data.stats;
       this.cost = data.cost.total_usd;
       this.costRows = data.cost.rows;
       this.sessions = data.sessions;
       this.timeline = data.timeline;
+      this.periodIsEmpty = data.stats.length === 0;
       this.updateCurrentSession(data.current);
       this.redrawChart();
       this.lastUpdated = new Date().toLocaleTimeString();
+
+      if (this.upstreams.length === 0) {
+        fetchUpstreams(signal).then((hosts) => {
+          if (!signal.aborted) this.upstreams = hosts;
+        }).catch(() => {});
+      }
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return;
       this.lastUpdated = null;
