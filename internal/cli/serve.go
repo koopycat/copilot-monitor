@@ -11,6 +11,7 @@ import (
 
 	"copilot-monitoring/dashboard"
 	"copilot-monitoring/internal/api"
+	"copilot-monitoring/internal/proxy"
 	"copilot-monitoring/internal/store"
 )
 
@@ -19,6 +20,7 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	addr := fs.String("addr", "127.0.0.1:7734", "HTTP listen address")
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
+	routesConfig := fs.String("routes-config", "", "optional JSON file with additional route definitions")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -30,8 +32,14 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	}
 	defer st.Close()
 
+	proxyCfg, err := proxy.LoadConfig(*routesConfig)
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to load routes config: %v\n", err)
+		return 1
+	}
+
 	mux := http.NewServeMux()
-	mux.Handle("/api/", api.NewHandler(st))
+	mux.Handle("/api/", api.NewHandlerWithConfig(st, proxyCfg))
 	mux.Handle("/", dashboard.Handler())
 
 	server := &http.Server{
