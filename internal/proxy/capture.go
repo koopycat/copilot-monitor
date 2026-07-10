@@ -7,7 +7,6 @@ import (
 
 type RequestMetadata struct {
 	Model     string
-	Provider  string
 	Stream    bool
 	HasStream bool
 }
@@ -35,9 +34,6 @@ func ParseRequestMetadata(body []byte) RequestMetadata {
 		meta.Model = model
 	} else if model, ok := findNestedModel(value); ok {
 		meta.Model = model
-	}
-	if provider, ok := findStringKey(value, "provider"); ok {
-		meta.Provider = provider
 	}
 	if stream, ok := findBoolKey(value, "stream"); ok {
 		meta.Stream = stream

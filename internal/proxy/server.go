@@ -76,12 +76,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	meta := ParseRequestMetadata(body)
 
-	provider := DetectProvider(r.Header.Get("Authorization"))
+	// Strip provider prefix from URL path
+	originalURI := r.URL.RequestURI()
+	provider, remainingPath := StripProviderPrefix(r.URL.Path)
+	if provider != "" {
+		r.URL.Path = remainingPath
+		if r.URL.RawPath != "" {
+			_, remainingRaw := StripProviderPrefix(r.URL.RawPath)
+			r.URL.RawPath = remainingRaw
+		}
+	}
 
 	// Route by path + model + provider
 	route, ok := h.router.MatchModel(r.URL.Path, meta.Model, provider)
 	if !ok {
-		h.log.Error("id=%d path=%q route=unknown status=502\n", id, r.URL.RequestURI())
+		h.log.Error("id=%d path=%q provider=%q route=unknown status=502\n", id, originalURI, provider)
 		http.Error(w, "unknown Copilot path", http.StatusBadGateway)
 		return
 	}

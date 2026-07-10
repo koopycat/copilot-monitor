@@ -11,6 +11,41 @@ const (
 	GitHubCopilotProxyHost = "copilot-proxy.githubusercontent.com"
 )
 
+// KnownProviders lists the recognized URL path prefixes for provider routing.
+var KnownProviders = map[string]bool{
+	"copilot": true,
+	"openai":  true,
+	"kilo":    true,
+}
+
+// StripProviderPrefix extracts a known provider prefix from the first path segment
+// and returns the provider name with the remaining path.
+// "/copilot/chat/completions" → ("copilot", "/chat/completions")
+// "/copilot" → ("copilot", "/")
+// "/unknown/path" → ("", "/unknown/path")
+func StripProviderPrefix(urlPath string) (provider, remaining string) {
+	if urlPath == "" || urlPath == "/" {
+		return "", urlPath
+	}
+	rest := strings.TrimPrefix(urlPath, "/")
+	idx := strings.Index(rest, "/")
+	var first string
+	if idx < 0 {
+		first = rest
+		rest = ""
+	} else {
+		first = rest[:idx]
+		rest = rest[idx:]
+	}
+	if KnownProviders[first] {
+		if rest == "" {
+			return first, "/"
+		}
+		return first, rest
+	}
+	return "", urlPath
+}
+
 type CaptureMode string
 
 const (
@@ -174,16 +209,17 @@ func NewRouter(cfg *ProxyConfig) *Router {
 
 // Match returns the Route for the given path, ignoring model fields.
 // This is used by combinedDashProxy in run.go for path-only matching.
-func (r *Router) Match(path string) (Route, bool) {
-	if route, ok := r.exactRoutes[path]; ok {
+func (r *Router) Match(urlPath string) (Route, bool) {
+	_, urlPath = StripProviderPrefix(urlPath)
+	if route, ok := r.exactRoutes[urlPath]; ok {
 		return route, true
 	}
 	for _, e := range r.entries {
-		if e.prefix != "" && strings.HasPrefix(path, e.prefix) {
+		if e.prefix != "" && strings.HasPrefix(urlPath, e.prefix) {
 			return e.route, true
 		}
 	}
-	return copilotRoutePath(path)
+	return copilotRoutePath(urlPath)
 }
 
 // MatchModel returns the Route for the given path and model.
