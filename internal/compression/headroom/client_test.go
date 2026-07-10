@@ -233,6 +233,11 @@ func TestClientHonorsCancellation(t *testing.T) {
 	started := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		close(started)
+		// Drain the request body so the connection is fully consumed.
+		// Without this, ctx cancellation does not propagate through the
+		// httptest transport: Do never returns and server.Close() deadlocks
+		// in cleanup, hanging the whole test binary.
+		_, _ = io.Copy(io.Discard, r.Body)
 		<-r.Context().Done()
 	}))
 	t.Cleanup(server.Close)
