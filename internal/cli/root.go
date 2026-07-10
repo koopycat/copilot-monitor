@@ -21,8 +21,6 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	case "version":
 		fmt.Fprintf(stdout, "copilot-monitor %s\n", version)
 		return 0
-	case "configure-vscode":
-		return runConfigure(args[1:], stdout, stderr)
 	case "run":
 		return runServer(args[1:], stdout, stderr)
 	case "stats":
@@ -51,7 +49,6 @@ func printUsage(w io.Writer) {
 
 Usage:
   copilot-monitor run [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path] [--routes-config path] [--headroom-url URL] [--headroom-timeout 30s] [--headroom-required] [--no-live] [--dashboard]
-  copilot-monitor configure-vscode [--addr 127.0.0.1:7733]
   copilot-monitor stats [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor today [--db path] [--project name] [--endpoint chat]
@@ -63,7 +60,6 @@ Usage:
 
 Commands:
   run               Start the local HTTP proxy listener (also shows a live session tail when stderr is a TTY).
-  configure-vscode  Print the VSCode settings JSON snippet.
   serve             Start the read-only HTTP API and dashboard.
   stats             Print captured usage grouped by model and endpoint.
   cost              Print estimated equivalent provider list-price cost.

@@ -137,7 +137,7 @@ Then start the proxy:
 And verify the local ping endpoint:
 
 ```sh
-curl http://127.0.0.1:7733/_ping
+curl http://127.0.0.1:7733/copilot/_ping
 ```
 
 Stop long-running processes with `Ctrl+C` when finished.
@@ -182,7 +182,7 @@ Configure pi to route its API calls through the proxy:
 **3. Start pi** with its base URL pointing at the proxy:
 
 ```sh
-KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi
+KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi
 ```
 
 Pi will now send all API requests through the proxy.
@@ -192,7 +192,7 @@ in the dashboard and CLI reports, just like Copilot traffic.
 ### Other tools (OpenAI, Anthropic, Ollama, etc.)
 
 The same pattern works for any tool that speaks OpenAI-compatible or
-Anthropic-compatible HTTP. Set the tool's base URL to `http://127.0.0.1:7733`
+Anthropic-compatible HTTP. Point your tool at the proxy using the appropriate path-prefix (e.g., `http://127.0.0.1:7733/copilot` for VSCode Copilot, `http://127.0.0.1:7733/openai/v1` for OpenAI-compatible tools, or `http://127.0.0.1:7733/kilo` for Kilo)
 and add the corresponding routes:
 
 ```json
@@ -258,7 +258,7 @@ Copilot Monitor's own database never stores request or response bodies.
 ./bin/copilot-monitor serve
 
 # Terminal 3 (or herdr pane): your tool pointing at the proxy
-KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi
+KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi
 ```
 
 ### Policy — Model Allow/Block
@@ -304,15 +304,6 @@ Requires [air](https://github.com/air-verse/air) (`go install github.com/air-ver
 Live dashboard URL: `http://127.0.0.1:7734/`
 The dashboard is a Svelte 5 app built with Vite and embedded in the Go binary. No runtime network access is needed for the dashboard itself — all assets are served locally.
 
-Print VSCode settings:
-
-```sh
-./bin/copilot-monitor configure-vscode
-```
-
-Then paste the output into VSCode's `settings.json`.
-Open it via **Cmd+Shift+P > Preferences: Open User Settings (JSON)**.
-
 Start the proxy:
 
 ```sh
@@ -322,12 +313,6 @@ Start the proxy:
 While the proxy runs, a live session tail refreshes every 2 seconds in your terminal: status, duration, request count, tokens, and estimated cost for the current session.
 When the tail is active, the per-request log is suppressed so the two streams do not interleave and corrupt the live display.
 Pass `--no-live` to disable the tail and keep the full request log (also useful when stderr is redirected to a log file).
-
-Reload VSCode:
-
-```text
-Cmd+Shift+P > Developer: Reload Window
-```
 
 Use Copilot normally. The proxy stores captured metadata and token counts in
 SQLite for routes configured for persistence; it does not store prompts,

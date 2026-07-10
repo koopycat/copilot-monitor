@@ -12,19 +12,19 @@ This document maps those requirements to the current implementation.
 ## Request Lifecycle
 
 1. A client (VS Code, pi agent, curl, etc.) sends API traffic to the local proxy started by `internal/cli/run.go`.
-2. `internal/proxy.Handler.ServeHTTP` assigns a request ID, records the start time, and routes the path through `internal/proxy.Router.Match`.
-3. `Router.Match` checks config-driven routes first (from `--routes-config`), then falls back to built-in Copilot routes. Config routes always take precedence over built-in routes for matching paths.
+2. `internal/proxy.Handler.ServeHTTP` assigns a request ID, records the start time, strips a known provider prefix (`/copilot`, `/openai`, `/kilo`) from the URL path via `StripProviderPrefix`, and routes the stripped path through `internal/proxy.Router.MatchModel` along with the detected provider name.
+3. `Router.MatchModel` checks config-driven routes first (from `--routes-config`) against the stripped path, with optional `provider` and `models` filters on each route entry. If no config route matches, it falls back to built-in Copilot routes via `copilotRoutePath` (only when the provider is empty or `"copilot"`). Config routes always take precedence over built-in routes for matching paths.
 4. `internal/proxy/forward.go` reads the request body only long enough to extract safe metadata such as `model` and `stream`.
 5. `internal/policy.Policy.Allow` evaluates the global model policy. When a request model matches a configured blocklist, the proxy returns HTTP 403 with a JSON error body, persists the blocked attempt, and never contacts the upstream.
 6. If `--headroom-url` is configured, eligible OpenAI-compatible chat requests are sent to the loopback Headroom `/v1/compress` endpoint after routing and policy checks. Only the model and supported messages are sent; provider headers and the rest of the request envelope stay in the proxy. A successful response replaces `messages` while preserving the other request fields. Compression is fail-open by default; `--headroom-required` returns HTTP 502 instead.
-7. The proxy builds an HTTPS upstream request from the final body. For Copilot routes the upstream is `api.githubcopilot.com` or `copilot-proxy.githubusercontent.com`. For config-driven routes the upstream is whatever host the config specifies, with an optional path prefix prepended. Strip hop-by-hop headers and disable compression so response usage can be observed.
+7. The proxy builds an HTTPS upstream request from the final body. Copilot clients may use either prefixed paths (e.g. `/copilot/chat/completions`) or bare paths (e.g. `/chat/completions`); the provider prefix is stripped before internal routing. For built-in Copilot routes the upstream is `api.githubcopilot.com` or `copilot-proxy.githubusercontent.com`. For config-driven routes the upstream is whatever host the config specifies, with an optional `upstream_path_prefix` prepended to the outgoing path. Strip hop-by-hop headers and disable compression so response usage can be observed.
 8. Responses are streamed back to the client as they arrive.
    For JSON and SSE responses, `internal/proxy/sse.go` watches chunks for `usage` and response `model` fields without retaining the full response.
 9. `internal/proxy/server.go` persists only metadata and token counts through `internal/store.InsertRequest` when the route is configured to capture.
    WebSocket traffic (Copilot `/responses`) is inspected frame-by-frame by `internal/proxy/websocket.go` for `response.create` (model) and `response.completed` (usage) events, and persisted the same way as HTTP completions.
 10. CLI reporting commands and the dashboard API read aggregate data from `internal/store`.
 
-Capture behavior is defined per route in `Router.Match` (config-driven) or `copilotRoutePath` (built-in):
+Capture behavior is defined per route in `Router.MatchModel` (config-driven, after provider-prefix stripping) or `copilotRoutePath` (built-in, reached on the stripped path):
 
 - `CaptureUsage`: persist only when usage tokens are found, for chat, agents, messages, completions, and WebSocket responses.
 - `CaptureMetadata`: persist request metadata without requiring usage, currently for embeddings.
@@ -78,7 +78,7 @@ When changing persisted data:
 
 ## Common Changes
 
-- Add or change a proxied route: for Copilot routes, edit `internal/proxy/router.go` (the `copilotRoutePath` switch). For configurable third-party routes, create or edit the JSON routes file passed to `--routes-config`.
+- Add or change a proxied route: for built-in Copilot routes, edit `internal/proxy/router.go` (the `copilotRoutePath` switch). These routes match after any known provider prefix (`/copilot`, `/openai`, `/kilo`) is stripped from the path. For configurable third-party routes, create or edit the JSON routes file passed to `--routes-config`. To add a new known provider prefix, edit `KnownProviders` and `StripProviderPrefix` in `router.go`.
 - Route definitions: `internal/proxy/config.go` (types and loader), `internal/proxy/router.go` (matching logic). Update router tests when changing matching behavior.
 - Change usage parsing: edit `internal/proxy/capture.go`, `internal/proxy/sse.go`, or `internal/proxy/websocket.go`, with tests beside the files.
 - Change pricing or model normalization: edit `internal/catalog/models.json`, `internal/catalog/catalog.go`, or `internal/cost/cost.go`.
