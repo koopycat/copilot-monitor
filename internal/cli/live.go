@@ -163,7 +163,12 @@ func renderLive(w io.Writer, current *store.CurrentSession, costResult costcalc.
 		fmt.Fprintf(w, "\nCompression: %s tokens removed\n", intComma(costResult.CompressionRemovedTokens))
 	}
 	if costResult.FallbackCount > 0 || costResult.NotBilledCount > 0 {
-		fmt.Fprintf(w, "\n* provider or generic fallback pricing used for %d row(s). Code-completion rows are not billed in AI credits.\n", costResult.FallbackCount)
+		if costResult.FallbackCount > 0 {
+			fmt.Fprintf(w, "\n* provider or generic fallback pricing used for %d row(s).\n", costResult.FallbackCount)
+		}
+		if costResult.NotBilledCount > 0 {
+			fmt.Fprintf(w, "%d row(s) are not billed (not_billed flag set in route config).\n", costResult.NotBilledCount)
+		}
 	}
 }
 

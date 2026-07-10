@@ -1,6 +1,8 @@
 package cost
 
 import (
+	"strings"
+
 	"llm-proxy/internal/catalog"
 	"llm-proxy/internal/store"
 )
@@ -49,31 +51,37 @@ func Calculate(stats []store.ModelStats, catalog catalog.Catalog) Total {
 	var total Total
 	for _, stat := range stats {
 		lookup := catalog.Lookup(stat.Model)
+		// If the model isn't in the catalog and we have a provider hint,
+		// try the provider-specific fallback pricing.
+		pricing := lookup.Pricing
+		if lookup.Fallback && stat.Provider != "" {
+			if pf, ok := catalog.ProviderFallbacks[strings.ToLower(stat.Provider)]; ok {
+				pricing = pf
+			}
+		}
 		row := Row{
-			Model:                    stat.Model,
-			Endpoint:                 stat.Endpoint,
-			UpstreamHost:             stat.UpstreamHost,
-			Provider:                 lookup.Pricing.Provider,
-			Requests:                 stat.Requests,
-			PromptTokens:             stat.PromptTokens,
-			CachedInputTokens:        stat.CachedInputTokens,
-			CacheWriteTokens:         stat.CacheWriteTokens,
-			CompletionTokens:         stat.CompletionTokens,
-			TotalTokens:              stat.TotalTokens,
-			Fallback:                 lookup.Fallback,
-			NotBilled:                isNotBilledEndpoint(stat.Endpoint),
-			CompressedRequests:       stat.CompressedRequests,
-			CompressionRemovedTokens: stat.CompressionRemovedTokens,
+			Model:             stat.Model,
+			Endpoint:          stat.Endpoint,
+			UpstreamHost:      stat.UpstreamHost,
+			Provider:          stat.Provider,
+			Requests:          stat.Requests,
+			PromptTokens:      stat.PromptTokens,
+			CachedInputTokens: stat.CachedInputTokens,
+			CacheWriteTokens:  stat.CacheWriteTokens,
+			CompletionTokens:  stat.CompletionTokens,
+			TotalTokens:       stat.TotalTokens,
+			Fallback:          lookup.Fallback,
+			NotBilled:         stat.NotBilled,
 		}
 		if !row.NotBilled {
 			regularInputTokens := stat.PromptTokens - stat.CachedInputTokens
 			if regularInputTokens < 0 {
 				regularInputTokens = 0
 			}
-			row.InputUSD = costForTokens(regularInputTokens, lookup.Pricing.InputPerM)
-			row.CachedInputUSD = costForTokens(stat.CachedInputTokens, lookup.Pricing.CachedInputPerM)
-			row.CacheWriteUSD = costForTokens(stat.CacheWriteTokens, lookup.Pricing.CacheWritePerM)
-			row.OutputUSD = costForTokens(stat.CompletionTokens, lookup.Pricing.OutputPerM)
+			row.InputUSD = costForTokens(regularInputTokens, pricing.InputPerM)
+			row.CachedInputUSD = costForTokens(stat.CachedInputTokens, pricing.CachedInputPerM)
+			row.CacheWriteUSD = costForTokens(stat.CacheWriteTokens, pricing.CacheWritePerM)
+			row.OutputUSD = costForTokens(stat.CompletionTokens, pricing.OutputPerM)
 			row.TotalUSD = row.InputUSD + row.CachedInputUSD + row.CacheWriteUSD + row.OutputUSD
 		}
 		total.Rows = append(total.Rows, row)
@@ -97,10 +105,6 @@ func Calculate(stats []store.ModelStats, catalog catalog.Catalog) Total {
 		}
 	}
 	return total
-}
-
-func isNotBilledEndpoint(endpoint string) bool {
-	return endpoint == "completions"
 }
 
 func costForTokens(tokens int, perMillion float64) float64 {

@@ -97,12 +97,6 @@ func (c Catalog) Lookup(model string) LookupResult {
 	if pricing, ok := c.Models[normalized]; ok {
 		return LookupResult{Model: normalized, Pricing: pricing}
 	}
-	provider := inferProvider(normalized)
-	if provider != "" {
-		if pricing, ok := c.ProviderFallbacks[provider]; ok {
-			return LookupResult{Model: normalized, Pricing: pricing, Fallback: true}
-		}
-	}
 	return LookupResult{Model: normalized, Pricing: c.Fallback, Fallback: true}
 }
 
@@ -116,23 +110,4 @@ func normalizeModel(model string) string {
 	model = strings.ReplaceAll(model, " ", "-")
 	model = strings.ReplaceAll(model, "_", "-")
 	return model
-}
-
-func inferProvider(model string) string {
-	switch {
-	case strings.Contains(model, "claude"):
-		return "anthropic"
-	case strings.HasPrefix(model, "gpt-") || strings.HasPrefix(model, "o1-") || strings.HasPrefix(model, "o3-") || strings.HasPrefix(model, "o4-"):
-		return "openai"
-	case strings.Contains(model, "gemini"):
-		return "google"
-	case strings.Contains(model, "raptor"):
-		return "github"
-	case strings.Contains(model, "deepseek"):
-		return "deepseek"
-	case strings.HasPrefix(model, "mai-"):
-		return "microsoft"
-	default:
-		return ""
-	}
 }

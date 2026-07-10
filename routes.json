@@ -6,7 +6,8 @@
       "upstream_path_prefix": "/api/gateway",
       "capture": "usage",
       "label": "chat",
-      "models": ["*/*"]
+      "models": ["*/*"],
+      "provider": "kilo"
     },
     {
       "path": "/chat/completions",
@@ -14,7 +15,8 @@
       "upstream_path_prefix": "/api/gateway",
       "capture": "usage",
       "label": "chat",
-      "models": ["*/*"]
+      "models": ["*/*"],
+      "provider": "kilo"
     }
   ]
 }

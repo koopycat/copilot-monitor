@@ -16,6 +16,8 @@ type RouteConfig struct {
 	Capture            string   `json:"capture"`
 	PrefixMatch        bool     `json:"prefix_match,omitempty"`
 	Models             []string `json:"models,omitempty"`
+	NotBilled          bool     `json:"not_billed,omitempty"`
+	Provider           string   `json:"provider,omitempty"`
 }
 
 type ProxyConfig struct {
@@ -67,6 +69,10 @@ func (c *ProxyConfig) Validate() error {
 				return fmt.Errorf("route %d (%q): models[%d] must not be empty", i, rc.Path, j)
 			}
 			rc.Models[j] = m
+		}
+
+		if rc.Provider != "" && strings.TrimSpace(rc.Provider) == "" {
+			return fmt.Errorf("route %d (%q): provider must not be empty if set", i, rc.Path)
 		}
 
 		switch rc.Capture {

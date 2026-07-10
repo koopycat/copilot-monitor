@@ -221,11 +221,8 @@ SELECT
   COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
   COALESCE(SUM(total_tokens), 0) AS total_tokens,
   COALESCE(AVG(latency_ms), 0) AS avg_latency_ms,
-  COUNT(CASE WHEN compression_status IN ('applied', 'no_change') THEN 1 END) AS compressed_requests,
-  COALESCE(SUM(compression_original_tokens), 0) AS compression_original_tokens,
-  COALESCE(SUM(compression_final_tokens), 0) AS compression_final_tokens,
-  COALESCE(SUM(compression_original_tokens - compression_final_tokens), 0) AS compression_removed_tokens,
-  COALESCE(AVG(NULLIF(compression_final_tokens, 0) * 1.0 / compression_original_tokens), 0) AS avg_compression_ratio
+  MAX(not_billed) AS not_billed,
+  COALESCE(NULLIF(MAX(provider), ''), '') AS provider
 FROM requests
 WHERE session_id = ?
 GROUP BY model, endpoint, upstream_host

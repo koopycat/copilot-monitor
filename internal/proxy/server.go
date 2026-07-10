@@ -272,6 +272,8 @@ func (h *Handler) persistBlockedRequest(ctx context.Context, ts time.Time, route
 		Status:       403,
 		LatencyMS:    0,
 		Project:      h.project,
+		NotBilled:    route.NotBilled,
+		Provider:     route.Provider,
 	}); err != nil {
 		h.log.Warn("store_error=%q\n", err.Error())
 	}
@@ -296,25 +298,23 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 		usage = observer.Usage
 	}
 	if err := h.store.InsertRequest(ctx, store.RequestRecord{
-		Timestamp:                 ts,
-		Endpoint:                  string(route.Endpoint),
-		Method:                    r.Method,
-		Path:                      r.URL.RequestURI(),
-		UpstreamHost:              route.Upstream,
-		Model:                     model,
-		Stream:                    meta.Stream,
-		Status:                    status,
-		LatencyMS:                 latencyMS,
-		PromptTokens:              usage.PromptTokens,
-		CachedInputTokens:         usage.CachedInputTokens,
-		CacheWriteTokens:          usage.CacheWriteTokens,
-		CompletionTokens:          usage.CompletionTokens,
-		TotalTokens:               usage.TotalTokens,
-		Project:                   h.project,
-		CompressionStatus:         compMeta.Status,
-		CompressionOriginalTokens: compMeta.OriginalTokens,
-		CompressionFinalTokens:    compMeta.FinalTokens,
-		CompressionLatencyMS:      compMeta.LatencyMS,
+		Timestamp:         ts,
+		Endpoint:          string(route.Endpoint),
+		Method:            r.Method,
+		Path:              r.URL.RequestURI(),
+		UpstreamHost:      route.Upstream,
+		Model:             model,
+		Stream:            meta.Stream,
+		Status:            status,
+		LatencyMS:         latencyMS,
+		PromptTokens:      usage.PromptTokens,
+		CachedInputTokens: usage.CachedInputTokens,
+		CacheWriteTokens:  usage.CacheWriteTokens,
+		CompletionTokens:  usage.CompletionTokens,
+		TotalTokens:       usage.TotalTokens,
+		Project:           h.project,
+		NotBilled:         route.NotBilled,
+		Provider:          route.Provider,
 	}); err != nil {
 		h.log.Warn("store_error=%q\n", err.Error())
 	}
