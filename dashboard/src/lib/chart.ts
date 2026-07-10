@@ -48,13 +48,10 @@ export function drawChart(
     return;
   }
 
-  const value = (d: TimelineEntry): number =>
-    metric === 'requests' ? d.requests : d.total_tokens;
+  const value = (d: TimelineEntry): number => (metric === 'requests' ? d.requests : d.total_tokens);
 
   const dateKey = (d: TimelineEntry): string =>
-    granularity === 'hour'
-      ? `${d.date}|${String(d.hour ?? 0).padStart(2, '0')}`
-      : d.date;
+    granularity === 'hour' ? `${d.date}|${String(d.hour ?? 0).padStart(2, '0')}` : d.date;
 
   const dates = [...new Set(data.map(dateKey))].sort();
   const models = [...new Set(data.map((d) => d.model))].sort();
@@ -78,7 +75,7 @@ export function drawChart(
   if (chartW <= 0) return;
 
   const barW = Math.max(3, Math.min(24, (chartW / dates.length) * 0.75));
-  const gap = Math.max(1, (chartW / dates.length) - barW);
+  const gap = Math.max(1, chartW / dates.length - barW);
   const stacked = new Map<string, number>(dates.map((d) => [d, 0]));
 
   for (let i = 0; i < models.length; i++) {
@@ -116,8 +113,7 @@ export function drawChart(
   ctx.textBaseline = 'middle';
   const ticks = 4;
   const tickStep = Math.max(1, Math.round(maxValue / ticks));
-  const formatTick = (v: number): string =>
-    v >= 1000 ? `${Math.round(v / 1000)}k` : String(v);
+  const formatTick = (v: number): string => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v));
 
   for (let v = 0; v <= maxValue; v += tickStep) {
     const y = h - bottom - (v / maxValue) * chartH;

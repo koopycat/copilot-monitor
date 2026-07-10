@@ -4,7 +4,7 @@ on:
   push:
   pull_request:
   schedule:
-    - cron: "0 8 * * 1" # weekly on Monday
+    - cron: '0 8 * * 1' # weekly on Monday
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

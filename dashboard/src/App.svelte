@@ -20,7 +20,11 @@
   <button class="refresh-btn" onclick={() => dashboard.load()} title="Refresh now">↻</button>
 </h1>
 
-<PeriodBar periods={dashboard.periods} active={dashboard.period} onchange={(v) => dashboard.switchPeriod(v as typeof dashboard.period)} />
+<PeriodBar
+  periods={dashboard.periods}
+  active={dashboard.period}
+  onchange={(v) => dashboard.switchPeriod(v as typeof dashboard.period)}
+/>
 
 <p class="subtitle">
   {#if dashboard.lastUpdated}Updated {dashboard.lastUpdated}{:else}Loading…{/if}
@@ -34,19 +38,28 @@
 <div class="row">
   <MetricCard value={costText} label={`est. AI-credit cost, ${dashboard.periodLabel}`} />
   <MetricCard value={dashboard.projectedText} label="projected this month" />
-  <MetricCard value={dashboard.totalRequests.toLocaleString()} label={`requests, ${dashboard.periodLabel}`} />
+  <MetricCard
+    value={dashboard.totalRequests.toLocaleString()}
+    label={`requests, ${dashboard.periodLabel}`}
+  />
   <LiveSessionCard />
 </div>
 
 <h2>
   Usage
   <ToggleGroup
-    options={[{ value: 'day', label: 'Day' }, { value: 'hour', label: 'Hour' }]}
+    options={[
+      { value: 'day', label: 'Day' },
+      { value: 'hour', label: 'Hour' },
+    ]}
     active={dashboard.gran}
     onchange={(v) => dashboard.switchGran(v as typeof dashboard.gran)}
   />
   <ToggleGroup
-    options={[{ value: 'tokens', label: 'Tokens' }, { value: 'requests', label: 'Requests' }]}
+    options={[
+      { value: 'tokens', label: 'Tokens' },
+      { value: 'requests', label: 'Requests' },
+    ]}
     active={dashboard.metric}
     onchange={(v) => dashboard.switchMetric(v as typeof dashboard.metric)}
   />

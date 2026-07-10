@@ -1,14 +1,14 @@
 # Lightweight Proxy Pipelines: Architecture & Design
 
-> Synthesized from three research streams: proxy pipeline architectures, LLM proxy
-> landscape, and composable middleware patterns. July 2026.
+> Synthesized from three research streams: proxy pipeline architectures, LLM
+> proxy landscape, and composable middleware patterns. July 2026.
 
 ## 1. The Problem
 
 ### 1.1 What we have
 
-Copilot Monitor is a Go reverse proxy with a **monolithic `Handler.ServeHTTP`** that does
-everything inline:
+Copilot Monitor is a Go reverse proxy with a **monolithic `Handler.ServeHTTP`**
+that does everything inline:
 
 ```
 ServeHTTP (server.go)
@@ -22,18 +22,19 @@ ServeHTTP (server.go)
   └─ persistRequest (inline call)
 ```
 
-This works. It's a single binary at ~15MB RSS. It handles HTTP, SSE, and WebSocket.
-It's well-factored into helper files (`capture.go`, `sse.go`, `websocket.go`, `forward.go`,
-`router.go`). The concerns are separated at the file level, but the **control flow is locked
-in the handler body**.
+This works. It's a single binary at ~15MB RSS. It handles HTTP, SSE, and
+WebSocket. It's well-factored into helper files (`capture.go`, `sse.go`,
+`websocket.go`, `forward.go`, `router.go`). The concerns are separated at the
+file level, but the **control flow is locked in the handler body**.
 
 ### 1.2 What we want
 
-The ability to compose proxy behaviors — observation, compression, policy, routing — into a
-**pipeline** that can be assembled from config or code, without running multiple full proxy
-processes. The pipeline should:
+The ability to compose proxy behaviors — observation, compression, policy,
+routing — into a **pipeline** that can be assembled from config or code, without
+running multiple full proxy processes. The pipeline should:
 
-1. **Compose behaviors** — add/remove/reorder stages without touching the core handler
+1. **Compose behaviors** — add/remove/reorder stages without touching the core
+   handler
 2. **Stay lightweight** — single binary, low memory, fast startup, loopback-only
 3. **Handle streaming** — SSE responses, WebSocket frames
 4. **Preserve privacy** — no prompts, completions, or auth material in logs/db
@@ -41,9 +42,11 @@ processes. The pipeline should:
 
 ### 1.3 The immediate use case
 
-The [Headroom integration analysis](./headroom-integration-analysis.md) identified that
-running two full proxies in sequence (Headroom + Copilot Monitor) works but adds operational
-complexity. A pipeline architecture would let a single proxy run multiple stages:
+The [Headroom integration analysis](./headroom-integration-analysis.md)
+identified that running two full proxies in sequence (Headroom + Copilot
+Monitor) works but adds operational complexity. A pipeline architecture would
+let a single proxy run multiple stages:
+
 ```
 Tool → [Route] → [Policy] → [Compress] → [Observe] → [Forward] → LLM API
 ```
@@ -54,17 +57,18 @@ Tool → [Route] → [Policy] → [Compress] → [Observe] → [Forward] → LLM
 
 Every mature LLM proxy uses some form of **hook/middleware chain**:
 
-| Project | Pattern | Interface |
-|---|---|---|
-| **LiteLLM** | `CustomLogger` subclass with lifecycle hooks | `async_pre_call_hook`, `async_post_call_failure_hook` |
-| **mitmproxy** | Addon system with event hooks | `request(flow)`, `response(flow)`, `websocket_message(flow)` |
-| **Helicone** | Worker-based async logging pipeline | Message queue pattern, async post-processing |
-| **Portkey** | Config-driven guardrails + transformations | Declarative config attached to client |
-| **GoModel** | Hardcoded pipeline with provider adapters | Config-driven routing, no hook system |
-| **Copilot Monitor** | Hardcoded pipeline (current) | Inline stages in `ServeHTTP` |
+| Project             | Pattern                                      | Interface                                                    |
+| ------------------- | -------------------------------------------- | ------------------------------------------------------------ |
+| **LiteLLM**         | `CustomLogger` subclass with lifecycle hooks | `async_pre_call_hook`, `async_post_call_failure_hook`        |
+| **mitmproxy**       | Addon system with event hooks                | `request(flow)`, `response(flow)`, `websocket_message(flow)` |
+| **Helicone**        | Worker-based async logging pipeline          | Message queue pattern, async post-processing                 |
+| **Portkey**         | Config-driven guardrails + transformations   | Declarative config attached to client                        |
+| **GoModel**         | Hardcoded pipeline with provider adapters    | Config-driven routing, no hook system                        |
+| **Copilot Monitor** | Hardcoded pipeline (current)                 | Inline stages in `ServeHTTP`                                 |
 
-The **lifecycle hook model** is proven: define clear lifecycle points, let plugins register
-for them, keep ordering explicit. Every successful proxy in the space converges on this.
+The **lifecycle hook model** is proven: define clear lifecycle points, let
+plugins register for them, keep ordering explicit. Every successful proxy in the
+space converges on this.
 
 ### 2.2 Go middleware patterns (and their proxy limitations)
 
@@ -83,14 +87,16 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 **Why this doesn't work well for proxy pipelines:**
 
-1. **`http.Handler` returns void** — no way to inspect the response after the inner handler
-   writes it. You must wrap `http.ResponseWriter`, which is awkward for streaming.
-2. **No explicit "response phase"** — the "post-upstream" work happens in a wrapped writer
-   or a deferred function. This is fragile and hard to test.
-3. **No shared context** — state between middleware must go through `context.Context` or
-   closures. This works but is implicit.
-4. **SSE streaming** — a wrapped `ResponseWriter` sees raw bytes, not parsed SSE events.
-   You need to re-parse the stream, which is what `SSEObserver` already does.
+1. **`http.Handler` returns void** — no way to inspect the response after the
+   inner handler writes it. You must wrap `http.ResponseWriter`, which is
+   awkward for streaming.
+2. **No explicit "response phase"** — the "post-upstream" work happens in a
+   wrapped writer or a deferred function. This is fragile and hard to test.
+3. **No shared context** — state between middleware must go through
+   `context.Context` or closures. This works but is implicit.
+4. **SSE streaming** — a wrapped `ResponseWriter` sees raw bytes, not parsed SSE
+   events. You need to re-parse the stream, which is what `SSEObserver` already
+   does.
 
 **The better pattern for proxies: explicit pre/post phases**
 
@@ -105,14 +111,18 @@ type Stage interface {
 }
 ```
 
-This is what all the successful patterns converge to. It separates the "in" and "out" phases
-and gives each stage access to both the request context and the response.
+This is what all the successful patterns converge to. It separates the "in" and
+"out" phases and gives each stage access to both the request context and the
+response.
 
 ### 2.3 The Envoy model: the gold standard (but complex)
 
 Envoy's HTTP filter chain is the most expressive pattern, with:
-- **Dual callbacks**: `decodeHeaders` → `decodeData` → `encodeHeaders` → `encodeData`
-- **Return codes**: `Continue`, `Stop`, `StopAndBuffer`, `StopAndBufferWatermark`
+
+- **Dual callbacks**: `decodeHeaders` → `decodeData` → `encodeHeaders` →
+  `encodeData`
+- **Return codes**: `Continue`, `Stop`, `StopAndBuffer`,
+  `StopAndBufferWatermark`
 - **Shared context**: `StreamInfo` carries per-request metadata
 - **Buffer control**: Filters can pause the stream, buffer the body, then resume
 
@@ -121,11 +131,13 @@ Request  → [Filter1.decode] → [Filter2.decode] → [Filter3.decode] → Upst
 Response ← [Filter1.encode] ← [Filter2.encode] ← [Filter3.encode] ← Upstream
 ```
 
-This is the right model for a proxy that *transforms* bodies (compression, format conversion,
-content filtering). But it **requires buffering** for body-aware transformations, which adds
-latency and memory. For Copilot Monitor's current observation-only needs, it's overkill.
+This is the right model for a proxy that _transforms_ bodies (compression,
+format conversion, content filtering). But it **requires buffering** for
+body-aware transformations, which adds latency and memory. For Copilot Monitor's
+current observation-only needs, it's overkill.
 
 **When to adopt the Envoy model:**
+
 - You need to transform request/response bodies (compression, format conversion)
 - You need streaming body modification (not just observation)
 - You need fine-grained buffer control
@@ -133,7 +145,8 @@ latency and memory. For Copilot Monitor's current observation-only needs, it's o
 
 ### 2.4 The Tower model: Rust's answer (inspirational)
 
-Rust's Tower framework uses two traits that are worth understanding even for Go design:
+Rust's Tower framework uses two traits that are worth understanding even for Go
+design:
 
 ```rust
 // Service: the actual request processor
@@ -158,8 +171,9 @@ pub trait Layer<S> {
 - Each `Service` wraps the inner `Service` (onion model)
 - Types are fully resolved at compile time (zero-cost abstraction)
 
-A Layer can create a new Service instance per request if needed (e.g., each request gets
-its own timing span). This is more elegant than inline setup in each middleware.
+A Layer can create a new Service instance per request if needed (e.g., each
+request gets its own timing span). This is more elegant than inline setup in
+each middleware.
 
 **Go adaptation:**
 
@@ -176,31 +190,33 @@ type Middleware interface {
 }
 ```
 
-This gives a clean startup-time assembly phase where middleware can initialize (open DB
-connections, load config, start background workers) and then produce a per-request Service.
+This gives a clean startup-time assembly phase where middleware can initialize
+(open DB connections, load config, start background workers) and then produce a
+per-request Service.
 
 ### 2.5 What "lightweight" means quantitatively
 
 From the research, a lightweight proxy pipeline should meet these targets:
 
-| Metric | Lightweight target | What we have now |
-|---|---|---|
-| Resident memory | <50 MB | ~15 MB |
-| Startup time | <100 ms | <50 ms |
+| Metric            | Lightweight target             | What we have now      |
+| ----------------- | ------------------------------ | --------------------- |
+| Resident memory   | <50 MB                         | ~15 MB                |
+| Startup time      | <100 ms                        | <50 ms                |
 | Per-stage latency | <100 μs (sync) / <1 ms (async) | ~10 μs (inline calls) |
-| Dependencies | stdlib + SQLite driver | stdlib + go-sqlite3 |
-| Binary size | <20 MB | ~12 MB |
-| Config | 1 file or env vars | 1 routes.json + flags |
-| Process count | 1 | 2 (proxy + dashboard) |
+| Dependencies      | stdlib + SQLite driver         | stdlib + go-sqlite3   |
+| Binary size       | <20 MB                         | ~12 MB                |
+| Config            | 1 file or env vars             | 1 routes.json + flags |
+| Process count     | 1                              | 2 (proxy + dashboard) |
 
-Copilot Monitor already meets or exceeds all lightweight targets. Adding a pipeline
-architecture should maintain this profile.
+Copilot Monitor already meets or exceeds all lightweight targets. Adding a
+pipeline architecture should maintain this profile.
 
 ## 3. Design: The Proxy Pipeline Architecture
 
 ### 3.1 Core concept
 
 A **proxy pipeline** is an ordered sequence of stages. Each stage can:
+
 1. **Continue**: pass the request to the next stage
 2. **Short-circuit**: return a response immediately (e.g., 403 policy block)
 3. **Fail**: return an error
@@ -333,6 +349,7 @@ func (p *Pipeline) runAfter(ctx context.Context, req *ProxyRequest, stopAt Stage
 ### 3.4 Built-in stages
 
 #### RoutingStage
+
 ```go
 type RoutingStage struct {
     router *Router
@@ -357,6 +374,7 @@ func (s *RoutingStage) After(ctx context.Context, req *ProxyRequest, resp *Proxy
 ```
 
 #### PolicyStage
+
 ```go
 type PolicyStage struct {
     store *store.Store
@@ -386,6 +404,7 @@ func (s *PolicyStage) After(ctx context.Context, req *ProxyRequest, resp *ProxyR
 ```
 
 #### ForwardStage
+
 ```go
 type ForwardStage struct {
     client  *http.Client
@@ -402,12 +421,13 @@ func (s *ForwardStage) Before(ctx context.Context, req *ProxyRequest) (*ProxyRes
 }
 ```
 
-**Design note:** The upstream call itself is not a Stage — it's the `upstream` function
-passed to `NewPipeline`. This keeps the Stage interface clean (stages observe, don't
-execute the core proxy behavior). The ForwardStage would be a thin wrapper that
-makes the HTTP call.
+**Design note:** The upstream call itself is not a Stage — it's the `upstream`
+function passed to `NewPipeline`. This keeps the Stage interface clean (stages
+observe, don't execute the core proxy behavior). The ForwardStage would be a
+thin wrapper that makes the HTTP call.
 
 #### CaptureStage
+
 ```go
 type CaptureStage struct {
     store *store.Store
@@ -493,15 +513,16 @@ func (p *Pipeline) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-**Streaming challenge:** The current pipeline model returns a complete `*ProxyResponse`.
-For streaming responses (SSE, large bodies), we need the response to arrive as chunks.
-This requires either:
+**Streaming challenge:** The current pipeline model returns a complete
+`*ProxyResponse`. For streaming responses (SSE, large bodies), we need the
+response to arrive as chunks. This requires either:
+
 1. **Buffering the full response** (simple but memory-hungry)
 2. **Making ProxyResponse.Body a stream** and passing it through stages
 3. **Keeping the current observer pattern** (inline observation during stream)
 
-For Copilot Monitor's current observation-only needs, option 3 is the right choice.
-The `After` callback should receive a stream, not a complete body.
+For Copilot Monitor's current observation-only needs, option 3 is the right
+choice. The `After` callback should receive a stream, not a complete body.
 
 ### 3.7 Streaming-aware variant
 
@@ -577,16 +598,19 @@ func (p *Pipeline) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 ### 3.9 Configuration-driven pipelines
 
-The pipeline can be assembled from config, not hardcoded. This is the bridge
-to the Headroom integration use case:
+The pipeline can be assembled from config, not hardcoded. This is the bridge to
+the Headroom integration use case:
 
 ```json
 {
   "pipeline": {
     "stages": [
-      {"type": "routing", "routes_config": "routes.json"},
-      {"type": "policy"},
-      {"type": "capture", "db_path": "~/.local/share/copilot-monitor/store.db"}
+      { "type": "routing", "routes_config": "routes.json" },
+      { "type": "policy" },
+      {
+        "type": "capture",
+        "db_path": "~/.local/share/copilot-monitor/store.db"
+      }
     ]
   }
 }
@@ -610,8 +634,8 @@ pipeline := builder.Build()
 
 ### 4.1 The current problem
 
-Today, to get both compression (Headroom) and observability (Copilot Monitor), you run
-two full proxy processes:
+Today, to get both compression (Headroom) and observability (Copilot Monitor),
+you run two full proxy processes:
 
 ```
 Tool → copilot-monitor:7733 → headroom:8787 → LLM API
@@ -633,8 +657,8 @@ Tool → copilot-monitor:7733
          └─ Client ← response
 ```
 
-But this still has Headroom as a separate process. The **ideal** integration would be
-Headroom running as a **pipeline stage within the same process**:
+But this still has Headroom as a separate process. The **ideal** integration
+would be Headroom running as a **pipeline stage within the same process**:
 
 ```
 Tool → copilot-monitor:7733
@@ -646,21 +670,21 @@ Tool → copilot-monitor:7733
          └─ Client ← response
 ```
 
-This requires Headroom's compression logic to be callable as a Go library, which it
-currently is not (it's Python). Options:
+This requires Headroom's compression logic to be callable as a Go library, which
+it currently is not (it's Python). Options:
 
-| Option | Latency | Complexity | Feasibility |
-|---|---|---|---|
-| **Unix socket callout**: Go proxy calls Headroom via Unix socket | +100μs | Medium | Today |
-| **Headroom as sidecar**: Headroom runs as a small process, proxy calls it per-request | +500μs | Low | Today |
-| **WASM plugin**: Compile Headroom's compression to WASM, run in Go | +50μs | High | Research required |
-| **Go port of compression**: Rewrite SmartCrusher/CodeCompressor in Go | +10μs | Very high | Not practical |
-| **CGo bridge**: Call Python from Go via CGo | +200μs | High | Brittle |
+| Option                                                                                | Latency | Complexity | Feasibility       |
+| ------------------------------------------------------------------------------------- | ------- | ---------- | ----------------- |
+| **Unix socket callout**: Go proxy calls Headroom via Unix socket                      | +100μs  | Medium     | Today             |
+| **Headroom as sidecar**: Headroom runs as a small process, proxy calls it per-request | +500μs  | Low        | Today             |
+| **WASM plugin**: Compile Headroom's compression to WASM, run in Go                    | +50μs   | High       | Research required |
+| **Go port of compression**: Rewrite SmartCrusher/CodeCompressor in Go                 | +10μs   | Very high  | Not practical     |
+| **CGo bridge**: Call Python from Go via CGo                                           | +200μs  | High       | Brittle           |
 
-**Recommendation:** The Unix socket callout pattern is the pragmatic choice. Headroom
-exposes a small HTTP service on a Unix socket. The CompressStage calls it for
-compression. This keeps Headroom's Python ecosystem intact while adding minimal latency
-(~100μs on loopback Unix socket).
+**Recommendation:** The Unix socket callout pattern is the pragmatic choice.
+Headroom exposes a small HTTP service on a Unix socket. The CompressStage calls
+it for compression. This keeps Headroom's Python ecosystem intact while adding
+minimal latency (~100μs on loopback Unix socket).
 
 ### 4.3 The CompressStage
 
@@ -698,56 +722,73 @@ func (s *CompressStage) Before(ctx context.Context, req *ProxyRequest) (*ProxyRe
 ## 5. Comparison of Pipeline Approaches
 
 ### 5.1 `http.Handler` wrapping (Alice/chi)
+
 ```
 func(http.Handler) http.Handler
 ```
+
 - **Pro**: Standard Go, easy to adopt, works with existing routers
-- **Con**: No explicit response phase, must wrap ResponseWriter, awkward for streaming
+- **Con**: No explicit response phase, must wrap ResponseWriter, awkward for
+  streaming
 - **Best for**: Simple middleware (logging, auth, CORS)
 - **Not for**: Proxy pipelines with post-upstream observation
 
 ### 5.2 Explicit Stage interface (recommended)
+
 ```
 Stage { Before(); After() }
 ```
-- **Pro**: Clear pre/post phases, testable, composable, streaming-aware variant possible
+
+- **Pro**: Clear pre/post phases, testable, composable, streaming-aware variant
+  possible
 - **Con**: Custom interface, not standard Go middleware
-- **Best for**: Proxy pipelines with distinct pre-upstream and post-upstream work
+- **Best for**: Proxy pipelines with distinct pre-upstream and post-upstream
+  work
 - **This is the recommended approach for Copilot Monitor**
 
 ### 5.3 Envoy-style filter chain
+
 ```
 Filter { decodeHeaders(); decodeData(); encodeHeaders(); encodeData() }
 ```
+
 - **Pro**: Maximum control, streaming body transformation, buffer control
-- **Con**: Complex, overkill for observation-only, requires buffering architecture
+- **Con**: Complex, overkill for observation-only, requires buffering
+  architecture
 - **Best for**: Proxies that transform bodies (compression, format conversion)
 - **Adopt when**: You need to modify streaming bodies inline
 
 ### 5.4 Tower-style Service + Layer
+
 ```
 Service { call(Request) → Future<Response> }
 Layer { layer(Service) → Service }
 ```
+
 - **Pro**: Type-safe, zero-cost, factory/instance separation
-- **Con**: Requires generics for Go approximation, unfamiliar to most Go developers
-- **Best for**: When you need per-request service instantiation (tracing spans, etc.)
+- **Con**: Requires generics for Go approximation, unfamiliar to most Go
+  developers
+- **Best for**: When you need per-request service instantiation (tracing spans,
+  etc.)
 
 ### 5.5 MaaS (Middleware as a Service)
+
 ```
 Proxy → HTTP/Unix socket → External service → Proxy
 ```
+
 - **Pro**: Language independence, failure isolation, independent scaling
 - **Con**: Serialization overhead, operational complexity, network dependency
-- **Best for**: Stages with heavy dependencies (ML, Python) or independent lifecycles
+- **Best for**: Stages with heavy dependencies (ML, Python) or independent
+  lifecycles
 - **Use sparingly**: Only when a stage can't run in-process
 
 ## 6. Migration Path
 
 ### Phase 1: Extract stages from the monolith (no interface change)
 
-Extract the existing inline logic into named functions/stages without changing the
-handler's external behavior:
+Extract the existing inline logic into named functions/stages without changing
+the handler's external behavior:
 
 ```go
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -794,10 +835,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 ```
 
 This is already well-factored. The change is extracting `checkPolicy()` and
-`persistRequest()` into named methods, which is done. The key insight from
-this research: **don't add a pipeline interface until you have a second
-pipeline configuration to support**. The current monolithic handler with
-well-named helper methods is the right architecture for today.
+`persistRequest()` into named methods, which is done. The key insight from this
+research: **don't add a pipeline interface until you have a second pipeline
+configuration to support**. The current monolithic handler with well-named
+helper methods is the right architecture for today.
 
 ### Phase 2: Add the Stage interface (when needed)
 
@@ -816,10 +857,10 @@ in which order. This enables:
 {
   "pipeline": {
     "stages": [
-      {"type": "routing"},
-      {"type": "policy"},
-      {"type": "compress", "socket": "/tmp/headroom-compress.sock"},
-      {"type": "capture"}
+      { "type": "routing" },
+      { "type": "policy" },
+      { "type": "compress", "socket": "/tmp/headroom-compress.sock" },
+      { "type": "capture" }
     ]
   }
 }
@@ -828,8 +869,8 @@ in which order. This enables:
 ### Phase 4: External stage services (distant future)
 
 When stages need independent lifecycles (e.g., ML-based content filtering in
-Python), support Unix socket callouts. This should be an escape hatch, not
-the default — in-process stages are simpler, faster, and easier to debug.
+Python), support Unix socket callouts. This should be an escape hatch, not the
+default — in-process stages are simpler, faster, and easier to debug.
 
 ## 7. Recommendations
 
@@ -844,8 +885,9 @@ the default — in-process stages are simpler, faster, and easier to debug.
    `websocket.go`, `router.go`, `policy/`).
 
 The next refactoring step should be **extracting the policy check** into a
-standalone `PolicyChecker` struct (it's already mostly there with `internal/policy/`).
-After that, the observer/persistence logic into a `RequestRecorder`.
+standalone `PolicyChecker` struct (it's already mostly there with
+`internal/policy/`). After that, the observer/persistence logic into a
+`RequestRecorder`.
 
 ### 7.2 For the Headroom integration (what to build)
 
@@ -853,9 +895,10 @@ The most impactful near-term work is **documentation and tooling** for chaining
 proxies externally (see the Headroom integration plan). This delivers value
 immediately with zero code changes.
 
-The second most impactful is adding a **`--upstream` flag** to `copilot-monitor run`
-that sends all traffic to a single host. This makes the "monitor before Headroom"
-or "monitor after Headroom" setup trivial — no routes-config needed.
+The second most impactful is adding a **`--upstream` flag** to
+`copilot-monitor run` that sends all traffic to a single host. This makes the
+"monitor before Headroom" or "monitor after Headroom" setup trivial — no
+routes-config needed.
 
 ### 7.3 When to build the pipeline interface
 
@@ -865,7 +908,8 @@ Build it when you need **one of these**:
    "observe then compress" are both valid use cases.
 2. **User-provided stages** — via config file or plugin.
 3. **Stage reordering** — users want to run policy before or after compression.
-4. **External stage services** — a stage needs its own process (Python, ML runtime).
+4. **External stage services** — a stage needs its own process (Python, ML
+   runtime).
 
 Until then, the monolithic handler with well-factored helper functions is the
 right architecture for a single-purpose, lightweight, local proxy.
@@ -879,46 +923,46 @@ Monolithic handler  ──►  Named stages/helpers  ──►  Stage interface 
   (1 week ago)            (already done)            (when needed)      (future)           (distant)
 ```
 
-Move right on the spectrum only when the current position is causing concrete pain.
-Each step adds flexibility but also complexity, test surface, and mental overhead.
-The current position (named stages/helpers with a monolithic handler) is the sweet
-spot for a single-purpose local developer tool.
+Move right on the spectrum only when the current position is causing concrete
+pain. Each step adds flexibility but also complexity, test surface, and mental
+overhead. The current position (named stages/helpers with a monolithic handler)
+is the sweet spot for a single-purpose local developer tool.
 
 ## 8. Appendix: Anti-patterns to Avoid
 
 ### 8.1 The "generic plugin system" trap
 
-Don't build a plugin registry, module system, or dynamic loader until you have at
-least 3 distinct third-party plugins. Caddy and Traefik needed these because they
-have ecosystems of 100+ plugins. Copilot Monitor has one codebase and one team.
-A simple `[]Stage` slice is a more honest representation of the need.
+Don't build a plugin registry, module system, or dynamic loader until you have
+at least 3 distinct third-party plugins. Caddy and Traefik needed these because
+they have ecosystems of 100+ plugins. Copilot Monitor has one codebase and one
+team. A simple `[]Stage` slice is a more honest representation of the need.
 
 ### 8.2 The "YAML DSL" trap
 
-Don't design a pipeline configuration language (YAML/JSON) until the pipeline has
-stabilized across multiple releases. Configuration drift between the config format
-and the code is a source of bugs and user confusion. Start with code-based pipeline
-assembly and add config later.
+Don't design a pipeline configuration language (YAML/JSON) until the pipeline
+has stabilized across multiple releases. Configuration drift between the config
+format and the code is a source of bugs and user confusion. Start with
+code-based pipeline assembly and add config later.
 
 ### 8.3 The "framework" trap
 
 Don't extract a reusable "proxy pipeline framework" from Copilot Monitor. The
 pipeline is specific to this domain (LLM API observation) and this trust model
-(local, loopback, single-user). Generalizing it for other use cases (multi-tenant
-gateways, content filtering, caching) would add complexity without benefiting
-the primary use case.
+(local, loopback, single-user). Generalizing it for other use cases
+(multi-tenant gateways, content filtering, caching) would add complexity without
+benefiting the primary use case.
 
 ### 8.4 The "async everything" trap
 
-Don't make every stage async. LiteLLM and Helicone use async logging because they
-run at scale (thousands of RPS) with remote backends. Copilot Monitor runs locally
-on a developer machine handling <10 RPS. Sync writes to SQLite are perfectly fine
-and simpler to reason about. If SQLite writes become a bottleneck (they won't),
-batching is simpler than async queues.
+Don't make every stage async. LiteLLM and Helicone use async logging because
+they run at scale (thousands of RPS) with remote backends. Copilot Monitor runs
+locally on a developer machine handling <10 RPS. Sync writes to SQLite are
+perfectly fine and simpler to reason about. If SQLite writes become a bottleneck
+(they won't), batching is simpler than async queues.
 
 ### 8.5 The "HTTP everywhere" trap
 
 Don't use HTTP for inter-stage communication within the same process. A function
 call with typed parameters is faster, safer, and easier to debug than an HTTP
-request to `localhost:9xxx`. HTTP is only appropriate when stages run in separate
-processes (Headroom compression in Python, for example).
+request to `localhost:9xxx`. HTTP is only appropriate when stages run in
+separate processes (Headroom compression in Python, for example).

@@ -2,7 +2,15 @@
 // All state lives in a single $state object. Side effects (fetch, timer, observer)
 // are wired up in init() and torn down in destroy().
 
-import { exportHrefFor, fetchConfig, fetchPolicy, fetchPolicyModels, fetchUpstreams, loadDashboard, putPolicy } from '../lib/api';
+import {
+  exportHrefFor,
+  fetchConfig,
+  fetchPolicy,
+  fetchPolicyModels,
+  fetchUpstreams,
+  loadDashboard,
+  putPolicy,
+} from '../lib/api';
 import { drawChart } from '../lib/chart';
 import { modelColor } from '../lib/colors';
 import { dur, intl, usd } from '../lib/format';
@@ -19,9 +27,7 @@ import type {
   TimelineEntry,
 } from '../lib/types';
 
-const REFRESH_MS = matchMedia('(prefers-reduced-data: reduce)').matches
-  ? 120_000
-  : 30_000;
+const REFRESH_MS = matchMedia('(prefers-reduced-data: reduce)').matches ? 120_000 : 30_000;
 
 interface ModelRow extends ModelStats {
   total_usd: number;
@@ -87,7 +93,8 @@ class DashboardStore {
       costMap.set(`${r.model}|${r.endpoint}|${r.upstream_host}`, r);
     }
     return this.stats.map((s) => {
-      const cost: Partial<CostRow> = costMap.get(`${s.model}|${s.endpoint}|${s.upstream_host}`) ?? {};
+      const cost: Partial<CostRow> =
+        costMap.get(`${s.model}|${s.endpoint}|${s.upstream_host}`) ?? {};
       const cacheHit = s.prompt_tokens
         ? Math.round((s.cached_input_tokens / s.prompt_tokens) * 100)
         : 0;
@@ -127,18 +134,14 @@ class DashboardStore {
     const session = this.current.session;
     if (!session) return '-';
     const start = new Date(session.started_at).getTime();
-    const end = session.active
-      ? Date.now()
-      : new Date(session.last_request_at).getTime();
+    const end = session.active ? Date.now() : new Date(session.last_request_at).getTime();
     if (!start || !end) return '-';
     return dur((end - start) / 1000);
   }
 
   get sessionModelsText(): string {
     if (!this.current.models.length) return '-';
-    return this.current.models
-      .map((m) => `${m.model} (${intl(m.requests)})`)
-      .join(', ');
+    return this.current.models.map((m) => `${m.model} (${intl(m.requests)})`).join(', ');
   }
 
   get exportHref(): string {
@@ -234,21 +237,27 @@ class DashboardStore {
       this.lastUpdated = new Date().toLocaleTimeString();
 
       if (this.upstreams.length === 0) {
-        fetchUpstreams(signal).then((hosts) => {
-          if (!signal.aborted) this.upstreams = hosts;
-        }).catch(() => {});
+        fetchUpstreams(signal)
+          .then((hosts) => {
+            if (!signal.aborted) this.upstreams = hosts;
+          })
+          .catch(() => {});
       }
       if (this.routes.length === 0) {
-        fetchConfig(signal).then((cfg) => {
-          if (!signal.aborted) this.routes = cfg.routes;
-        }).catch(() => {});
+        fetchConfig(signal)
+          .then((cfg) => {
+            if (!signal.aborted) this.routes = cfg.routes;
+          })
+          .catch(() => {});
       }
 
       this.refreshPolicy().catch(() => {});
       if (this.policyModels.length === 0) {
-        fetchPolicyModels(signal).then((models) => {
-          if (!signal.aborted && models) this.policyModels = models;
-        }).catch(() => {});
+        fetchPolicyModels(signal)
+          .then((models) => {
+            if (!signal.aborted && models) this.policyModels = models;
+          })
+          .catch(() => {});
       }
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return;
@@ -317,7 +326,10 @@ class DashboardStore {
   async savePolicy(policy: Policy): Promise<boolean> {
     const ctrl = new AbortController();
     const result = await putPolicy(policy, ctrl.signal);
-    if (result) { this.policy = result; return true; }
+    if (result) {
+      this.policy = result;
+      return true;
+    }
     return false;
   }
 

@@ -6,15 +6,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 **Know exactly what your AI tools are costing you.**
 
-A local HTTP reverse proxy that sits between your tools and LLM APIs,
-recording per-request metadata, token counts, latency, and estimated cost.
-Everything is stored in a SQLite database on your machine.
-No cloud. No telemetry. No prompts, completions, source code, or auth headers
-are ever written to disk.
+A local HTTP reverse proxy that sits between your tools and LLM APIs, recording
+per-request metadata, token counts, latency, and estimated cost. Everything is
+stored in a SQLite database on your machine. No cloud. No telemetry. No prompts,
+completions, source code, or auth headers are ever written to disk.
 
 Works with GitHub Copilot out of the box, and any OpenAI-compatible or
-Anthropic-compatible API via configurable routes (pi-agent, Claude Code,
-aider, direct API calls, etc.).
+Anthropic-compatible API via configurable routes (pi-agent, Claude Code, aider,
+direct API calls, etc.).
 
 ```sh
 # run the proxy
@@ -29,16 +28,17 @@ Project site: <https://koopycat.github.io/copilot-monitor/>
 
 ## Download
 
-Prebuilt binaries for the latest release.
-The links below always resolve to whatever is currently the newest tag, so the table stays useful after every release.
+Prebuilt binaries for the latest release. The links below always resolve to
+whatever is currently the newest tag, so the table stays useful after every
+release.
 
-| OS | Architecture | Binary |
-| --- | --- | --- |
-| Linux | x86_64 | [copilot-monitor-linux-amd64.tar.gz](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-amd64.tar.gz) |
-| Linux | ARM64 | [copilot-monitor-linux-arm64.tar.gz](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-arm64.tar.gz) |
-| macOS | Intel | [copilot-monitor-darwin-amd64.tar.gz](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-amd64.tar.gz) |
-| macOS | Apple Silicon | [copilot-monitor-darwin-arm64.tar.gz](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-arm64.tar.gz) |
-| Windows | x86_64 | [copilot-monitor-windows-amd64.zip](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-windows-amd64.zip) |
+| OS      | Architecture  | Binary                                                                                                                                          |
+| ------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Linux   | x86_64        | [copilot-monitor-linux-amd64.tar.gz](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-amd64.tar.gz)   |
+| Linux   | ARM64         | [copilot-monitor-linux-arm64.tar.gz](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-arm64.tar.gz)   |
+| macOS   | Intel         | [copilot-monitor-darwin-amd64.tar.gz](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-amd64.tar.gz) |
+| macOS   | Apple Silicon | [copilot-monitor-darwin-arm64.tar.gz](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-arm64.tar.gz) |
+| Windows | x86_64        | [copilot-monitor-windows-amd64.zip](https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-windows-amd64.zip)     |
 
 Extract and run:
 
@@ -49,20 +49,22 @@ tar -xzf copilot-monitor-linux-amd64.tar.gz
 # → open http://127.0.0.1:7734
 ```
 
-Verify the binary matches the release on the [releases page](https://github.com/koopycat/copilot-monitor/releases) if you care about supply-chain integrity.
-For a reproducible build from source, see [Quickstart](#quickstart) below.
+Verify the binary matches the release on the
+[releases page](https://github.com/koopycat/copilot-monitor/releases) if you
+care about supply-chain integrity. For a reproducible build from source, see
+[Quickstart](#quickstart) below.
 
 ## Why
 
 GitHub Copilot picks models automatically, charges AI credits invisibly, and
-exposes usage summaries only on github.com with a 24-hour delay. You don't
-know which model handled your last prompt, whether you got a cache hit, or
-what that refactor session actually cost you.
+exposes usage summaries only on github.com with a 24-hour delay. You don't know
+which model handled your last prompt, whether you got a cache hit, or what that
+refactor session actually cost you.
 
-Copilot Monitor gives you the raw numbers from your own machine:
-per-model token counts, latency, estimated cost, and 30-minute session
-groupings, all in a local dashboard with a period selector (today /
-yesterday / 7d / 30d / 90d / 365d) and a JSON API for your own scripts.
+Copilot Monitor gives you the raw numbers from your own machine: per-model token
+counts, latency, estimated cost, and 30-minute session groupings, all in a local
+dashboard with a period selector (today / yesterday / 7d / 30d / 90d / 365d) and
+a JSON API for your own scripts.
 
 ## What it looks like
 
@@ -140,13 +142,13 @@ And verify the local ping endpoint:
 curl http://127.0.0.1:7733/copilot/_ping
 ```
 
-Stop long-running processes with `Ctrl+C` when finished.
-Run `just all` before submitting changes.
+Stop long-running processes with `Ctrl+C` when finished. Run `just all` before
+submitting changes.
 
 ## Using with Pi Agent and Other LLM Tools
 
-Copilot Monitor can proxy any OpenAI-compatible or Anthropic-compatible API
-by configuring additional routes via `--routes-config`.
+Copilot Monitor can proxy any OpenAI-compatible or Anthropic-compatible API by
+configuring additional routes via `--routes-config`.
 
 ### Pi Agent (KiloCode gateway)
 
@@ -185,15 +187,17 @@ Configure pi to route its API calls through the proxy:
 KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi
 ```
 
-Pi will now send all API requests through the proxy.
-Token counts, model names, latency, and estimated cost are captured and visible
-in the dashboard and CLI reports, just like Copilot traffic.
+Pi will now send all API requests through the proxy. Token counts, model names,
+latency, and estimated cost are captured and visible in the dashboard and CLI
+reports, just like Copilot traffic.
 
 ### Other tools (OpenAI, Anthropic, Ollama, etc.)
 
 The same pattern works for any tool that speaks OpenAI-compatible or
-Anthropic-compatible HTTP. Point your tool at the proxy using the appropriate path-prefix (e.g., `http://127.0.0.1:7733/copilot` for VSCode Copilot, `http://127.0.0.1:7733/openai/v1` for OpenAI-compatible tools, or `http://127.0.0.1:7733/kilo` for Kilo)
-and add the corresponding routes:
+Anthropic-compatible HTTP. Point your tool at the proxy using the appropriate
+path-prefix (e.g., `http://127.0.0.1:7733/copilot` for VSCode Copilot,
+`http://127.0.0.1:7733/openai/v1` for OpenAI-compatible tools, or
+`http://127.0.0.1:7733/kilo` for Kilo) and add the corresponding routes:
 
 ```json
 {
@@ -218,16 +222,16 @@ and add the corresponding routes:
 }
 ```
 
-Each route maps an incoming request path to an upstream host.
-Set `capture` to `"usage"` (track tokens), `"metadata"` (track requests
-without token counts), or `"none"` (forward without recording).
-Use `prefix_match: true` for routes that match a path and all sub-paths
-(e.g., Anthropic's `/v1/messages` and `/v1/messages/count_tokens`).
+Each route maps an incoming request path to an upstream host. Set `capture` to
+`"usage"` (track tokens), `"metadata"` (track requests without token counts), or
+`"none"` (forward without recording). Use `prefix_match: true` for routes that
+match a path and all sub-paths (e.g., Anthropic's `/v1/messages` and
+`/v1/messages/count_tokens`).
 
 ### Optional local request compression
 
-Run a local [Headroom](https://github.com/headroomai/headroom) process and
-point the proxy at its compression endpoint:
+Run a local [Headroom](https://github.com/headroomai/headroom) process and point
+the proxy at its compression endpoint:
 
 ```sh
 ./bin/copilot-monitor run \
@@ -240,8 +244,8 @@ after routing and model policy checks. The default is fail-open: if Headroom is
 unavailable, the original request is forwarded. Add `--headroom-required` to
 return HTTP 502 instead. `--headroom-compress-user-messages` and
 `--headroom-target-ratio 0.5` expose the corresponding Headroom policy controls.
-The compression endpoint must be loopback HTTP; no separate privacy consent
-step is used for this personal, single-user tool.
+The compression endpoint must be loopback HTTP; no separate privacy consent step
+is used for this personal, single-user tool.
 
 **Privacy**: Headroom is a separate local process and may retain original
 content in its CCR (Compress-Cache-Retrieve) store according to its own
@@ -263,17 +267,21 @@ KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi
 
 ### Policy — Model Allow/Block
 
-The proxy can enforce a global model policy to control which AI models your tools can use.
+The proxy can enforce a global model policy to control which AI models your
+tools can use.
 
 **Modes:**
+
 - `allow_all` (default) — all models pass through
 - `blocklist` — listed models are blocked (use `gpt-*` for prefix matching)
 - `allowlist` — only listed models are allowed
 
-**Via the dashboard:**
-Open the dashboard at http://127.0.0.1:7734 and look for the "Security Policy" panel at the bottom. Click "Edit" to switch modes and add model patterns.
+**Via the dashboard:** Open the dashboard at http://127.0.0.1:7734 and look for
+the "Security Policy" panel at the bottom. Click "Edit" to switch modes and add
+model patterns.
 
 **Via the API:**
+
 ```bash
 # Block gpt-4o and all gpt-4.1 variants
 curl -X PUT http://127.0.0.1:7734/api/policy \
@@ -299,10 +307,12 @@ Hot reload (server rebuilds on every `.go`, `.html`, or `.js` change):
 just watch
 ```
 
-Requires [air](https://github.com/air-verse/air) (`go install github.com/air-verse/air@latest`).
+Requires [air](https://github.com/air-verse/air)
+(`go install github.com/air-verse/air@latest`).
 
-Live dashboard URL: `http://127.0.0.1:7734/`
-The dashboard is a Svelte 5 app built with Vite and embedded in the Go binary. No runtime network access is needed for the dashboard itself — all assets are served locally.
+Live dashboard URL: `http://127.0.0.1:7734/` The dashboard is a Svelte 5 app
+built with Vite and embedded in the Go binary. No runtime network access is
+needed for the dashboard itself — all assets are served locally.
 
 Start the proxy:
 
@@ -310,9 +320,12 @@ Start the proxy:
 ./bin/copilot-monitor run
 ```
 
-While the proxy runs, a live session tail refreshes every 2 seconds in your terminal: status, duration, request count, tokens, and estimated cost for the current session.
-When the tail is active, the per-request log is suppressed so the two streams do not interleave and corrupt the live display.
-Pass `--no-live` to disable the tail and keep the full request log (also useful when stderr is redirected to a log file).
+While the proxy runs, a live session tail refreshes every 2 seconds in your
+terminal: status, duration, request count, tokens, and estimated cost for the
+current session. When the tail is active, the per-request log is suppressed so
+the two streams do not interleave and corrupt the live display. Pass `--no-live`
+to disable the tail and keep the full request log (also useful when stderr is
+redirected to a log file).
 
 Use Copilot normally. The proxy stores captured metadata and token counts in
 SQLite for routes configured for persistence; it does not store prompts,
@@ -338,8 +351,10 @@ JSON output for machine processing:
 ./bin/copilot-monitor sessions --since 7d --json
 ```
 
-`live` prints the current active session: status, project, duration, request count, total tokens, and a per-model overview with cache hit rate and cost.
-This is the same data the dashboard's "Live Session" panel shows, so you can check what is happening right now without opening a browser.
+`live` prints the current active session: status, project, duration, request
+count, total tokens, and a per-model overview with cache hit rate and cost. This
+is the same data the dashboard's "Live Session" panel shows, so you can check
+what is happening right now without opening a browser.
 
 Add `--watch` to keep it refreshing on screen (like `watch` on Unix):
 
@@ -351,17 +366,17 @@ Press `Ctrl+C` to stop.
 
 ## Flags
 
-| Flag | Default | Description |
-|---|---|---|
-| `--addr` | `127.0.0.1:7733` | HTTP listen address, loopback only |
-| `--db` | `~/.local/share/copilot-monitor/store.db` | SQLite database path |
-| `--project` | none | optional project label for reporting |
-| `--usage-debug-log` | none | optional JSONL path for pricing research |
-| `--headroom-url` | none | loopback Headroom `/v1/compress` endpoint |
-| `--headroom-timeout` | `30s` | Headroom compression request timeout |
-| `--headroom-required` | false | fail requests instead of forwarding uncompressed |
-| `--headroom-compress-user-messages` | false | allow Headroom to transform user messages |
-| `--headroom-target-ratio` | 0 | optional Headroom target ratio (0 < ratio <= 1) |
+| Flag                                | Default                                   | Description                                      |
+| ----------------------------------- | ----------------------------------------- | ------------------------------------------------ |
+| `--addr`                            | `127.0.0.1:7733`                          | HTTP listen address, loopback only               |
+| `--db`                              | `~/.local/share/copilot-monitor/store.db` | SQLite database path                             |
+| `--project`                         | none                                      | optional project label for reporting             |
+| `--usage-debug-log`                 | none                                      | optional JSONL path for pricing research         |
+| `--headroom-url`                    | none                                      | loopback Headroom `/v1/compress` endpoint        |
+| `--headroom-timeout`                | `30s`                                     | Headroom compression request timeout             |
+| `--headroom-required`               | false                                     | fail requests instead of forwarding uncompressed |
+| `--headroom-compress-user-messages` | false                                     | allow Headroom to transform user messages        |
+| `--headroom-target-ratio`           | 0                                         | optional Headroom target ratio (0 < ratio <= 1)  |
 
 `--usage-debug-log` is for local pricing research only. It should remain
 metadata-only: no prompts, completions, source code, auth headers, cookies, or
@@ -369,29 +384,36 @@ API keys.
 
 ## What is stored
 
-The database stores request metadata, endpoint, model name, token counts, latency, status, and project.
-Token categories include input, cached input, cache write, and output tokens where available.
-When Headroom compression is configured, estimated compression metrics (status, original tokens, final tokens, compression latency) are persisted as nullable columns.
-No prompts, completions, source code, or auth tokens are stored.
+The database stores request metadata, endpoint, model name, token counts,
+latency, status, and project. Token categories include input, cached input,
+cache write, and output tokens where available. When Headroom compression is
+configured, estimated compression metrics (status, original tokens, final
+tokens, compression latency) are persisted as nullable columns. No prompts,
+completions, source code, or auth tokens are stored.
 
 ## What is not stored
 
-Prompt text, completion text, source code, repository paths, auth headers, cookies, and API keys.
+Prompt text, completion text, source code, repository paths, auth headers,
+cookies, and API keys.
 
 ## Cost reporting
 
-Cost output is an estimated equivalent GitHub Copilot AI-credit list-price estimate and is not your actual GitHub Copilot bill.
-Pricing is sourced from GitHub's Copilot billing documentation [models and pricing](https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing).
-Agent metadata routes and code completions are excluded because they are not billed in AI credits.
+Cost output is an estimated equivalent GitHub Copilot AI-credit list-price
+estimate and is not your actual GitHub Copilot bill. Pricing is sourced from
+GitHub's Copilot billing documentation
+[models and pricing](https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing).
+Agent metadata routes and code completions are excluded because they are not
+billed in AI credits.
 
 ## Data location
 
-| What | Path |
-|---|---|
-| Database | `~/.local/share/copilot-monitor/store.db` |
+| What      | Path                                                   |
+| --------- | ------------------------------------------------------ |
+| Database  | `~/.local/share/copilot-monitor/store.db`              |
 | Debug log | `./usage-debug.jsonl` when `--usage-debug-log` is used |
 
 ## Privacy
 
-All data stays on your machine. The proxy binds to `127.0.0.1` only.
-Nothing is uploaded, ever. Anyone with shell access to your machine can read the database file.
+All data stays on your machine. The proxy binds to `127.0.0.1` only. Nothing is
+uploaded, ever. Anyone with shell access to your machine can read the database
+file.

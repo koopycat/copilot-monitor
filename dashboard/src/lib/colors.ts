@@ -2,15 +2,7 @@
 
 import type { ModelId } from './types';
 
-const COLORS = [
-  '#58a6ff',
-  '#3fb950',
-  '#d29922',
-  '#f85149',
-  '#bc8cff',
-  '#79c0ff',
-  '#56d364',
-];
+const COLORS = ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#79c0ff', '#56d364'];
 
 const colorMap = new Map<ModelId, string>();
 

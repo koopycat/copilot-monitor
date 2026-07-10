@@ -10,5 +10,7 @@
   });
 </script>
 
-<div class="chart-wrap"><canvas id="chart" aria-label="Usage chart" bind:this={canvas}></canvas></div>
+<div class="chart-wrap">
+  <canvas id="chart" aria-label="Usage chart" bind:this={canvas}></canvas>
+</div>
 <div class="legend" id="chart-legend"></div>

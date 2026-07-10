@@ -45,8 +45,13 @@ secrets:
 secrets-deep: secrets
     @devenv shell -- trufflehog git "file://$(pwd)" --only-verified --fail
 
-fmt:
+fmt-go:
     go fmt ./...
+
+# Format all code: Go (gofmt + goimports) + JS/CSS/Svelte/HTML/MD/JSON/YAML (prettier)
+format: fmt-go
+    go run golang.org/x/tools/cmd/goimports@latest -w .
+    cd dashboard && pnpm exec prettier --plugin prettier-plugin-svelte --write '../**/*.{js,ts,svelte,css,html,json,md,yaml,yml}' '!../node_modules/**' '!../.devenv/**' '!../dashboard/dist/**' '!../go.sum' '!../pnpm-lock.yaml'
 
 AIR := `go env GOPATH` / "bin" / "air"
 

@@ -1,0 +1,42 @@
+# Build outputs
+/bin/
+/dist/
+dashboard/dist/
+dashboard/.svelte-kit/
+
+# Dependencies
+node_modules/
+
+# Generated
+pnpm-lock.yaml
+go.sum
+
+# Binary files
+*.db
+*.sqlite
+*.png
+*.jpg
+*.gif
+*.ico
+*.ttf
+*.woff
+*.woff2
+
+# Vendored / vendored-looking
+.devenv/
+vendor/
+
+# IDE
+.idea/
+
+# Playwright
+.playwright/
+test-results/
+playwright-report/
+
+# Test data
+testdata.db*
+
+# AI tooling
+.claude/
+.pi/
