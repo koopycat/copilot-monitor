@@ -5,6 +5,7 @@ import type {
   CurrentSession,
   ModelStats,
   PeriodKey,
+  Policy,
   Session,
   TimelineEntry,
   Granularity,
@@ -87,4 +88,26 @@ export async function fetchUpstreams(signal: AbortSignal): Promise<string[]> {
   }
 }
 
+export async function fetchPolicy(signal: AbortSignal): Promise<Policy | null> {
+  return safeFetch<Policy>('/api/policy', signal);
+}
 
+export async function putPolicy(policy: Policy, signal: AbortSignal): Promise<Policy | null> {
+  try {
+    const r = await fetch('/api/policy', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(policy),
+      signal,
+    });
+    if (!r.ok) return null;
+    return (await r.json()) as Policy;
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') throw e;
+    return null;
+  }
+}
+
+export async function fetchPolicyModels(signal: AbortSignal): Promise<string[] | null> {
+  return safeFetch<string[]>('/api/policy/models', signal);
+}

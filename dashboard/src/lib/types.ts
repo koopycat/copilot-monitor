@@ -71,4 +71,7 @@ export interface Period {
   label: string;
 }
 
-
+export interface Policy {
+  mode: 'allow_all' | 'allowlist' | 'blocklist';
+  models: string[];
+}

@@ -2,7 +2,7 @@
 // All state lives in a single $state object. Side effects (fetch, timer, observer)
 // are wired up in init() and torn down in destroy().
 
-import { exportHrefFor, fetchUpstreams, loadDashboard } from '../lib/api';
+import { exportHrefFor, fetchPolicy, fetchPolicyModels, fetchUpstreams, loadDashboard, putPolicy } from '../lib/api';
 import { drawChart } from '../lib/chart';
 import { modelColor } from '../lib/colors';
 import { dur, intl, usd } from '../lib/format';
@@ -13,6 +13,7 @@ import type {
   Granularity,
   ModelStats,
   PeriodKey,
+  Policy,
   Session,
   TimelineEntry,
 } from '../lib/types';
@@ -49,6 +50,9 @@ class DashboardStore {
 
   sessionPulse = $state(false);
 
+  policy: Policy = $state({ mode: 'allow_all', models: [] });
+  policyModels: string[] = $state([]);
+
   private _timer: ReturnType<typeof setInterval> | null = null;
   private _pulseTimer: ReturnType<typeof setTimeout> | null = null;
   private _abort: AbortController | null = null;
@@ -56,6 +60,7 @@ class DashboardStore {
   private _lastSessionID: number | null = null;
   private _lastSessionCount: number | null = null;
   private _chartEl: HTMLCanvasElement | null = null;
+  private _keyHandler: ((e: KeyboardEvent) => void) | null = null;
 
   readonly periods = PERIODS;
 
@@ -181,6 +186,20 @@ class DashboardStore {
       this._ro = new ResizeObserver(() => this.redrawChart());
       this._ro.observe(chartWrap);
     }
+
+    this._keyHandler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const idx = PERIODS.findIndex((p) => p.key === this.period);
+        if (e.key === 'ArrowLeft' && idx > 0) {
+          this.switchPeriod(PERIODS[idx - 1].key);
+        } else if (e.key === 'ArrowRight' && idx < PERIODS.length - 1) {
+          this.switchPeriod(PERIODS[idx + 1].key);
+        }
+      }
+    };
+    window.addEventListener('keydown', this._keyHandler);
   }
 
   destroy(): void {
@@ -189,6 +208,10 @@ class DashboardStore {
     this._ro = null;
     this._abort?.abort();
     this._abort = null;
+    if (this._keyHandler) {
+      window.removeEventListener('keydown', this._keyHandler);
+      this._keyHandler = null;
+    }
   }
 
   async load(): Promise<void> {
@@ -211,6 +234,13 @@ class DashboardStore {
       if (this.upstreams.length === 0) {
         fetchUpstreams(signal).then((hosts) => {
           if (!signal.aborted) this.upstreams = hosts;
+        }).catch(() => {});
+      }
+
+      this.refreshPolicy().catch(() => {});
+      if (this.policyModels.length === 0) {
+        fetchPolicyModels(signal).then((models) => {
+          if (!signal.aborted && models) this.policyModels = models;
         }).catch(() => {});
       }
     } catch (e) {
@@ -266,6 +296,22 @@ class DashboardStore {
   private redrawChart(): void {
     if (!this._chartEl) return;
     drawChart(this._chartEl, this.timeline, this.gran, modelColor, this.metric);
+  }
+
+  async refreshPolicy(): Promise<void> {
+    const ctrl = new AbortController();
+    const p = await fetchPolicy(ctrl.signal);
+    if (p) {
+      if (!p.models) p.models = [];
+      this.policy = p;
+    }
+  }
+
+  async savePolicy(policy: Policy): Promise<boolean> {
+    const ctrl = new AbortController();
+    const result = await putPolicy(policy, ctrl.signal);
+    if (result) { this.policy = result; return true; }
+    return false;
   }
 
   private runWithViewTransition(fn: () => void): void {

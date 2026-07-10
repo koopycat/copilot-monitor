@@ -5,6 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"copilot-monitoring/internal/policy"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInsertAndStats(t *testing.T) {
@@ -36,6 +41,58 @@ func TestInsertAndStats(t *testing.T) {
 	if stats[0].Model != "gpt-4o" || stats[0].Requests != 2 || stats[0].PromptTokens != 13 || stats[0].CompletionTokens != 7 || stats[0].TotalTokens != 20 {
 		t.Fatalf("first row = %#v", stats[0])
 	}
+}
+
+func TestGetPolicyDefault(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	defer s.Close()
+
+	ctx := context.Background()
+	p, err := s.GetPolicy(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	assert.Equal(t, policy.AllowAll, p.Mode)
+	assert.Empty(t, p.Models)
+}
+
+func TestSetPolicyAndGet(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	defer s.Close()
+
+	ctx := context.Background()
+	p := &policy.Policy{Mode: policy.Blocklist, Models: []string{"gpt-4o", "claude-*"}}
+	err = s.SetPolicy(ctx, p)
+	require.NoError(t, err)
+
+	got, err := s.GetPolicy(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, policy.Blocklist, got.Mode)
+	assert.ElementsMatch(t, []string{"gpt-4o", "claude-*"}, got.Models)
+}
+
+func TestDistinctModels(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	defer s.Close()
+
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	recs := []RequestRecord{
+		{Timestamp: now, Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.openai.com", Model: "gpt-4o", Status: 200},
+		{Timestamp: now, Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.openai.com", Model: "claude-3.5-sonnet", Status: 200},
+		{Timestamp: now, Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.openai.com", Model: "gpt-4o", Status: 200},
+	}
+	for _, rec := range recs {
+		err = s.InsertRequest(ctx, rec)
+		require.NoError(t, err)
+	}
+
+	models, err := s.DistinctModels(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"claude-3.5-sonnet", "gpt-4o"}, models)
 }
 
 func TestStatsFilterSince(t *testing.T) {
