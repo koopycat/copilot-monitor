@@ -1,6 +1,6 @@
 default: all
 
-all: vet secrets test build dashboard-build
+all: vet secrets test build dashboard-build  # fast targets only (excludes integration, e2e)
 
 setup:
     mise install
@@ -20,8 +20,14 @@ dashboard-check:
 dashboard-dev:
     cd dashboard && pnpm dev
 
+# Excludes ./internal/integration/... by design — integration tests are slower
+# and may need external setup. Run them explicitly with `just integration`.
 test:
-    go test ./...
+    go test $(go list ./... | grep -v 'internal/integration')
+
+# HTTP-level integration tests (no browser)
+integration:
+    go test ./internal/integration/...
 
 e2e:
     cd internal/e2e && pnpm test
