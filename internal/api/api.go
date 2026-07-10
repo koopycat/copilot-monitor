@@ -7,16 +7,23 @@ import (
 	"strings"
 	"time"
 
+	"copilot-monitoring/internal/proxy"
 	"copilot-monitoring/internal/store"
 )
 
 type Handler struct {
-	db *store.Store
+	db           *store.Store
+	routesConfig *proxy.ProxyConfig
 }
 
 func NewHandler(db *store.Store) *Handler {
+	return NewHandlerWithConfig(db, nil)
+}
+
+func NewHandlerWithConfig(db *store.Store, cfg *proxy.ProxyConfig) *Handler {
 	return &Handler{
-		db: db,
+		db:           db,
+		routesConfig: cfg,
 	}
 }
 
@@ -40,6 +47,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleExport(w, r)
 	case "/api/upstreams":
 		h.handleUpstreams(w, r)
+	case "/api/config":
+		h.handleConfig(w, r)
+	case "/api/policy":
+		h.handlePolicy(w, r)
+	case "/api/policy/models":
+		h.handlePolicyModels(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -93,4 +106,13 @@ func (h *Handler) handleUpstreams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(hosts)
+}
+
+func (h *Handler) handleConfig(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	if h.routesConfig == nil {
+		json.NewEncoder(w).Encode(map[string][]any{"routes": {}})
+		return
+	}
+	json.NewEncoder(w).Encode(h.routesConfig)
 }

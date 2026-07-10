@@ -4,11 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"copilot-monitoring/internal/policy"
 
 	_ "modernc.org/sqlite"
 )
@@ -346,6 +349,68 @@ func (s *Store) DistinctUpstreamHosts(ctx context.Context) ([]string, error) {
 		hosts = append(hosts, host)
 	}
 	return hosts, rows.Err()
+}
+
+// GetPolicy returns the current policy. Returns DefaultPolicy() if no row exists.
+func (s *Store) GetPolicy(ctx context.Context) (*policy.Policy, error) {
+	if s == nil || s.db == nil {
+		return policy.DefaultPolicy(), nil
+	}
+	var mode string
+	var modelsJSON string
+	err := s.db.QueryRowContext(ctx,
+		"SELECT mode, models_json FROM policies WHERE id = 1",
+	).Scan(&mode, &modelsJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return policy.DefaultPolicy(), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var models []string
+	if err := json.Unmarshal([]byte(modelsJSON), &models); err != nil {
+		return nil, fmt.Errorf("unmarshal policy models_json: %w", err)
+	}
+	return &policy.Policy{Mode: policy.Mode(mode), Models: models}, nil
+}
+
+// SetPolicy atomically replaces the current policy.
+func (s *Store) SetPolicy(ctx context.Context, p *policy.Policy) error {
+	if s == nil || s.db == nil {
+		return errors.New("nil store")
+	}
+	modelsJSON, err := json.Marshal(p.Models)
+	if err != nil {
+		return fmt.Errorf("marshal policy models: %w", err)
+	}
+	_, err = s.db.ExecContext(ctx,
+		"INSERT OR REPLACE INTO policies (id, mode, models_json) VALUES (1, ?, ?)",
+		string(p.Mode), string(modelsJSON),
+	)
+	return err
+}
+
+// DistinctModels returns all unique model names from the requests table.
+func (s *Store) DistinctModels(ctx context.Context) ([]string, error) {
+	if s == nil || s.db == nil {
+		return nil, nil
+	}
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT DISTINCT COALESCE(NULLIF(model, ''), '<unknown>') FROM requests WHERE model IS NOT NULL AND model != '' ORDER BY model",
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var m string
+		if err := rows.Scan(&m); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
 }
 
 func nullString(value string) any {

@@ -3,6 +3,7 @@
   import MetricCard from './components/MetricCard.svelte';
   import ModelsTable from './components/ModelsTable.svelte';
   import PeriodBar from './components/PeriodBar.svelte';
+  import PolicyPanel from './components/PolicyPanel.svelte';
   import SessionsTable from './components/SessionsTable.svelte';
   import ToggleGroup from './components/ToggleGroup.svelte';
   import UpstreamFilter from './components/UpstreamFilter.svelte';
@@ -57,6 +58,8 @@
 
 <h2>Recent Sessions</h2>
 <SessionsTable />
+
+<PolicyPanel />
 
 <footer class="footer">
   <span>Estimated AI-credit list-price cost. Not your GitHub Copilot bill.</span>

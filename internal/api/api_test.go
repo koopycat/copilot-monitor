@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -9,6 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"copilot-monitoring/internal/policy"
 	"copilot-monitoring/internal/store"
 )
 
@@ -80,4 +85,84 @@ func TestCurrentSessionEndpointEmptyDB(t *testing.T) {
 	if len(response.Models) != 0 {
 		t.Fatalf("models = %#v, want empty", response.Models)
 	}
+}
+
+func TestGetPolicyDefault(t *testing.T) {
+	s, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	defer s.Close()
+	h := NewHandler(s)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/policy", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var p policy.Policy
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&p))
+	assert.Equal(t, policy.AllowAll, p.Mode)
+	assert.Empty(t, p.Models)
+}
+
+func TestPutAndGetPolicy(t *testing.T) {
+	s, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	defer s.Close()
+	h := NewHandler(s)
+
+	// PUT valid blocklist
+	putBody := bytes.NewBuffer(nil)
+	require.NoError(t, json.NewEncoder(putBody).Encode(policy.Policy{Mode: policy.Blocklist, Models: []string{"gpt-4o"}}))
+	req := httptest.NewRequest(http.MethodPut, "/api/policy", putBody)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	var putResp policy.Policy
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&putResp))
+	assert.Equal(t, policy.Blocklist, putResp.Mode)
+	assert.Equal(t, []string{"gpt-4o"}, putResp.Models)
+
+	// GET round-trip
+	req2 := httptest.NewRequest(http.MethodGet, "/api/policy", nil)
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req2)
+	assert.Equal(t, http.StatusOK, rec2.Code)
+	var getResp policy.Policy
+	require.NoError(t, json.NewDecoder(rec2.Body).Decode(&getResp))
+	assert.Equal(t, policy.Blocklist, getResp.Mode)
+	assert.Equal(t, []string{"gpt-4o"}, getResp.Models)
+
+	// PUT invalid mode
+	invalidBody := bytes.NewBuffer(nil)
+	require.NoError(t, json.NewEncoder(invalidBody).Encode(map[string]interface{}{"mode": "bogus", "models": []string{}}))
+	req3 := httptest.NewRequest(http.MethodPut, "/api/policy", invalidBody)
+	rec3 := httptest.NewRecorder()
+	h.ServeHTTP(rec3, req3)
+	assert.Equal(t, http.StatusBadRequest, rec3.Code)
+}
+
+func TestGetPolicyModels(t *testing.T) {
+	s, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	defer s.Close()
+	h := NewHandler(s)
+
+	ctx := context.Background()
+	now := time.Now().UTC()
+	// Insert some requests with models
+	s.InsertRequest(ctx, store.RequestRecord{Timestamp: now, Endpoint: "chat", Method: "POST", Path: "/chat", UpstreamHost: "api.openai.com", Model: "gpt-4o", Status: 200, LatencyMS: 100})
+	s.InsertRequest(ctx, store.RequestRecord{Timestamp: now, Endpoint: "chat", Method: "POST", Path: "/chat", UpstreamHost: "api.openai.com", Model: "claude-3.5-sonnet", Status: 200, LatencyMS: 100})
+	s.InsertRequest(ctx, store.RequestRecord{Timestamp: now, Endpoint: "chat", Method: "POST", Path: "/chat", UpstreamHost: "api.openai.com", Model: "gpt-4o", Status: 200, LatencyMS: 100})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/policy/models", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	var models []string
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&models))
+	expected := []string{"claude-3.5-sonnet", "gpt-4o"}
+	// The order from SQLite DISTINCT with ORDER BY should be alphabetical
+	assert.Equal(t, expected, models)
 }

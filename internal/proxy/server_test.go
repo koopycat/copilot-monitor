@@ -12,8 +12,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"copilot-monitoring/internal/log"
+	"copilot-monitoring/internal/policy"
 	"copilot-monitoring/internal/store"
 )
 
@@ -430,6 +435,114 @@ func TestHandlerRoutesByModel(t *testing.T) {
 	if capturedHost != "anthropic.example.com" {
 		t.Fatalf("host = %q, want anthropic.example.com", capturedHost)
 	}
+}
+
+func TestPolicyBlocklistBlocksModel(t *testing.T) {
+	// 1. Open store
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	defer st.Close()
+
+	// 2. Set blocklist policy
+	ctx := context.Background()
+	err = st.SetPolicy(ctx, &policy.Policy{Mode: policy.Blocklist, Models: []string{"gpt-4o"}})
+	require.NoError(t, err)
+
+	// 3. Create handler with store
+	var logs bytes.Buffer
+	h := NewHandlerWithStore(log.NewWriter(&logs), st, "")
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader("{}")),
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+		}, nil
+	})}
+
+	// 4. Send blocked model request
+	body := strings.NewReader(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
+	req := httptest.NewRequest("POST", "/chat/completions", body)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	// 5. Assert 403 with JSON error
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	var resp map[string]string
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	assert.Equal(t, "model_blocked", resp["error"])
+	assert.Equal(t, "gpt-4o", resp["model"])
+
+	// 6. Verify blocked request persisted
+	models, err := st.DistinctModels(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, models, "gpt-4o")
+
+	// 7. Send unblocked model — should pass through
+	body2 := strings.NewReader(`{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}]}`)
+	req2 := httptest.NewRequest("POST", "/chat/completions", body2)
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req2)
+	assert.Equal(t, http.StatusOK, rec2.Code)
+}
+
+func TestPolicyNotAppliedWhenNoStore(t *testing.T) {
+	// Handler without store — policy evaluation skipped
+	var logs bytes.Buffer
+	h := NewHandler(log.NewWriter(&logs))
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`{"usage":{"total_tokens":100}}`)),
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+		}, nil
+	})}
+
+	body := strings.NewReader(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
+	req := httptest.NewRequest("POST", "/chat/completions", body)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestPolicyCacheRefreshOnExpiry(t *testing.T) {
+	// 1. Set up store with blocklist
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	defer st.Close()
+	ctx := context.Background()
+	err = st.SetPolicy(ctx, &policy.Policy{Mode: policy.Blocklist, Models: []string{"gpt-4o"}})
+	require.NoError(t, err)
+
+	var logs bytes.Buffer
+	h := NewHandlerWithStore(log.NewWriter(&logs), st, "")
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader("{}")),
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+		}, nil
+	})}
+
+	// 2. First request — blocked (warms cache)
+	body := strings.NewReader(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
+	req := httptest.NewRequest("POST", "/chat/completions", body)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	// 3. Expire the cache
+	h.policyUntil = time.Now().Add(-1 * time.Second)
+
+	// 4. Change policy to allow_all
+	err = st.SetPolicy(ctx, &policy.Policy{Mode: policy.AllowAll})
+	require.NoError(t, err)
+
+	// 5. Next request — allowed (cache refreshed)
+	body2 := strings.NewReader(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
+	req2 := httptest.NewRequest("POST", "/chat/completions", body2)
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req2)
+	assert.Equal(t, http.StatusOK, rec2.Code)
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

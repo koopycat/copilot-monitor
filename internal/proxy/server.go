@@ -2,14 +2,19 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"copilot-monitoring/internal/log"
+	"copilot-monitoring/internal/policy"
 	"copilot-monitoring/internal/store"
 )
+
+const policyCacheTTL = 5 * time.Second
 
 type Handler struct {
 	log        *log.Writer
@@ -19,6 +24,10 @@ type Handler struct {
 	usageDebug *UsageDebugLogger
 	router     *Router
 	nextID     atomic.Uint64
+
+	policyMu    sync.RWMutex
+	policyCache *policy.Policy
+	policyUntil time.Time
 }
 
 func NewHandler(log *log.Writer) *Handler {
@@ -76,6 +85,50 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 		return
+	}
+
+	// Policy enforcement.
+	{
+		allowed := true
+		if h.store != nil {
+			h.policyMu.RLock()
+			fresh := time.Now().Before(h.policyUntil)
+			cached := h.policyCache
+			h.policyMu.RUnlock()
+
+			if !fresh {
+				p, err := h.store.GetPolicy(r.Context())
+				if err != nil {
+					h.log.Warn("id=%d policy_load_error=%q\n", id, err.Error())
+					if cached != nil {
+						allowed = cached.Allowed(meta.Model)
+					}
+				} else {
+					h.policyMu.Lock()
+					if time.Now().After(h.policyUntil) {
+						h.policyCache = p
+						h.policyUntil = time.Now().Add(policyCacheTTL)
+					}
+					h.policyMu.Unlock()
+					allowed = p.Allowed(meta.Model)
+				}
+			} else if cached != nil {
+				allowed = cached.Allowed(meta.Model)
+			}
+		}
+
+		if !allowed {
+			h.log.Warn("id=%d policy_blocked model=%q\n", id, meta.Model)
+			h.persistBlockedRequest(r.Context(), started, route, r, meta)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":   "model_blocked",
+				"model":   meta.Model,
+				"message": "Model is blocked by policy",
+			})
+			return
+		}
 	}
 
 	h.log.Request("id=%d method=%s path=%q endpoint=%s upstream=%s capture=%s model=%q stream=%s\n",
@@ -174,6 +227,26 @@ func newResponseObserver(route Route, contentType string) *SSEObserver {
 		return NewJSONObserver()
 	default:
 		return nil
+	}
+}
+
+func (h *Handler) persistBlockedRequest(ctx context.Context, ts time.Time, route Route, r *http.Request, meta RequestMetadata) {
+	if h.store == nil || route.Capture == CaptureNone || route.Capture == CaptureLocal || route.Capture == CaptureTunnel {
+		return
+	}
+	if err := h.store.InsertRequest(ctx, store.RequestRecord{
+		Timestamp:    ts,
+		Endpoint:     string(route.Endpoint),
+		Method:       r.Method,
+		Path:         r.URL.RequestURI(),
+		UpstreamHost: route.Upstream,
+		Model:        meta.Model,
+		Stream:       meta.Stream,
+		Status:       403,
+		LatencyMS:    0,
+		Project:      h.project,
+	}); err != nil {
+		h.log.Warn("store_error=%q\n", err.Error())
 	}
 }
 

@@ -40,3 +40,10 @@ CREATE INDEX IF NOT EXISTS idx_requests_project  ON requests(project);
 CREATE INDEX IF NOT EXISTS idx_requests_session  ON requests(session_id);
 CREATE INDEX IF NOT EXISTS idx_requests_endpoint ON requests(endpoint);
 CREATE INDEX IF NOT EXISTS idx_requests_upstream_host ON requests(upstream_host);
+
+CREATE TABLE IF NOT EXISTS policies (
+  id          INTEGER PRIMARY KEY CHECK (id = 1),
+  mode        TEXT    NOT NULL DEFAULT 'allow_all'
+                      CHECK (mode IN ('allow_all', 'allowlist', 'blocklist')),
+  models_json TEXT    NOT NULL DEFAULT '[]'
+);
