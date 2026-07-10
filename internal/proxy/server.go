@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,9 +29,22 @@ type Handler struct {
 	compressionRequired bool
 	nextID              atomic.Uint64
 
-	policyMu    sync.RWMutex
-	policyCache *policy.Policy
-	policyUntil time.Time
+	policyMu     sync.RWMutex
+	policyCache  *policy.Policy
+	policyUntil  time.Time
+	requestCount atomic.Int64
+	startTime    time.Time
+}
+
+func (h *Handler) RequestCount() int64 {
+	return h.requestCount.Load()
+}
+
+func (h *Handler) Uptime() time.Duration {
+	if h.startTime.IsZero() {
+		return 0
+	}
+	return time.Since(h.startTime)
 }
 
 func NewHandler(log *log.Writer) *Handler {
@@ -55,6 +69,7 @@ func NewHandlerWithRouter(log *log.Writer, st *store.Store, project string, usag
 		project:    project,
 		usageDebug: usageDebug,
 		router:     router,
+		startTime:  time.Now(),
 		client: &http.Client{Transport: &http.Transport{
 			Proxy:              http.ProxyFromEnvironment,
 			DisableCompression: true,
@@ -64,6 +79,7 @@ func NewHandlerWithRouter(log *log.Writer, st *store.Store, project string, usag
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id := h.nextID.Add(1)
+	h.requestCount.Add(1)
 	started := time.Now().UTC()
 
 	// Read body first so model is available for routing
@@ -75,19 +91,34 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	meta := ParseRequestMetadata(body)
 
-	// Strip provider prefix from URL path
-	originalURI := r.URL.RequestURI()
-	provider, remainingPath := StripProviderPrefix(r.URL.Path)
-	if provider != "" {
-		r.URL.Path = remainingPath
-		if r.URL.RawPath != "" {
-			_, remainingRaw := StripProviderPrefix(r.URL.RawPath)
-			r.URL.RawPath = remainingRaw
+	// Built-in health endpoint
+	if r.URL.Path == "/_health" {
+		w.Header().Set("Content-Type", "application/json")
+		resp := map[string]any{
+			"status":         "ok",
+			"uptime_seconds": int64(time.Since(h.startTime).Seconds()),
+			"requests_total": h.requestCount.Load(),
+			"db_size_bytes":  0,
 		}
+		if h.store != nil {
+			if _, err := h.store.DistinctModels(r.Context()); err != nil {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				resp["status"] = "error"
+				resp["error"] = "store unreachable: " + err.Error()
+				json.NewEncoder(w).Encode(resp)
+				return
+			}
+			if fi, err := os.Stat(store.DefaultPath()); err == nil {
+				resp["db_size_bytes"] = fi.Size()
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(resp)
+		return
 	}
 
-	// Route by path + model + provider
-	route, ok := h.router.MatchModel(r.URL.Path, meta.Model, provider)
+	// Route by path + model
+	route, ok := h.router.MatchModel(r.URL.Path, meta.Model)
 	if !ok {
 		h.log.Error("id=%d path=%q route=unknown status=502\n", id, r.URL.RequestURI())
 		http.Error(w, "unknown route", http.StatusBadGateway)
@@ -208,7 +239,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	latencyMS := time.Since(started).Milliseconds()
-	if observer != nil {
+	usageSeen := observer != nil && observer.UsageSeen
+
+	if usageSeen {
 		h.log.Response("id=%d status=%d latency_ms=%d bytes=%d usage_seen=%t prompt_tokens=%d cached=%d cache_write=%d completions=%d total=%d model=%q parse_errors=%d\n",
 			id,
 			resp.StatusCode,
@@ -223,13 +256,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			observer.Model,
 			observer.ParseErrors,
 		)
-		h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, compMeta, observer)
-		h.writeUsageDebug(started, id, route, r, meta, resp, observer)
-		return
+	} else {
+		h.log.Info("id=%d status=%d bytes=%d latency_ms=%d\n", id, resp.StatusCode, bytesWritten, latencyMS)
 	}
-	h.log.Info("id=%d status=%d bytes=%d latency_ms=%d\n", id, resp.StatusCode, bytesWritten, latencyMS)
-	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, compMeta, nil)
-	h.writeUsageDebug(started, id, route, r, meta, resp, nil)
+
+	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, observer)
+	h.writeUsageDebug(started, id, route, r, meta, resp, observer)
+
+	// Emit structured log line
+	h.log.RequestLogEntry(log.RequestLog{
+		RequestID:      id,
+		Method:         r.Method,
+		Path:           r.URL.RequestURI(),
+		Upstream:       route.Upstream,
+		Model:          meta.Model,
+		Status:         resp.StatusCode,
+		LatencyMS:      latencyMS,
+		CaptureMode:    string(route.Capture),
+		TokensCaptured: usageSeen,
+		UsageMissing:   !usageSeen && route.Capture == CaptureUsage,
+	})
 }
 
 func streamLogValue(meta RequestMetadata) string {
@@ -283,12 +329,12 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 	if h.store == nil || route.Capture == CaptureNone || route.Capture == CaptureLocal || route.Capture == CaptureTunnel {
 		return
 	}
-	if route.Capture == CaptureUsage && (observer == nil || !observer.UsageSeen) {
-		return
-	}
 	model := meta.Model
 	usage := Usage{}
-	if observer != nil {
+	usageMissing := false
+	if route.Capture == CaptureUsage && (observer == nil || !observer.UsageSeen) {
+		usageMissing = true
+	} else if observer != nil {
 		// Prefer the request model because upstreams may emit different model names
 		// for internal helper calls. The response model is only a fallback when the
 		// request body did not expose a model.
@@ -315,6 +361,7 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 		Project:           h.project,
 		NotBilled:         route.NotBilled,
 		Provider:          route.Provider,
+		UsageMissing:      usageMissing,
 	}); err != nil {
 		h.log.Warn("store_error=%q\n", err.Error())
 	}

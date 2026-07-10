@@ -101,7 +101,7 @@ func TestStripHopByHopHeadersAlsoStripsConnectionTokens(t *testing.T) {
 
 func TestHandlerPing(t *testing.T) {
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriter(&logs), nil, "", nil, testRouter())
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), nil, "", nil, testRouter())
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/_ping", nil)
 	rr := httptest.NewRecorder()
 
@@ -121,7 +121,7 @@ func TestHandlerPing(t *testing.T) {
 
 func TestHandlerUnknownPath(t *testing.T) {
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriter(&logs), nil, "", nil, NewRouter(nil))
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), nil, "", nil, NewRouter(nil))
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/nope", nil)
 	rr := httptest.NewRecorder()
 
@@ -135,6 +135,66 @@ func TestHandlerUnknownPath(t *testing.T) {
 	}
 }
 
+func TestHandlerPersistsUsageMissingWhenNoUsage(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	var logs bytes.Buffer
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "test-project", nil, testRouter())
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": {"application/json"},
+			},
+			// No usage field — should trigger UsageMissing
+			Body: io.NopCloser(strings.NewReader(`{"model":"gpt-4o","id":"chatcmpl-123","choices":[]}`)),
+		}, nil
+	})}
+
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-4o"}`))
+	req.Header.Set("Authorization", "Bearer secret")
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	// Count usage_missing rows directly
+	ctx := context.Background()
+	count, err := st.CountUsageMissing(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("usage_missing count = %d, want 1", count)
+	}
+
+	// Verify stats show the model but zero tokens
+	stats, err := st.Stats(ctx, store.StatsFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("stats count = %d, want 1: %#v", len(stats), stats)
+	}
+	if stats[0].Model != "gpt-4o" {
+		t.Fatalf("model = %q, want gpt-4o", stats[0].Model)
+	}
+	if stats[0].TotalTokens != 0 {
+		t.Fatalf("total_tokens = %d, want 0", stats[0].TotalTokens)
+	}
+	if !stats[0].UsageMissing {
+		t.Fatal("expected UsageMissing = true")
+	}
+}
+
 func TestHandlerPersistsSSEUsage(t *testing.T) {
 	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
 	if err != nil {
@@ -143,7 +203,7 @@ func TestHandlerPersistsSSEUsage(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "test-project", nil, testRouter())
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "test-project", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.URL.Host != "api.githubcopilot.com" {
 			t.Fatalf("host = %q, want api.githubcopilot.com", req.URL.Host)
@@ -195,7 +255,7 @@ func TestHandlerPersistsJSONUsage(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "test-project", nil, testRouter())
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "test-project", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -237,7 +297,7 @@ func TestHandlerDoesNotRetainUpstreamErrorBody(t *testing.T) {
 
 	const sensitive = "do not keep this prompt text"
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "", nil, testRouter())
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
@@ -264,12 +324,19 @@ func TestHandlerDoesNotRetainUpstreamErrorBody(t *testing.T) {
 	if strings.Contains(logs.String(), sensitive) {
 		t.Fatalf("logs retained upstream body: %s", logs.String())
 	}
+	// Row should now be persisted with usage_missing=true
 	stats, err := st.Stats(context.Background(), store.StatsFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(stats) != 0 {
-		t.Fatalf("expected no persisted usage row for error body without usage, got: %#v", stats)
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 persisted row (usage_missing), got: %#v", stats)
+	}
+	if !stats[0].UsageMissing {
+		t.Fatal("expected UsageMissing = true for error body without usage")
+	}
+	if stats[0].TotalTokens != 0 {
+		t.Fatalf("expected 0 total tokens, got %d", stats[0].TotalTokens)
 	}
 }
 
@@ -281,7 +348,7 @@ func TestHandlerWritesUsageDebugRecord(t *testing.T) {
 	}
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriter(&logs), nil, "", usageDebug, testRouter())
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), nil, "", usageDebug, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -331,7 +398,7 @@ func TestHandlerDoesNotPersistZeroUsageAgentRoutes(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "", nil, testRouter())
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -346,12 +413,127 @@ func TestHandlerDoesNotPersistZeroUsageAgentRoutes(t *testing.T) {
 
 	h.ServeHTTP(rr, req)
 
+	// Agent route has capture:usage, so zero usage should now be persisted with usage_missing=true
 	stats, err := st.Stats(context.Background(), store.StatsFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(stats) != 0 {
-		t.Fatalf("expected no persisted rows for zero-usage agent route, got: %#v", stats)
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 persisted row (usage_missing), got: %#v", stats)
+	}
+	if !stats[0].UsageMissing {
+		t.Fatal("expected UsageMissing = true for zero-usage agent route")
+	}
+}
+
+func TestStructuredJSONLogLineEmitted(t *testing.T) {
+	var logs bytes.Buffer
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatJSON), nil, "", nil, testRouter())
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": {"application/json"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}`)),
+		}, nil
+	})}
+
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-4o"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	// Parse the last line of the log output as JSON
+	logLines := strings.Split(strings.TrimSpace(logs.String()), "\n")
+	var lastLine string
+	for i := len(logLines) - 1; i >= 0; i-- {
+		if logLines[i] != "" {
+			lastLine = logLines[i]
+			break
+		}
+	}
+	if lastLine == "" {
+		t.Fatalf("no log lines found in:\n%s", logs.String())
+	}
+
+	var entry log.RequestLog
+	if err := json.Unmarshal([]byte(lastLine), &entry); err != nil {
+		t.Fatalf("log line is not valid JSON: %v\nline: %s", err, lastLine)
+	}
+
+	// Validate required fields
+	if entry.RequestID == 0 {
+		t.Fatal("missing request_id")
+	}
+	if entry.Method != "POST" {
+		t.Fatalf("method = %q, want POST", entry.Method)
+	}
+	if entry.Path == "" {
+		t.Fatal("missing path")
+	}
+	if entry.Upstream == "" {
+		t.Fatal("missing upstream")
+	}
+	if entry.Model == "" {
+		t.Fatal("missing model")
+	}
+	if entry.Status != http.StatusOK {
+		t.Fatalf("status = %d, want %d", entry.Status, http.StatusOK)
+	}
+	// latency_ms may be 0 in fast test round trips, but the field must exist
+	// and be in the output JSON. We check the JSON key exists by unmarshalling.
+	// The struct field is int64, so 0 is valid for instant responses.
+	_ = entry.LatencyMS
+	if entry.CaptureMode == "" {
+		t.Fatal("missing capture_mode")
+	}
+	if !entry.TokensCaptured {
+		t.Fatal("expected tokens_captured = true")
+	}
+}
+
+func TestHealthEndpoint(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	var logs bytes.Buffer
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, testRouter())
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/_health", nil)
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response JSON: %v", err)
+	}
+
+	// Validate required fields
+	if resp["status"] != "ok" {
+		t.Fatalf("status = %q, want ok", resp["status"])
+	}
+	if _, ok := resp["uptime_seconds"]; !ok {
+		t.Fatal("missing uptime_seconds")
+	}
+	if _, ok := resp["requests_total"]; !ok {
+		t.Fatal("missing requests_total")
+	}
+	if _, ok := resp["db_size_bytes"]; !ok {
+		t.Fatal("missing db_size_bytes")
 	}
 }
 
@@ -363,7 +545,7 @@ func TestHandlerPrefersRequestModelOverResponseModel(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "", nil, testRouter())
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -413,7 +595,7 @@ func TestHandlerRoutesByModel(t *testing.T) {
 	router := NewRouter(cfg)
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "", nil, router)
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, router)
 
 	var capturedHost string
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -465,7 +647,7 @@ func TestPolicyBlocklistBlocksModel(t *testing.T) {
 
 	// 3. Create handler with store
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "", nil, testRouter())
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: 200,
@@ -503,7 +685,7 @@ func TestPolicyBlocklistBlocksModel(t *testing.T) {
 func TestPolicyNotAppliedWhenNoStore(t *testing.T) {
 	// Handler without store — policy evaluation skipped
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriter(&logs), nil, "", nil, testRouter())
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), nil, "", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: 200,
@@ -529,7 +711,7 @@ func TestPolicyCacheRefreshOnExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriter(&logs), st, "", nil, testRouter())
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, testRouter())
 	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: 200,

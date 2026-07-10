@@ -41,6 +41,11 @@ func runStats(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "failed to query stats: %v\n", err)
 		return 1
 	}
+	usageMissingCount, err := st.CountUsageMissing(context.Background())
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to query usage missing count: %v\n", err)
+		return 1
+	}
 
 	if *jsonFlag {
 		enc := json.NewEncoder(stdout)
@@ -52,6 +57,9 @@ func runStats(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	printStatsRows(stdout, rows)
+	if usageMissingCount > 0 {
+		fmt.Fprintf(stdout, "(%d request(s) had no usage data)\n", usageMissingCount)
+	}
 	return 0
 }
 

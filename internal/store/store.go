@@ -43,6 +43,7 @@ type RequestRecord struct {
 	Project           string
 	NotBilled         bool
 	Provider          string
+	UsageMissing      bool
 }
 
 type StatsFilter struct {
@@ -66,6 +67,7 @@ type ModelStats struct {
 	AvgLatencyMS      float64 `json:"avg_latency_ms"`
 	NotBilled         bool    `json:"not_billed"`
 	Provider          string  `json:"provider,omitempty"`
+	UsageMissing      bool    `json:"usage_missing"`
 }
 
 type TimelineBucket struct {
@@ -149,34 +151,13 @@ func (s *Store) init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if _, err = s.db.ExecContext(ctx, string(schema)); err != nil {
+	_, err = s.db.ExecContext(ctx, string(schema))
+	if err != nil {
 		return err
 	}
-	return s.runMigrations(ctx)
-}
-
-func (s *Store) runMigrations(ctx context.Context) error {
-	migrations := []string{
-		`ALTER TABLE requests ADD COLUMN compression_status TEXT`,
-		`ALTER TABLE requests ADD COLUMN compression_original_tokens INTEGER`,
-		`ALTER TABLE requests ADD COLUMN compression_final_tokens INTEGER`,
-		`ALTER TABLE requests ADD COLUMN compression_latency_ms INTEGER`,
-	}
-	for _, m := range migrations {
-		_, err := s.db.ExecContext(ctx, m)
-		if err != nil && !isDuplicateColumnError(err) {
-			return fmt.Errorf("migration %q: %w", m, err)
-		}
-	}
+	// Migration: add usage_missing column if it doesn't exist (for existing DBs)
+	_, _ = s.db.ExecContext(ctx, "ALTER TABLE requests ADD COLUMN usage_missing INTEGER NOT NULL DEFAULT 0")
 	return nil
-}
-
-func isDuplicateColumnError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "duplicate column name")
 }
 
 func (s *Store) InsertRequest(ctx context.Context, rec RequestRecord) error {
@@ -190,8 +171,8 @@ func (s *Store) InsertRequest(ctx context.Context, rec RequestRecord) error {
 INSERT INTO requests (
   ts, endpoint, method, path, upstream_host, model, stream, status, error,
   latency_ms, prompt_tokens, cached_input_tokens, cache_write_tokens,
-  completion_tokens, total_tokens, project, not_billed, provider
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  completion_tokens, total_tokens, project, not_billed, provider, usage_missing
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		rec.Timestamp.UTC().Format(time.RFC3339Nano),
 		rec.Endpoint,
 		rec.Method,
@@ -210,6 +191,7 @@ INSERT INTO requests (
 		nullString(rec.Project),
 		boolInt(rec.NotBilled),
 		rec.Provider,
+		boolInt(rec.UsageMissing),
 	)
 	return err
 }
@@ -231,7 +213,8 @@ SELECT
   COALESCE(SUM(total_tokens), 0) AS total_tokens,
   COALESCE(AVG(latency_ms), 0) AS avg_latency_ms,
   MAX(not_billed) AS not_billed,
-  COALESCE(NULLIF(MAX(provider), ''), '') AS provider
+  COALESCE(NULLIF(MAX(provider), ''), '') AS provider,
+  MAX(usage_missing) AS usage_missing
 FROM requests
 WHERE (? = '' OR ts >= ?)
   AND (? = '' OR ts < ?)
@@ -262,10 +245,12 @@ func (s *Store) queryModelStats(ctx context.Context, query string, args ...any) 
 	for rows.Next() {
 		var row ModelStats
 		var notBilled int
-		if err := rows.Scan(&row.Model, &row.Endpoint, &row.UpstreamHost, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens, &row.AvgLatencyMS, &notBilled, &row.Provider); err != nil {
+		var usageMissing int
+		if err := rows.Scan(&row.Model, &row.Endpoint, &row.UpstreamHost, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens, &row.AvgLatencyMS, &notBilled, &row.Provider, &usageMissing); err != nil {
 			return nil, err
 		}
 		row.NotBilled = notBilled != 0
+		row.UsageMissing = usageMissing != 0
 		out = append(out, row)
 	}
 	return out, rows.Err()
@@ -470,11 +455,13 @@ func nullInt(value int) any {
 	return value
 }
 
-func nullInt64(value int64) any {
-	if value == 0 {
-		return nil
+func (s *Store) CountUsageMissing(ctx context.Context) (int, error) {
+	if s == nil || s.db == nil {
+		return 0, nil
 	}
-	return value
+	var count int
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM requests WHERE usage_missing = 1").Scan(&count)
+	return count, err
 }
 
 func boolInt(value bool) int {

@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS requests (
   project             TEXT,
   not_billed          INTEGER NOT NULL DEFAULT 0,
   provider            TEXT NOT NULL DEFAULT '',
-  session_id          INTEGER
+  session_id          INTEGER,
+  usage_missing       INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
