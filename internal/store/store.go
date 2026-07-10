@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"llm-proxy/internal/policy"
@@ -26,25 +25,29 @@ type Store struct {
 }
 
 type RequestRecord struct {
-	Timestamp         time.Time
-	Endpoint          string
-	Method            string
-	Path              string
-	UpstreamHost      string
-	Model             string
-	Stream            bool
-	Status            int
-	Error             string
-	LatencyMS         int64
-	PromptTokens      int
-	CachedInputTokens int
-	CacheWriteTokens  int
-	CompletionTokens  int
-	TotalTokens       int
-	Project           string
-	NotBilled         bool
-	Provider          string
-	UsageMissing      bool
+	Timestamp                 time.Time
+	Endpoint                  string
+	Method                    string
+	Path                      string
+	UpstreamHost              string
+	Model                     string
+	Stream                    bool
+	Status                    int
+	Error                     string
+	LatencyMS                 int64
+	PromptTokens              int
+	CachedInputTokens         int
+	CacheWriteTokens          int
+	CompletionTokens          int
+	TotalTokens               int
+	Project                   string
+	NotBilled                 bool
+	Provider                  string
+	UsageMissing              bool
+	CompressionStatus         string
+	CompressionOriginalTokens int
+	CompressionFinalTokens    int
+	CompressionLatencyMS      int64
 }
 
 type StatsFilter struct {
@@ -56,19 +59,24 @@ type StatsFilter struct {
 }
 
 type ModelStats struct {
-	Model             string  `json:"model"`
-	Endpoint          string  `json:"endpoint"`
-	UpstreamHost      string  `json:"upstream_host,omitempty"`
-	Requests          int     `json:"requests"`
-	PromptTokens      int     `json:"prompt_tokens"`
-	CachedInputTokens int     `json:"cached_input_tokens"`
-	CacheWriteTokens  int     `json:"cache_write_tokens"`
-	CompletionTokens  int     `json:"completion_tokens"`
-	TotalTokens       int     `json:"total_tokens"`
-	AvgLatencyMS      float64 `json:"avg_latency_ms"`
-	NotBilled         bool    `json:"not_billed"`
-	Provider          string  `json:"provider,omitempty"`
-	UsageMissing      bool    `json:"usage_missing"`
+	Model                     string  `json:"model"`
+	Endpoint                  string  `json:"endpoint"`
+	UpstreamHost              string  `json:"upstream_host,omitempty"`
+	Requests                  int     `json:"requests"`
+	PromptTokens              int     `json:"prompt_tokens"`
+	CachedInputTokens         int     `json:"cached_input_tokens"`
+	CacheWriteTokens          int     `json:"cache_write_tokens"`
+	CompletionTokens          int     `json:"completion_tokens"`
+	TotalTokens               int     `json:"total_tokens"`
+	AvgLatencyMS              float64 `json:"avg_latency_ms"`
+	NotBilled                 bool    `json:"not_billed"`
+	Provider                  string  `json:"provider,omitempty"`
+	UsageMissing              bool    `json:"usage_missing"`
+	CompressedRequests        int     `json:"compressed_requests"`
+	CompressionOriginalTokens int     `json:"compression_original_tokens"`
+	CompressionFinalTokens    int     `json:"compression_final_tokens"`
+	CompressionRemovedTokens  int     `json:"compression_removed_tokens"`
+	AvgCompressionRatio       float64 `json:"avg_compression_ratio"`
 }
 
 type TimelineBucket struct {
@@ -164,10 +172,18 @@ func (s *Store) init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	// Migration: add usage_missing column if it doesn't exist (for existing DBs)
-	var count int
-	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pragma_table_info('requests') WHERE name = 'usage_missing'").Scan(&count); err == nil && count == 0 {
-		_, _ = s.db.ExecContext(ctx, "ALTER TABLE requests ADD COLUMN usage_missing INTEGER NOT NULL DEFAULT 0")
+	// Migration: add columns that may not exist in older schemas
+	for _, m := range []struct{ name, def string }{
+		{"usage_missing", "INTEGER NOT NULL DEFAULT 0"},
+		{"compression_status", "TEXT"},
+		{"compression_original_tokens", "INTEGER"},
+		{"compression_final_tokens", "INTEGER"},
+		{"compression_latency_ms", "INTEGER"},
+	} {
+		var count int
+		if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pragma_table_info('requests') WHERE name = ?", m.name).Scan(&count); err == nil && count == 0 {
+			_, _ = s.db.ExecContext(ctx, fmt.Sprintf("ALTER TABLE requests ADD COLUMN %s %s", m.name, m.def))
+		}
 	}
 	return nil
 }
@@ -183,8 +199,10 @@ func (s *Store) InsertRequest(ctx context.Context, rec RequestRecord) error {
 INSERT INTO requests (
   ts, endpoint, method, path, upstream_host, model, stream, status, error,
   latency_ms, prompt_tokens, cached_input_tokens, cache_write_tokens,
-  completion_tokens, total_tokens, project, not_billed, provider, usage_missing
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  completion_tokens, total_tokens, project, not_billed, provider, usage_missing,
+  compression_status, compression_original_tokens, compression_final_tokens,
+  compression_latency_ms
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		rec.Timestamp.UTC().Format(time.RFC3339Nano),
 		rec.Endpoint,
 		rec.Method,
@@ -204,6 +222,10 @@ INSERT INTO requests (
 		boolInt(rec.NotBilled),
 		rec.Provider,
 		boolInt(rec.UsageMissing),
+		nullString(rec.CompressionStatus),
+		nullInt(rec.CompressionOriginalTokens),
+		nullInt(rec.CompressionFinalTokens),
+		nullInt64(rec.CompressionLatencyMS),
 	)
 	return err
 }
@@ -226,7 +248,12 @@ SELECT
   COALESCE(AVG(latency_ms), 0) AS avg_latency_ms,
   MAX(not_billed) AS not_billed,
   COALESCE(NULLIF(MAX(provider), ''), '') AS provider,
-  MAX(usage_missing) AS usage_missing
+  MAX(usage_missing) AS usage_missing,
+  COUNT(CASE WHEN compression_status IN ('applied', 'no_change') THEN 1 END) AS compressed_requests,
+  COALESCE(SUM(compression_original_tokens), 0) AS compression_original_tokens,
+  COALESCE(SUM(compression_final_tokens), 0) AS compression_final_tokens,
+  COALESCE(SUM(compression_original_tokens - compression_final_tokens), 0) AS compression_removed_tokens,
+  COALESCE(AVG(NULLIF(compression_final_tokens, 0) * 1.0 / compression_original_tokens), 0) AS avg_compression_ratio
 FROM requests
 WHERE (? = '' OR ts >= ?)
   AND (? = '' OR ts < ?)
@@ -258,7 +285,7 @@ func (s *Store) queryModelStats(ctx context.Context, query string, args ...any) 
 		var row ModelStats
 		var notBilled int
 		var usageMissing int
-		if err := rows.Scan(&row.Model, &row.Endpoint, &row.UpstreamHost, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens, &row.AvgLatencyMS, &notBilled, &row.Provider, &usageMissing); err != nil {
+		if err := rows.Scan(&row.Model, &row.Endpoint, &row.UpstreamHost, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens, &row.AvgLatencyMS, &notBilled, &row.Provider, &usageMissing, &row.CompressedRequests, &row.CompressionOriginalTokens, &row.CompressionFinalTokens, &row.CompressionRemovedTokens, &row.AvgCompressionRatio); err != nil {
 			return nil, err
 		}
 		row.NotBilled = notBilled != 0
@@ -461,6 +488,13 @@ func nullString(value string) any {
 }
 
 func nullInt(value int) any {
+	if value == 0 {
+		return nil
+	}
+	return value
+}
+
+func nullInt64(value int64) any {
 	if value == 0 {
 		return nil
 	}

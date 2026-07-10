@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"llm-proxy/internal/compression/headroom"
 	"llm-proxy/internal/log"
 	"llm-proxy/internal/policy"
 	"llm-proxy/internal/store"
@@ -91,6 +92,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	meta := ParseRequestMetadata(body)
 
+	// Strip provider prefix from URL path
+	originalURI := r.URL.RequestURI()
+	provider, remainingPath := StripProviderPrefix(r.URL.Path)
+	if provider != "" {
+		r.URL.Path = remainingPath
+		if r.URL.RawPath != "" {
+			_, remainingRaw := StripProviderPrefix(r.URL.RawPath)
+			r.URL.RawPath = remainingRaw
+		}
+	}
+
 	// Built-in health endpoint
 	if r.URL.Path == "/_health" {
 		w.Header().Set("Content-Type", "application/json")
@@ -117,11 +129,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Route by path + model
-	route, ok := h.router.MatchModel(r.URL.Path, meta.Model)
+	// Route by path + model + provider
+	route, ok := h.router.MatchModel(r.URL.Path, meta.Model, provider)
 	if !ok {
-		h.log.Error("id=%d path=%q route=unknown status=502\n", id, r.URL.RequestURI())
-		http.Error(w, "unknown route", http.StatusBadGateway)
+		h.log.Error("id=%d path=%q provider=%q route=unknown status=502\n", id, originalURI, provider)
+		http.Error(w, "unknown Copilot path", http.StatusBadGateway)
 		return
 	}
 
@@ -179,7 +191,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.log.Request("id=%d method=%s path=%q endpoint=%s upstream=%s capture=%s provider=%q model=%q stream=%s\n",
 		id,
 		r.Method,
-		r.URL.RequestURI(),
+		originalURI,
 		route.Endpoint,
 		route.Upstream,
 		route.Capture,
@@ -260,7 +272,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.log.Info("id=%d status=%d bytes=%d latency_ms=%d\n", id, resp.StatusCode, bytesWritten, latencyMS)
 	}
 
-	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, observer)
+	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, compMeta, observer)
 	h.writeUsageDebug(started, id, route, r, meta, resp, observer)
 
 	// Emit structured log line
@@ -344,24 +356,28 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 		usage = observer.Usage
 	}
 	if err := h.store.InsertRequest(ctx, store.RequestRecord{
-		Timestamp:         ts,
-		Endpoint:          string(route.Endpoint),
-		Method:            r.Method,
-		Path:              r.URL.RequestURI(),
-		UpstreamHost:      route.Upstream,
-		Model:             model,
-		Stream:            meta.Stream,
-		Status:            status,
-		LatencyMS:         latencyMS,
-		PromptTokens:      usage.PromptTokens,
-		CachedInputTokens: usage.CachedInputTokens,
-		CacheWriteTokens:  usage.CacheWriteTokens,
-		CompletionTokens:  usage.CompletionTokens,
-		TotalTokens:       usage.TotalTokens,
-		Project:           h.project,
-		NotBilled:         route.NotBilled,
-		Provider:          route.Provider,
-		UsageMissing:      usageMissing,
+		Timestamp:                 ts,
+		Endpoint:                  string(route.Endpoint),
+		Method:                    r.Method,
+		Path:                      r.URL.RequestURI(),
+		UpstreamHost:              route.Upstream,
+		Model:                     model,
+		Stream:                    meta.Stream,
+		Status:                    status,
+		LatencyMS:                 latencyMS,
+		PromptTokens:              usage.PromptTokens,
+		CachedInputTokens:         usage.CachedInputTokens,
+		CacheWriteTokens:          usage.CacheWriteTokens,
+		CompletionTokens:          usage.CompletionTokens,
+		TotalTokens:               usage.TotalTokens,
+		Project:                   h.project,
+		NotBilled:                 route.NotBilled,
+		Provider:                  route.Provider,
+		UsageMissing:              usageMissing,
+		CompressionStatus:         compMeta.Status,
+		CompressionOriginalTokens: compMeta.OriginalTokens,
+		CompressionFinalTokens:    compMeta.FinalTokens,
+		CompressionLatencyMS:      compMeta.LatencyMS,
 	}); err != nil {
 		h.log.Warn("store_error=%q\n", err.Error())
 	}

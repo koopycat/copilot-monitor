@@ -15,6 +15,7 @@ import (
 
 	"llm-proxy/dashboard"
 	"llm-proxy/internal/api"
+	"llm-proxy/internal/compression/headroom"
 	"llm-proxy/internal/log"
 	"llm-proxy/internal/proxy"
 	"llm-proxy/internal/store"
@@ -31,6 +32,11 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
 	dashboardFlag := fs.Bool("dashboard", false, "also serve the dashboard API and UI on the same port (no need for a separate serve command)")
 	logFormat := fs.String("log-format", "json", "log output format; json or human")
+	headroomURL := fs.String("headroom-url", "", "optional loopback Headroom compression endpoint")
+	headroomTimeout := fs.Duration("headroom-timeout", 30*time.Second, "Headroom compression request timeout")
+	headroomRequired := fs.Bool("headroom-required", false, "fail requests when Headroom compression is unavailable")
+	headroomCompressUsers := fs.Bool("headroom-compress-user-messages", false, "allow Headroom to transform user messages")
+	headroomTargetRatio := fs.Float64("headroom-target-ratio", 0, "optional Headroom target ratio (0 < ratio <= 1)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -104,6 +110,14 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 
 	proxyHandler := proxy.NewHandlerWithRouter(logWriter, st, *project, usageDebug, router)
+	if compressor != nil {
+		proxyHandler.ConfigureCompression(compressor, *headroomRequired)
+		fmt.Fprintf(stdout, "headroom compression: %s timeout=%s mode=%s\n",
+			*headroomURL,
+			*headroomTimeout,
+			compressionMode(*headroomRequired),
+		)
+	}
 
 	var serverHandler http.Handler = proxyHandler
 	if *dashboardFlag {
@@ -237,13 +251,6 @@ func combinedDashProxy(proxyHandler http.Handler, router *proxy.Router, apiHandl
 }
 
 // writeLines writes the given text and returns the number of lines it occupied.
-func settingsAddr(addr string) string {
-	if strings.HasPrefix(addr, ":") {
-		return "127.0.0.1" + addr
-	}
-	return addr
-}
-
 func writeLines(w io.Writer, s string) int {
 	count := 1
 	for _, c := range s {

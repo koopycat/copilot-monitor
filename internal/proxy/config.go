@@ -17,7 +17,6 @@ type RouteConfig struct {
 	PrefixMatch        bool     `json:"prefix_match,omitempty"`
 	Models             []string `json:"models,omitempty"`
 	NotBilled          bool     `json:"not_billed,omitempty"`
-	Provider           string   `json:"provider,omitempty"`
 }
 
 type ProxyConfig struct {
