@@ -1,0 +1,28 @@
+{
+  "routes": [
+    {
+      "label": "ping",
+      "path": "/_ping",
+      "upstream_host": "",
+      "capture": "local"
+    },
+    {
+      "label": "chat",
+      "path": "/v1/chat/completions",
+      "upstream_host": "api.openai.com",
+      "capture": "usage"
+    },
+    {
+      "label": "embeddings",
+      "path": "/v1/embeddings",
+      "upstream_host": "api.openai.com",
+      "capture": "metadata"
+    },
+    {
+      "label": "models",
+      "path": "/v1/models",
+      "upstream_host": "api.openai.com",
+      "capture": "none"
+    }
+  ]
+}

@@ -3,28 +3,42 @@ package proxy
 import "testing"
 
 func TestRoutePath(t *testing.T) {
-	r := NewRouter(nil)
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{Path: "/_ping", UpstreamHost: "", Capture: "local"},
+			{Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+			{Path: "/agents", UpstreamHost: "api.githubcopilot.com", Capture: "usage", PrefixMatch: true},
+			{Path: "/models", UpstreamHost: "api.githubcopilot.com", Capture: "none"},
+			{Path: "/models/session", UpstreamHost: "api.githubcopilot.com", Capture: "none"},
+			{Path: "/responses", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+			{Path: "/embeddings", UpstreamHost: "api.githubcopilot.com", Capture: "metadata"},
+			{Path: "/v1/engines", UpstreamHost: "copilot-proxy.githubusercontent.com", Capture: "usage", PrefixMatch: true},
+			{Path: "/v1/completions", UpstreamHost: "copilot-proxy.githubusercontent.com", Capture: "usage"},
+			{Path: "/v1/messages", UpstreamHost: "api.githubcopilot.com", Capture: "usage", PrefixMatch: true},
+		},
+	}
+	r := NewRouter(cfg)
 	tests := []struct {
 		name         string
 		path         string
 		wantOK       bool
-		wantEndpoint Endpoint
+		wantEndpoint string
 		wantUpstream string
 		wantCapture  CaptureMode
 		wantLocal    bool
 	}{
-		{name: "ping", path: "/_ping", wantOK: true, wantEndpoint: EndpointPing, wantCapture: CaptureLocal, wantLocal: true},
-		{name: "chat", path: "/chat/completions", wantOK: true, wantEndpoint: EndpointChat, wantUpstream: GitHubCopilotAPIHost, wantCapture: CaptureUsage},
-		{name: "agent root", path: "/agents", wantOK: true, wantEndpoint: EndpointAgent, wantUpstream: GitHubCopilotAPIHost, wantCapture: CaptureUsage},
-		{name: "agent nested", path: "/agents/123", wantOK: true, wantEndpoint: EndpointAgent, wantUpstream: GitHubCopilotAPIHost, wantCapture: CaptureUsage},
-		{name: "models", path: "/models", wantOK: true, wantEndpoint: EndpointModels, wantUpstream: GitHubCopilotAPIHost, wantCapture: CaptureNone},
-		{name: "models session", path: "/models/session", wantOK: true, wantEndpoint: EndpointModelsSession, wantUpstream: GitHubCopilotAPIHost, wantCapture: CaptureNone},
-		{name: "responses", path: "/responses", wantOK: true, wantEndpoint: EndpointResponses, wantUpstream: GitHubCopilotAPIHost, wantCapture: CaptureUsage},
-		{name: "embeddings", path: "/embeddings", wantOK: true, wantEndpoint: EndpointEmbeddings, wantUpstream: GitHubCopilotAPIHost, wantCapture: CaptureMetadata},
-		{name: "engine completions", path: "/v1/engines/copilot-codex/completions", wantOK: true, wantEndpoint: EndpointCompletions, wantUpstream: GitHubCopilotProxyHost, wantCapture: CaptureUsage},
-		{name: "v1 completions", path: "/v1/completions", wantOK: true, wantEndpoint: EndpointCompletions, wantUpstream: GitHubCopilotProxyHost, wantCapture: CaptureUsage},
-		{name: "anthropic messages", path: "/v1/messages", wantOK: true, wantEndpoint: EndpointChat, wantUpstream: GitHubCopilotAPIHost, wantCapture: CaptureUsage},
-		{name: "anthropic messages nested", path: "/v1/messages/count_tokens", wantOK: true, wantEndpoint: EndpointChat, wantUpstream: GitHubCopilotAPIHost, wantCapture: CaptureUsage},
+		{name: "ping", path: "/_ping", wantOK: true, wantEndpoint: "/_ping", wantCapture: CaptureLocal, wantLocal: true},
+		{name: "chat", path: "/chat/completions", wantOK: true, wantEndpoint: "/chat/completions", wantUpstream: "api.githubcopilot.com", wantCapture: CaptureUsage},
+		{name: "agent root", path: "/agents", wantOK: true, wantEndpoint: "/agents", wantUpstream: "api.githubcopilot.com", wantCapture: CaptureUsage},
+		{name: "agent nested", path: "/agents/123", wantOK: true, wantEndpoint: "/agents", wantUpstream: "api.githubcopilot.com", wantCapture: CaptureUsage},
+		{name: "models", path: "/models", wantOK: true, wantEndpoint: "/models", wantUpstream: "api.githubcopilot.com", wantCapture: CaptureNone},
+		{name: "models session", path: "/models/session", wantOK: true, wantEndpoint: "/models/session", wantUpstream: "api.githubcopilot.com", wantCapture: CaptureNone},
+		{name: "responses", path: "/responses", wantOK: true, wantEndpoint: "/responses", wantUpstream: "api.githubcopilot.com", wantCapture: CaptureUsage},
+		{name: "embeddings", path: "/embeddings", wantOK: true, wantEndpoint: "/embeddings", wantUpstream: "api.githubcopilot.com", wantCapture: CaptureMetadata},
+		{name: "engine completions", path: "/v1/engines/copilot-codex/completions", wantOK: true, wantEndpoint: "/v1/engines", wantUpstream: "copilot-proxy.githubusercontent.com", wantCapture: CaptureUsage},
+		{name: "v1 completions", path: "/v1/completions", wantOK: true, wantEndpoint: "/v1/completions", wantUpstream: "copilot-proxy.githubusercontent.com", wantCapture: CaptureUsage},
+		{name: "anthropic messages", path: "/v1/messages", wantOK: true, wantEndpoint: "/v1/messages", wantUpstream: "api.githubcopilot.com", wantCapture: CaptureUsage},
+		{name: "anthropic messages nested", path: "/v1/messages/count_tokens", wantOK: true, wantEndpoint: "/v1/messages", wantUpstream: "api.githubcopilot.com", wantCapture: CaptureUsage},
 		{name: "unknown", path: "/telemetry", wantOK: false},
 	}
 
@@ -55,16 +69,13 @@ func TestRoutePath(t *testing.T) {
 
 func TestRouter_Match_NilConfig(t *testing.T) {
 	r := NewRouter(nil)
-	got, ok := r.Match("/_ping")
-	if !ok {
-		t.Fatal("expected ping route for nil config")
-	}
-	if got.Endpoint != EndpointPing {
-		t.Fatalf("endpoint = %q, want ping", got.Endpoint)
+	_, ok := r.Match("/_ping")
+	if ok {
+		t.Fatal("expected no route for nil config")
 	}
 }
 
-func TestRouter_Match_ConfigRoutesOverrideBuiltins(t *testing.T) {
+func TestRouter_Match_ConfigRoutes(t *testing.T) {
 	cfg := &ProxyConfig{
 		Routes: []RouteConfig{
 			{Path: "/chat/completions", UpstreamHost: "custom.example.com", Capture: "none"},
@@ -112,13 +123,10 @@ func TestRouter_Match_PrefixRoutes(t *testing.T) {
 		}
 	})
 
-	t.Run("builtin-fallback", func(t *testing.T) {
-		got, ok := r.Match("/_ping")
-		if !ok {
-			t.Fatal("expected route")
-		}
-		if got.Capture != CaptureLocal {
-			t.Fatalf("capture = %q, want local", got.Capture)
+	t.Run("no-fallback", func(t *testing.T) {
+		_, ok := r.Match("/_ping")
+		if ok {
+			t.Fatal("expected no route for unconfigured path")
 		}
 	})
 }
@@ -291,18 +299,6 @@ func TestMatchModel_PrefixWithModel(t *testing.T) {
 	}
 	if route.Upstream != "default.example.com" {
 		t.Fatalf("upstream = %q, want default.example.com", route.Upstream)
-	}
-}
-
-func TestMatchModel_BuiltinRoutesIgnoreModels(t *testing.T) {
-	r := NewRouter(nil)
-	// Built-in routes always match regardless of model
-	route, ok := r.MatchModel("/chat/completions", "any-model", "")
-	if !ok {
-		t.Fatal("expected built-in route")
-	}
-	if route.Upstream != GitHubCopilotAPIHost {
-		t.Fatalf("upstream = %q, want %s", route.Upstream, GitHubCopilotAPIHost)
 	}
 }
 
