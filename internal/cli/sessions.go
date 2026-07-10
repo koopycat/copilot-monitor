@@ -57,16 +57,27 @@ func runSessions(args []string, stdout, stderr io.Writer) int {
 	}
 
 	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "START\tEND\tDURATION\tPROJECT\tREQUESTS\tTOKENS")
+	fmt.Fprintln(tw, "START\tEND\tDURATION\tPROJECT\tREQUESTS\tTOKENS\tTOKENS_REMOVED")
 	for _, row := range rows {
 		duration := row.EndedAt.Sub(row.StartedAt).Round(time.Second)
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d\t%d\n",
+		removed := "-"
+		if models, err := st.SessionModels(context.Background(), row.ID); err == nil {
+			var total int
+			for _, m := range models {
+				total += m.CompressionRemovedTokens
+			}
+			if total > 0 {
+				removed = fmt.Sprintf("%d", total)
+			}
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d\t%d\t%s\n",
 			row.StartedAt.Local().Format("2006-01-02 15:04:05"),
 			row.EndedAt.Local().Format("2006-01-02 15:04:05"),
 			duration,
 			emptyDash(row.Project),
 			row.RequestCount,
 			row.TokenCount,
+			removed,
 		)
 	}
 	_ = tw.Flush()

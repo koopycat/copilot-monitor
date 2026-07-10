@@ -16,8 +16,8 @@ This document maps those requirements to the current implementation.
 3. `Router.Match` checks config-driven routes first (from `--routes-config`), then falls back to built-in Copilot routes. Config routes always take precedence over built-in routes for matching paths.
 4. `internal/proxy/forward.go` reads the request body only long enough to extract safe metadata such as `model` and `stream`.
 5. `internal/policy.Policy.Allow` evaluates the global model policy. When a request model matches a configured blocklist, the proxy returns HTTP 403 with a JSON error body, persists the blocked attempt, and never contacts the upstream.
-6. The proxy builds an HTTPS upstream request. For Copilot routes the upstream is `api.githubcopilot.com` or `copilot-proxy.githubusercontent.com`. For config-driven routes the upstream is whatever host the config specifies, with an optional path prefix prepended.
-7. Strip hop-by-hop headers and disable compression so response usage can be observed.
+6. If `--headroom-url` is configured, eligible OpenAI-compatible chat requests are sent to the loopback Headroom `/v1/compress` endpoint after routing and policy checks. Only the model and supported messages are sent; provider headers and the rest of the request envelope stay in the proxy. A successful response replaces `messages` while preserving the other request fields. Compression is fail-open by default; `--headroom-required` returns HTTP 502 instead.
+7. The proxy builds an HTTPS upstream request from the final body. For Copilot routes the upstream is `api.githubcopilot.com` or `copilot-proxy.githubusercontent.com`. For config-driven routes the upstream is whatever host the config specifies, with an optional path prefix prepended. Strip hop-by-hop headers and disable compression so response usage can be observed.
 8. Responses are streamed back to the client as they arrive.
    For JSON and SSE responses, `internal/proxy/sse.go` watches chunks for `usage` and response `model` fields without retaining the full response.
 9. `internal/proxy/server.go` persists only metadata and token counts through `internal/store.InsertRequest` when the route is configured to capture.
@@ -57,16 +57,23 @@ Response bodies are streamed to the client while observers look only for usage f
 Debug usage logs are opt-in via `--usage-debug-log` and must stay metadata-only; `SafeHeaders` redacts sensitive response headers.
 Keep listeners loopback-only by default (`127.0.0.1`) unless there is a clear security reason to expose them.
 
+Headroom is a separate local process and may retain original content according to
+its own configuration. Copilot Monitor persists estimated compression token metrics
+(`compression_status`, `compression_original_tokens`, `compression_final_tokens`,
+`compression_latency_ms`) as nullable columns on the `requests` table. Provider
+response usage remains authoritative for cost reporting; compression savings are
+labeled as estimates and are not mixed into billed usage.
+
 ## Schema Changes
 
 The schema is embedded from `internal/store/schema.sql` and applied with `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` during `store.Open`.
-There is no migration framework.
+A migration step runs after schema init, executing `ALTER TABLE ADD COLUMN` statements that are tolerant of duplicate-column errors.
 When changing persisted data:
 
 - Prefer additive columns and indexes that are safe for existing databases.
+- Add corresponding `ALTER TABLE` statements to `runMigrations` in `store.go`.
 - Update `store.RequestRecord`, `InsertRequest`, the relevant query structs, exports, API handlers, and CLI output together.
 - Add or update `internal/store/*_test.go` to cover insert and query behavior.
-- If a change cannot be expressed safely with the current init-only schema, add a deliberate migration path before relying on it.
 - Re-check privacy rules before adding any column that could contain user content, file paths, repository names, headers, or secrets.
 
 ## Common Changes

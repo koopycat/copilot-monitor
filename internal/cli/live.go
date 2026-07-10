@@ -159,6 +159,9 @@ func renderLive(w io.Writer, current *store.CurrentSession, costResult costcalc.
 	}
 	_ = tw.Flush()
 
+	if costResult.CompressionRemovedTokens > 0 {
+		fmt.Fprintf(w, "\nCompression: %s tokens removed\n", intComma(costResult.CompressionRemovedTokens))
+	}
 	if costResult.FallbackCount > 0 || costResult.NotBilledCount > 0 {
 		fmt.Fprintf(w, "\n* provider or generic fallback pricing used for %d row(s). Code-completion rows are not billed in AI credits.\n", costResult.FallbackCount)
 	}
@@ -253,6 +256,9 @@ func renderLiveCompact(current *store.CurrentSession, costResult costcalc.Total)
 		formatUSD(costResult.TotalUSD),
 		project,
 	)
+	if costResult.CompressionRemovedTokens > 0 {
+		header += fmt.Sprintf("   compress -%s tok", intComma(costResult.CompressionRemovedTokens))
+	}
 	overview := aggregateByModel(costResult.Rows)
 	top := topModelSummaries(overview, 3)
 	models := "  " + strings.Join(top, ", ")

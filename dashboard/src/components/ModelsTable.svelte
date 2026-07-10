@@ -15,6 +15,7 @@
       <th>Requests</th>
       <th>Cache&nbsp;%</th>
       <th>Total Tokens</th>
+      <th>Token Reduction</th>
       <th>Latency</th>
       <th>Total&nbsp;$</th>
     </tr>
@@ -38,6 +39,13 @@
         <td class="num">{intl(s.requests)}</td>
         <td class="num">{s.cache_hit_pct}%</td>
         <td class="num">{intl(s.total_tokens)}</td>
+        <td class="num">
+          {#if s.compressed_requests > 0}
+            {intl(s.compression_removed_tokens)} (-{(s.avg_compression_ratio * 100).toFixed(0)}%)
+          {:else}
+            –
+          {/if}
+        </td>
         <td class="num">{ms(s.avg_latency_ms)}</td>
         <td class="num">{usd(s.total_usd)}</td>
       </tr>

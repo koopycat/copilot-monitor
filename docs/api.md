@@ -14,19 +14,34 @@ The reporting endpoints are read-only, but the session endpoints rebuild derived
 | Method | Path | Parameters | Returns |
 |---|---|---|---|
 | `GET` | `/api/health` | none | `{"ok":true}` |
-| `GET` | `/api/stats` | `?since=&project=&endpoint=` | `[]ModelStats` with `avg_latency_ms` |
-| `GET` | `/api/cost` | `?since=&project=&endpoint=` | `Total` with rows and aggregate |
+| `GET` | `/api/stats` | `?since=&project=&endpoint=` | `[]ModelStats` with `avg_latency_ms` and compression fields |
+| `GET` | `/api/cost` | `?since=&project=&endpoint=` | `Total` with rows, aggregate, and `compression_removed_tokens` |
 | `GET` | `/api/today` | `?project=&endpoint=` | `[]ModelStats` since local midnight |
 | `GET` | `/api/sessions` | `?since=&project=&limit=50` | `[]SessionStats` |
 | `GET` | `/api/stats/timeline` | `?since=&granularity=day|hour` | `[]TimelineBucket` |
-| `GET` | `/api/export` | `?since=` | CSV dump of captured request metadata |
+| `GET` | `/api/export` | `?since=` | CSV with compression columns |
+| `GET` | `/api/session/current` | none | Current session with per-model `compression_removed_tokens` |
 | `GET` | `/` | none | HTML dashboard |
+
+### Compression fields
+
+When Headroom compression is configured, model stat responses include:
+
+- `compressed_requests` -- requests with compression applied
+- `compression_original_tokens` -- estimated original input tokens
+- `compression_final_tokens` -- estimated compressed input tokens
+- `compression_removed_tokens` -- estimated tokens removed
+- `avg_compression_ratio` -- average compression ratio
+
+Export rows include `compression_status`, `compression_original_tokens`,
+`compression_final_tokens`, and `compression_latency_ms`.
+Cost rows and current-session model rows include `compressed_requests` and
+`compression_removed_tokens`.
 
 ## Dashboard
 
-Embedded single-page HTML dashboard served by the API server.
-Petite-Vue for reactivity, canvas chart for timeline.
-No build step. Petite-Vue is loaded at runtime from `unpkg`, so the dashboard depends on that CDN being reachable for the reactive runtime.
+Embedded single-page Svelte 5 dashboard served by the API server.
+Built with Vite and embedded in the Go binary. No runtime CDN dependencies.
 
 Features:
 
@@ -46,9 +61,11 @@ Features:
 ```
 internal/
 ├── api/api.go           # HTTP handler, all endpoints
-├── dashboard/
-│   ├── dashboard.go     # embed.FS and file server
-│   ├── index.html       # HTML shell, CSS, DOM bindings
-│   ├── app.js           # Petite-Vue app, state, fetch
-│   └── chart.js         # Canvas stacked bar chart
+dashboard/
+├── src/
+│   ├── lib/             # types, api client, formatters
+│   ├── stores/          # Svelte 5 reactive dashboard store
+│   └── components/      # ModelsTable, SessionsTable, LiveSessionCard, etc.
+├── index.html           # Svelte entry point
+└── vite.config.ts       # Vite build configuration
 ```

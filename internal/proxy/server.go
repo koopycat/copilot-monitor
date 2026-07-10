@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -17,13 +18,15 @@ import (
 const policyCacheTTL = 5 * time.Second
 
 type Handler struct {
-	log        *log.Writer
-	client     *http.Client
-	store      *store.Store
-	project    string
-	usageDebug *UsageDebugLogger
-	router     *Router
-	nextID     atomic.Uint64
+	log                 *log.Writer
+	client              *http.Client
+	store               *store.Store
+	project             string
+	usageDebug          *UsageDebugLogger
+	router              *Router
+	compressor          requestCompressor
+	compressionRequired bool
+	nextID              atomic.Uint64
 
 	policyMu    sync.RWMutex
 	policyCache *policy.Policy
@@ -149,6 +152,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var compMeta compressionMeta
+	body, err = h.maybeCompress(r.Context(), id, r, route, body, &compMeta)
+	if err != nil {
+		if errors.Is(err, errCompressionRequired) {
+			http.Error(w, "request compression failed", http.StatusBadGateway)
+			return
+		}
+		h.log.Error("id=%d compression_error=true\n", id)
+		http.Error(w, "request compression failed", http.StatusBadGateway)
+		return
+	}
+
 	outReq, err := MakeUpstreamRequest(r, route, body)
 	if err != nil {
 		h.log.Error("id=%d build_upstream_error=%q\n", id, err.Error())
@@ -196,12 +211,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			observer.Model,
 			observer.ParseErrors,
 		)
-		h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, observer)
+		h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, compMeta, observer)
 		h.writeUsageDebug(started, id, route, r, meta, resp, observer)
 		return
 	}
 	h.log.Info("id=%d status=%d bytes=%d latency_ms=%d\n", id, resp.StatusCode, bytesWritten, latencyMS)
-	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, nil)
+	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, compMeta, nil)
 	h.writeUsageDebug(started, id, route, r, meta, resp, nil)
 }
 
@@ -250,7 +265,7 @@ func (h *Handler) persistBlockedRequest(ctx context.Context, ts time.Time, route
 	}
 }
 
-func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route, r *http.Request, meta RequestMetadata, status int, latencyMS int64, observer *SSEObserver) {
+func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route, r *http.Request, meta RequestMetadata, status int, latencyMS int64, compMeta compressionMeta, observer *SSEObserver) {
 	if h.store == nil || route.Capture == CaptureNone || route.Capture == CaptureLocal || route.Capture == CaptureTunnel {
 		return
 	}
@@ -269,21 +284,25 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 		usage = observer.Usage
 	}
 	if err := h.store.InsertRequest(ctx, store.RequestRecord{
-		Timestamp:         ts,
-		Endpoint:          string(route.Endpoint),
-		Method:            r.Method,
-		Path:              r.URL.RequestURI(),
-		UpstreamHost:      route.Upstream,
-		Model:             model,
-		Stream:            meta.Stream,
-		Status:            status,
-		LatencyMS:         latencyMS,
-		PromptTokens:      usage.PromptTokens,
-		CachedInputTokens: usage.CachedInputTokens,
-		CacheWriteTokens:  usage.CacheWriteTokens,
-		CompletionTokens:  usage.CompletionTokens,
-		TotalTokens:       usage.TotalTokens,
-		Project:           h.project,
+		Timestamp:                 ts,
+		Endpoint:                  string(route.Endpoint),
+		Method:                    r.Method,
+		Path:                      r.URL.RequestURI(),
+		UpstreamHost:              route.Upstream,
+		Model:                     model,
+		Stream:                    meta.Stream,
+		Status:                    status,
+		LatencyMS:                 latencyMS,
+		PromptTokens:              usage.PromptTokens,
+		CachedInputTokens:         usage.CachedInputTokens,
+		CacheWriteTokens:          usage.CacheWriteTokens,
+		CompletionTokens:          usage.CompletionTokens,
+		TotalTokens:               usage.TotalTokens,
+		Project:                   h.project,
+		CompressionStatus:         compMeta.Status,
+		CompressionOriginalTokens: compMeta.OriginalTokens,
+		CompressionFinalTokens:    compMeta.FinalTokens,
+		CompressionLatencyMS:      compMeta.LatencyMS,
 	}); err != nil {
 		h.log.Warn("store_error=%q\n", err.Error())
 	}

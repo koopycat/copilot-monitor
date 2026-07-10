@@ -14,6 +14,11 @@ export interface ModelStats {
   completion_tokens: number;
   total_tokens: number;
   avg_latency_ms: number;
+  compressed_requests: number;
+  compression_original_tokens: number;
+  compression_final_tokens: number;
+  compression_removed_tokens: number;
+  avg_compression_ratio: number;
 }
 
 export interface CostRow {
@@ -23,6 +28,8 @@ export interface CostRow {
   total_usd: number;
   fallback: boolean;
   not_billed: boolean;
+  compressed_requests: number;
+  compression_removed_tokens: number;
 }
 
 export interface CostResponse {
@@ -61,7 +68,7 @@ export interface CurrentSession {
     token_count: number;
     cost: number;
   } | null;
-  models: Array<{ model: ModelId; requests: number }>;
+  models: Array<{ model: ModelId; requests: number; tokens?: number; cost?: number; compression_removed_tokens?: number }>;
 }
 
 export interface RouteConfig {
