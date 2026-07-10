@@ -24,11 +24,10 @@ func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	filter := store.SessionFilter{
-		Since:        parseSinceParam(r),
-		Until:        parseUntilParam(r),
-		Project:      r.URL.Query().Get("project"),
-		UpstreamHost: parseUpstreamParam(r),
-		Limit:        limit,
+		Since:   parseSinceParam(r),
+		Until:   parseUntilParam(r),
+		Project: r.URL.Query().Get("project"),
+		Limit:   limit,
 	}
 	rows, err := h.db.Sessions(r.Context(), filter)
 	if err != nil {

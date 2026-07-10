@@ -278,7 +278,7 @@ just watch
 Requires [air](https://github.com/air-verse/air) (`go install github.com/air-verse/air@latest`).
 
 Live dashboard URL: `http://127.0.0.1:7734/`
-The dashboard loads Petite-Vue from `unpkg` at runtime, so that page needs network access for the reactive runtime.
+The dashboard is a Svelte 5 app built with Vite and embedded in the Go binary. No runtime network access is needed for the dashboard itself — all assets are served locally.
 
 Print VSCode settings:
 
