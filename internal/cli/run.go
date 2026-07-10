@@ -30,6 +30,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	routesConfig := fs.String("routes-config", "", "JSON file with route definitions (required)")
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
 	dashboardFlag := fs.Bool("dashboard", false, "also serve the dashboard API and UI on the same port (no need for a separate serve command)")
+	logFormat := fs.String("log-format", "json", "log output format; json or human")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -87,14 +88,17 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "error: routes config %q contains no routes\n", *routesConfig)
 		return 1
 	}
-	fmt.Fprintf(stdout, "routes config: %s (%d routes)\n", store.FormatPath(*routesConfig), len(proxyCfg.Routes))
+
+	// First-line startup banner — must appear before any other output.
+	fmt.Fprintf(stderr, "llm-proxy: listening on %s (%d routes) \u2014 curl http://%s/_ping\n", settingsAddr(*addr), len(proxyCfg.Routes), settingsAddr(*addr))
+
 	router := proxy.NewRouter(proxyCfg)
 
 	// The request log goes to stderr by default. When the live view is active
 	// (TTY + not --no-live), the log writer is silenced so the two streams
 	// don't interleave and corrupt the live display. Users who need the log
 	// can re-run with --no-live.
-	logWriter := log.NewWriter(stderr)
+	logWriter := log.NewWriterWithFormat(stderr, log.LogFormat(*logFormat))
 	if !*noLive && log.IsTerminal(stderr) {
 		logWriter = log.Disabled()
 	}
@@ -129,17 +133,30 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	defer stopTail()
 
 	// Graceful shutdown on Ctrl+C: stop the server, then stop the tail.
+	// SIGINT → exit 130, SIGTERM → exit 0.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	sigReceived := make(chan os.Signal, 1)
 	go func() {
-		<-sigCh
-		ctx := context.Background()
-		_ = server.Shutdown(ctx)
+		s := <-sigCh
+		sigReceived <- s
+		fmt.Fprintf(stderr, "shutting down...\n")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
 	}()
 
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, context.Canceled) {
 		fmt.Fprintf(stderr, "server failed: %v\n", err)
 		return 1
+	}
+
+	select {
+	case s := <-sigReceived:
+		if s == syscall.SIGINT {
+			return 130
+		}
+	default:
 	}
 	return 0
 }

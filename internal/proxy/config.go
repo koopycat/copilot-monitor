@@ -32,6 +32,7 @@ func LoadConfig(path string) (*ProxyConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read routes config %q: %w", path, err)
 	}
+	data = stripJSONComments(data)
 	var cfg ProxyConfig
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse routes config %q: %w", path, err)
@@ -42,23 +43,32 @@ func LoadConfig(path string) (*ProxyConfig, error) {
 	return &cfg, nil
 }
 
+func routeID(i int, rc *RouteConfig) string {
+	if rc.Label != "" {
+		return fmt.Sprintf("route %q (%s)", rc.Label, rc.Path)
+	}
+	return fmt.Sprintf("route %q", rc.Path)
+}
+
 func (c *ProxyConfig) Validate() error {
 	for i := range c.Routes {
 		rc := &c.Routes[i]
 		rc.Path = strings.TrimSpace(rc.Path)
 		rc.UpstreamHost = strings.TrimSpace(rc.UpstreamHost)
 
+		id := routeID(i, rc)
+
 		if rc.Path == "" {
-			return fmt.Errorf("route %d: path is required", i)
+			return fmt.Errorf("%s: path is required", id)
 		}
 		if !strings.HasPrefix(rc.Path, "/") {
-			return fmt.Errorf("route %d (%q): path must start with /", i, rc.Path)
+			return fmt.Errorf("%s: path must start with /", id)
 		}
 		if rc.UpstreamHost == "" && rc.Capture != "local" {
-			return fmt.Errorf("route %d (%q): upstream_host is required (unless capture is 'local')", i, rc.Path)
+			return fmt.Errorf("%s: upstream_host is required (unless capture is 'local')", id)
 		}
 		if rc.Label != "" && strings.TrimSpace(rc.Label) == "" {
-			return fmt.Errorf("route %d (%q): label must not be empty", i, rc.Path)
+			return fmt.Errorf("%s: label must not be empty", id)
 		}
 		rc.UpstreamPathPrefix = strings.TrimRight(rc.UpstreamPathPrefix, "/")
 
@@ -66,21 +76,87 @@ func (c *ProxyConfig) Validate() error {
 		for j, m := range rc.Models {
 			m = strings.TrimSpace(m)
 			if m == "" {
-				return fmt.Errorf("route %d (%q): models[%d] must not be empty", i, rc.Path, j)
+				return fmt.Errorf("%s: models[%d] must not be empty", id, j)
 			}
 			rc.Models[j] = m
 		}
 
 		if rc.Provider != "" && strings.TrimSpace(rc.Provider) == "" {
-			return fmt.Errorf("route %d (%q): provider must not be empty if set", i, rc.Path)
+			return fmt.Errorf("%s: provider must not be empty if set", id)
 		}
 
 		switch rc.Capture {
 		case "usage", "metadata", "none", "tunnel", "local":
 			// valid
 		default:
-			return fmt.Errorf("route %d (%q): unknown capture mode %q", i, rc.Path, rc.Capture)
+			return fmt.Errorf("%s: unknown capture mode %q", id, rc.Capture)
 		}
 	}
 	return nil
+}
+
+// stripJSONComments removes // line comments and /* block comments */ from JSON data.
+// It handles strings by tracking whether the parser is inside a string literal,
+// so that comment delimiters inside strings are not treated as comments.
+// Block comments are properly nested and tracked.
+func stripJSONComments(data []byte) []byte {
+	result := make([]byte, 0, len(data))
+	i := 0
+	inString := false
+	escape := false
+	inBlockComment := false
+
+	for i < len(data) {
+		b := data[i]
+
+		if inBlockComment {
+			if b == '*' && i+1 < len(data) && data[i+1] == '/' {
+				inBlockComment = false
+				i += 2
+			} else {
+				i++
+			}
+			continue
+		}
+
+		if inString {
+			result = append(result, b)
+			if escape {
+				escape = false
+			} else if b == '\\' {
+				escape = true
+			} else if b == '"' {
+				inString = false
+			}
+			i++
+			continue
+		}
+
+		// Not in string, check for comment starts
+		if b == '/' && i+1 < len(data) {
+			if data[i+1] == '/' {
+				// Line comment: skip until newline
+				i += 2
+				for i < len(data) && data[i] != '\n' {
+					i++
+				}
+				continue
+			}
+			if data[i+1] == '*' {
+				// Block comment
+				inBlockComment = true
+				i += 2
+				continue
+			}
+		}
+
+		if b == '"' {
+			inString = true
+		}
+
+		result = append(result, b)
+		i++
+	}
+
+	return result
 }

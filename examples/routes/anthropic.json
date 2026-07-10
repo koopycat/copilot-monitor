@@ -1,11 +1,14 @@
 {
   "routes": [
+    // Local ping endpoint — responds with OK without proxying.
     {
       "label": "ping",
       "path": "/_ping",
       "upstream_host": "",
       "capture": "local"
     },
+    // Anthropic Messages API — captures token usage for cost tracking.
+    // Requires ANTHROPIC_API_KEY in the environment.
     {
       "label": "chat",
       "path": "/v1/messages",

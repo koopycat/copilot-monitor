@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -415,5 +416,121 @@ func TestExportCommandInvalidDB(t *testing.T) {
 	code := Run([]string{"export", "--db", "/nonexistent/dir/store.db"}, &stdout, &stderr)
 	if code == 0 {
 		t.Fatalf("expected non-zero exit code, got 0")
+	}
+}
+
+func TestValidateCommand_ValidConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "routes.json")
+	if err := os.WriteFile(configPath, []byte(`{
+		"routes": [
+			{"path": "/_ping", "capture": "local"},
+			{"path": "/chat", "upstream_host": "example.com", "capture": "usage"}
+		]
+	}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"validate", "--routes-config", configPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "routes config is valid") {
+		t.Fatalf("unexpected stdout: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "2 routes") {
+		t.Fatalf("expected 2 routes, got: %s", stdout.String())
+	}
+}
+
+func TestValidateCommand_InvalidConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "routes.json")
+	if err := os.WriteFile(configPath, []byte(`{
+		"routes": [
+			{"path": "", "capture": "usage"}
+		]
+	}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"validate", "--routes-config", configPath}, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "path is required") {
+		t.Fatalf("unexpected stderr: %s", stderr.String())
+	}
+}
+
+func TestValidateCommand_MissingFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"validate"}, &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("expected exit code 2, got %d", code)
+	}
+}
+
+func TestInitCommand_CreatesFile(t *testing.T) {
+	// Override XDG_CONFIG_HOME to temp dir
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"init"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "routes.json") {
+		t.Fatalf("expected routes.json path in output: %s", out)
+	}
+	if !strings.Contains(out, "llm-proxy run --routes-config") {
+		t.Fatalf("expected 'run --routes-config' in output: %s", out)
+	}
+}
+
+func TestInitCommand_RefusesOverwrite(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	// First init should succeed
+	var stdout1, stderr1 bytes.Buffer
+	code1 := Run([]string{"init"}, &stdout1, &stderr1)
+	if code1 != 0 {
+		t.Fatalf("first init: exit code = %d, stderr = %s", code1, stderr1.String())
+	}
+
+	// Second init should fail without --force
+	var stdout2, stderr2 bytes.Buffer
+	code2 := Run([]string{"init"}, &stdout2, &stderr2)
+	if code2 != 1 {
+		t.Fatalf("second init: expected exit code 1, got %d", code2)
+	}
+	if !strings.Contains(stderr2.String(), "already exists") {
+		t.Fatalf("expected 'already exists' error: %s", stderr2.String())
+	}
+}
+
+func TestInitCommand_ForceOverwrites(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	// First init
+	var stdout1, stderr1 bytes.Buffer
+	code1 := Run([]string{"init"}, &stdout1, &stderr1)
+	if code1 != 0 {
+		t.Fatalf("first init: exit code = %d, stderr = %s", code1, stderr1.String())
+	}
+
+	// Second init with --force should succeed
+	var stdout2, stderr2 bytes.Buffer
+	code2 := Run([]string{"init", "--force"}, &stdout2, &stderr2)
+	if code2 != 0 {
+		t.Fatalf("second init --force: exit code = %d, stderr = %s", code2, stderr2.String())
+	}
+	if !strings.Contains(stdout2.String(), "routes.json") {
+		t.Fatalf("expected routes.json in output: %s", stdout2.String())
 	}
 }

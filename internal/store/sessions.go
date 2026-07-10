@@ -222,7 +222,8 @@ SELECT
   COALESCE(SUM(total_tokens), 0) AS total_tokens,
   COALESCE(AVG(latency_ms), 0) AS avg_latency_ms,
   MAX(not_billed) AS not_billed,
-  COALESCE(NULLIF(MAX(provider), ''), '') AS provider
+  COALESCE(NULLIF(MAX(provider), ''), '') AS provider,
+  MAX(usage_missing) AS usage_missing
 FROM requests
 WHERE session_id = ?
 GROUP BY model, endpoint, upstream_host

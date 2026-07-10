@@ -43,6 +43,11 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "failed to query stats: %v\n", err)
 		return 1
 	}
+	usageMissingCount, err := st.CountUsageMissing(context.Background())
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to query usage missing count: %v\n", err)
+		return 1
+	}
 	cat, err := catalog.LoadDefault()
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to load model catalog: %v\n", err)
@@ -79,6 +84,9 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 	}
 	if total.NotBilledCount > 0 {
 		fmt.Fprintf(stdout, "%d row(s) are not billed (not_billed flag set in route config).\n", total.NotBilledCount)
+	}
+	if usageMissingCount > 0 {
+		fmt.Fprintf(stdout, "(%d request(s) had no usage data)\n", usageMissingCount)
 	}
 	return 0
 }

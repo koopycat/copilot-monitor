@@ -1,11 +1,13 @@
 {
   "routes": [
+    // Local ping endpoint — responds with OK without proxying.
     {
       "label": "ping",
       "path": "/_ping",
       "upstream_host": "",
       "capture": "local"
     },
+    // GitHub Copilot chat completions — captures token usage.
     {
       "label": "chat",
       "path": "/chat/completions",
@@ -13,6 +15,7 @@
       "capture": "usage",
       "provider": "github"
     },
+    // Agent endpoints (prefix match) — captures usage for all /agents/* paths.
     {
       "label": "agent",
       "path": "/agents",
@@ -21,6 +24,7 @@
       "prefix_match": true,
       "provider": "github"
     },
+    // Models listing — no capture needed.
     {
       "label": "models",
       "path": "/models",
@@ -35,6 +39,7 @@
       "capture": "none",
       "provider": "github"
     },
+    // Copilot responses (WebSocket) — captures usage.
     {
       "label": "responses-websocket",
       "path": "/responses",
@@ -42,6 +47,7 @@
       "capture": "usage",
       "provider": "github"
     },
+    // Embeddings — captures request metadata only.
     {
       "label": "embeddings",
       "path": "/embeddings",
@@ -49,6 +55,7 @@
       "capture": "metadata",
       "provider": "github"
     },
+    // Legacy completions engines (not billed).
     {
       "label": "completions",
       "path": "/v1/engines",
@@ -66,6 +73,7 @@
       "provider": "github",
       "not_billed": true
     },
+    // Copilot v1/messages (prefix match) — captures usage for all chat variants.
     {
       "label": "chat",
       "path": "/v1/messages",

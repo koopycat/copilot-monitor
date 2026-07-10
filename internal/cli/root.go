@@ -39,6 +39,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runServe(args[1:], stdout, stderr)
 	case "export":
 		return runExport(args[1:], stdout, stderr)
+	case "validate":
+		return runValidate(args[1:], stdout, stderr)
+	case "init":
+		return runInit(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
@@ -65,6 +69,8 @@ Usage:
   llm-proxy live [--db path] [--json] [--watch]
   llm-proxy serve [--addr 127.0.0.1:7734] [--db path]
   llm-proxy export [--since 30d] [--db path]
+  llm-proxy init [--force]
+  llm-proxy validate --routes-config path.json
   llm-proxy version
 
 Commands:
@@ -76,6 +82,8 @@ Commands:
   sessions          Print captured sessions using a 30-minute inactivity gap.
   live              Print the current active session (--watch to auto-refresh).
   export            Export captured request metadata to CSV.
+  init              Create a starter routes.json config file.
+  validate          Validate a routes config file.
   version           Print the version.
 `)+"\n")
 }
