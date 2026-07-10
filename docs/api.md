@@ -61,7 +61,7 @@ Features:
 
 ## Files
 
-```
+```text
 internal/
 ├── api/api.go           # HTTP handler, all endpoints
 dashboard/

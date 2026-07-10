@@ -37,5 +37,5 @@ MD048:
 # Allow emphasis-as-heading (used in docs for sub-headings like **Bold Text**)
 MD036: false
 
-# Allow longer lines in code blocks and tables
+# Code block style — disabled because MD048 already enforces backtick fences
 MD046: false

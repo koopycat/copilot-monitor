@@ -217,7 +217,7 @@ Envoy's HTTP connection manager uses an **ordered filter chain** where each
 filter can intercept, modify, or short-circuit both the request and response
 path:
 
-```
+```text
 Request  → [Filter1] → [Filter2] → [Filter3] → Upstream
 Response ← [Filter1] ← [Filter2] ← [Filter3] ← Upstream
 ```
@@ -345,7 +345,7 @@ pattern becomes the right foundation.
 The Unix idea: `cat file | grep ERROR | sort | uniq -c` — each program reads
 from stdin and writes to stdout. Applied to HTTP, this would mean:
 
-```
+```text
 curl http://localhost:9000 | proxy1 | proxy2 | upstream
 ```
 
@@ -419,7 +419,7 @@ overhead is function calls (nanoseconds), not process boundaries (microseconds).
 **Approach**: A purpose-built Rust proxy (no genericity). Every request goes
 through a fixed pipeline:
 
-```
+```text
 Inbound request
   → Protocol detection (HTTP/1, HTTP/2, gRPC)
   → Identity (mTLS)
@@ -533,7 +533,7 @@ plugin system until you have at least 3 distinct plugins you need to support.
 "Middleware as a Service" means running a small proxy that calls out to other
 **local services** (separate processes, localhost HTTP) for specific behaviors:
 
-```
+```text
                      ┌──────────────┐
                      │  Policy      │
                      │  Service     │
