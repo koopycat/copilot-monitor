@@ -358,6 +358,8 @@ func storeRequestRecord(ts time.Time, route Route, r *http.Request, model string
 			Status:       status,
 			LatencyMS:    latencyMS,
 			Project:      project,
+			NotBilled:    route.NotBilled,
+			Provider:     route.Provider,
 		}
 	}
 	return store.RequestRecord{
@@ -376,6 +378,8 @@ func storeRequestRecord(ts time.Time, route Route, r *http.Request, model string
 		CompletionTokens:  usage.CompletionTokens,
 		TotalTokens:       usage.TotalTokens,
 		Project:           project,
+		NotBilled:         route.NotBilled,
+		Provider:          route.Provider,
 	}
 }
 

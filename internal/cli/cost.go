@@ -64,7 +64,7 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 		}
 		return 0
 	}
-	fmt.Fprintf(stdout, "Estimated equivalent GitHub Copilot AI-credit list-price cost (%s). This is not your actual bill.\n", cat.Currency)
+	fmt.Fprintf(stdout, "Estimated equivalent provider list-price cost (%s). This is not your actual bill.\n", cat.Currency)
 	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "MODEL\tENDPOINT\tPROVIDER\tREQUESTS\tINPUT_TOK\tCACHED_TOK\tCACHE_WRITE_TOK\tOUTPUT_TOK\tINPUT $\tCACHED $\tCACHE WRITE $\tOUTPUT $\tEST. LIST $")
 	for _, row := range total.Rows {

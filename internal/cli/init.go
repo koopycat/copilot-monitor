@@ -26,8 +26,7 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 	configPath := filepath.Join(configDir, "routes.json")
 
 	// Check if file exists (unless --force).
-	stat, err := os.Stat(configPath)
-	if err == nil && stat.Size() > 0 && !*force {
+	if _, err := os.Stat(configPath); err == nil && !*force {
 		fmt.Fprintf(stderr, "error: %q already exists (use --force to overwrite)\n", configPath)
 		return 1
 	}
