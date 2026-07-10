@@ -10,19 +10,22 @@
       "label": "chat",
       "path": "/v1/chat/completions",
       "upstream_host": "api.openai.com",
-      "capture": "usage"
+      "capture": "usage",
+      "provider": "openai"
     },
     {
       "label": "embeddings",
       "path": "/v1/embeddings",
       "upstream_host": "api.openai.com",
-      "capture": "metadata"
+      "capture": "metadata",
+      "provider": "openai"
     },
     {
       "label": "models",
       "path": "/v1/models",
       "upstream_host": "api.openai.com",
-      "capture": "none"
+      "capture": "none",
+      "provider": "openai"
     }
   ]
 }

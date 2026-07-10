@@ -78,7 +78,7 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "\n* provider or generic fallback pricing used for %d row(s).\n", total.FallbackCount)
 	}
 	if total.NotBilledCount > 0 {
-		fmt.Fprintf(stdout, "Inline code completion rows are shown with zero AI-credit cost because GitHub docs say code completions are not billed in AI credits.\n")
+		fmt.Fprintf(stdout, "%d row(s) are not billed (not_billed flag set in route config).\n", total.NotBilledCount)
 	}
 	return 0
 }

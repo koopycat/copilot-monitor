@@ -119,9 +119,6 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "usage debug log: %s\n", store.FormatPath(*usageDebugPath))
 	}
 
-	fmt.Fprintf(stdout, "VSCode settings:\n")
-	printVSCodeSettings(stdout, *addr)
-
 	// Live session tail. Active by default; runs only when stderr is a TTY.
 	// Disabled with --no-live or when the user redirected stderr to a file/pipe.
 	stopTail := func() {}

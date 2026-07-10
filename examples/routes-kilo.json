@@ -4,13 +4,15 @@
       "path": "/chat/completions",
       "upstream_host": "api.kilo.ai",
       "upstream_path_prefix": "/api/gateway",
-      "capture": "usage"
+      "capture": "usage",
+      "provider": "kilo"
     },
     {
       "path": "/models",
       "upstream_host": "api.kilo.ai",
       "upstream_path_prefix": "/api/gateway",
-      "capture": "none"
+      "capture": "none",
+      "provider": "kilo"
     }
   ]
 }

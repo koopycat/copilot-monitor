@@ -25,6 +25,7 @@ type Route struct {
 	Capture            CaptureMode
 	Local              bool
 	Models             []string
+	NotBilled          bool
 	Provider           string
 }
 
@@ -98,6 +99,7 @@ func NewRouter(cfg *ProxyConfig) *Router {
 			Capture:            CaptureMode(rc.Capture),
 			Local:              rc.Capture == "local",
 			Models:             rc.Models,
+			NotBilled:          rc.NotBilled,
 			Provider:           rc.Provider,
 		}
 		if rc.PrefixMatch {

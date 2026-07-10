@@ -46,12 +46,18 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
+func settingsAddr(addr string) string {
+	if strings.HasPrefix(addr, ":") {
+		return "127.0.0.1" + addr
+	}
+	return addr
+}
+
 func printUsage(w io.Writer) {
 	fmt.Fprint(w, strings.TrimSpace(`llm-proxy monitors LLM API usage through a local HTTP reverse proxy.
 
 Usage:
   llm-proxy run [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path] [--no-live] [--dashboard]
-  llm-proxy configure-vscode [--addr 127.0.0.1:7733]
   llm-proxy stats [--db path] [--since 30d] [--project name] [--endpoint chat]
   llm-proxy cost [--db path] [--since 30d] [--project name] [--endpoint chat]
   llm-proxy today [--db path] [--project name] [--endpoint chat]

@@ -25,26 +25,24 @@ type Store struct {
 }
 
 type RequestRecord struct {
-	Timestamp                 time.Time
-	Endpoint                  string
-	Method                    string
-	Path                      string
-	UpstreamHost              string
-	Model                     string
-	Stream                    bool
-	Status                    int
-	Error                     string
-	LatencyMS                 int64
-	PromptTokens              int
-	CachedInputTokens         int
-	CacheWriteTokens          int
-	CompletionTokens          int
-	TotalTokens               int
-	Project                   string
-	CompressionStatus         string
-	CompressionOriginalTokens int
-	CompressionFinalTokens    int
-	CompressionLatencyMS      int64
+	Timestamp         time.Time
+	Endpoint          string
+	Method            string
+	Path              string
+	UpstreamHost      string
+	Model             string
+	Stream            bool
+	Status            int
+	Error             string
+	LatencyMS         int64
+	PromptTokens      int
+	CachedInputTokens int
+	CacheWriteTokens  int
+	CompletionTokens  int
+	TotalTokens       int
+	Project           string
+	NotBilled         bool
+	Provider          string
 }
 
 type StatsFilter struct {
@@ -56,21 +54,18 @@ type StatsFilter struct {
 }
 
 type ModelStats struct {
-	Model                     string  `json:"model"`
-	Endpoint                  string  `json:"endpoint"`
-	UpstreamHost              string  `json:"upstream_host,omitempty"`
-	Requests                  int     `json:"requests"`
-	PromptTokens              int     `json:"prompt_tokens"`
-	CachedInputTokens         int     `json:"cached_input_tokens"`
-	CacheWriteTokens          int     `json:"cache_write_tokens"`
-	CompletionTokens          int     `json:"completion_tokens"`
-	TotalTokens               int     `json:"total_tokens"`
-	AvgLatencyMS              float64 `json:"avg_latency_ms"`
-	CompressedRequests        int     `json:"compressed_requests"`
-	CompressionOriginalTokens int     `json:"compression_original_tokens"`
-	CompressionFinalTokens    int     `json:"compression_final_tokens"`
-	CompressionRemovedTokens  int     `json:"compression_removed_tokens"`
-	AvgCompressionRatio       float64 `json:"avg_compression_ratio"`
+	Model             string  `json:"model"`
+	Endpoint          string  `json:"endpoint"`
+	UpstreamHost      string  `json:"upstream_host,omitempty"`
+	Requests          int     `json:"requests"`
+	PromptTokens      int     `json:"prompt_tokens"`
+	CachedInputTokens int     `json:"cached_input_tokens"`
+	CacheWriteTokens  int     `json:"cache_write_tokens"`
+	CompletionTokens  int     `json:"completion_tokens"`
+	TotalTokens       int     `json:"total_tokens"`
+	AvgLatencyMS      float64 `json:"avg_latency_ms"`
+	NotBilled         bool    `json:"not_billed"`
+	Provider          string  `json:"provider,omitempty"`
 }
 
 type TimelineBucket struct {
@@ -195,9 +190,8 @@ func (s *Store) InsertRequest(ctx context.Context, rec RequestRecord) error {
 INSERT INTO requests (
   ts, endpoint, method, path, upstream_host, model, stream, status, error,
   latency_ms, prompt_tokens, cached_input_tokens, cache_write_tokens,
-  completion_tokens, total_tokens, project,
-  compression_status, compression_original_tokens, compression_final_tokens, compression_latency_ms
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  completion_tokens, total_tokens, project, not_billed, provider
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		rec.Timestamp.UTC().Format(time.RFC3339Nano),
 		rec.Endpoint,
 		rec.Method,
@@ -214,10 +208,8 @@ INSERT INTO requests (
 		nullInt(rec.CompletionTokens),
 		nullInt(rec.TotalTokens),
 		nullString(rec.Project),
-		nullString(rec.CompressionStatus),
-		nullInt(rec.CompressionOriginalTokens),
-		nullInt(rec.CompressionFinalTokens),
-		nullInt64(rec.CompressionLatencyMS),
+		boolInt(rec.NotBilled),
+		rec.Provider,
 	)
 	return err
 }
@@ -238,11 +230,8 @@ SELECT
   COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
   COALESCE(SUM(total_tokens), 0) AS total_tokens,
   COALESCE(AVG(latency_ms), 0) AS avg_latency_ms,
-  COUNT(CASE WHEN compression_status IN ('applied', 'no_change') THEN 1 END) AS compressed_requests,
-  COALESCE(SUM(compression_original_tokens), 0) AS compression_original_tokens,
-  COALESCE(SUM(compression_final_tokens), 0) AS compression_final_tokens,
-  COALESCE(SUM(compression_original_tokens - compression_final_tokens), 0) AS compression_removed_tokens,
-  COALESCE(AVG(NULLIF(compression_final_tokens, 0) * 1.0 / compression_original_tokens), 0) AS avg_compression_ratio
+  MAX(not_billed) AS not_billed,
+  COALESCE(NULLIF(MAX(provider), ''), '') AS provider
 FROM requests
 WHERE (? = '' OR ts >= ?)
   AND (? = '' OR ts < ?)
@@ -272,9 +261,11 @@ func (s *Store) queryModelStats(ctx context.Context, query string, args ...any) 
 	var out []ModelStats
 	for rows.Next() {
 		var row ModelStats
-		if err := rows.Scan(&row.Model, &row.Endpoint, &row.UpstreamHost, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens, &row.AvgLatencyMS, &row.CompressedRequests, &row.CompressionOriginalTokens, &row.CompressionFinalTokens, &row.CompressionRemovedTokens, &row.AvgCompressionRatio); err != nil {
+		var notBilled int
+		if err := rows.Scan(&row.Model, &row.Endpoint, &row.UpstreamHost, &row.Requests, &row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens, &row.CompletionTokens, &row.TotalTokens, &row.AvgLatencyMS, &notBilled, &row.Provider); err != nil {
 			return nil, err
 		}
+		row.NotBilled = notBilled != 0
 		out = append(out, row)
 	}
 	return out, rows.Err()

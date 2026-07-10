@@ -52,11 +52,9 @@ func TestLookupProviderFallback(t *testing.T) {
 	if !got.Fallback {
 		t.Fatal("expected fallback pricing")
 	}
-	if got.Pricing.Provider != "anthropic-fallback" {
-		t.Fatalf("provider = %q", got.Pricing.Provider)
-	}
-	if got.Pricing.CacheWritePerM != 3.75 {
-		t.Fatalf("pricing = %#v", got.Pricing)
+	// Without inferProvider, unknown models use the global fallback
+	if got.Pricing.Provider != "unknown" {
+		t.Fatalf("provider = %q, want unknown", got.Pricing.Provider)
 	}
 }
 
@@ -107,7 +105,7 @@ func TestLookupNewCatalogModels(t *testing.T) {
 		{model: "gemini-2.0-flash", expected: "google", fallback: false},
 		{model: "gemini-2.5-flash", expected: "google", fallback: false},
 		{model: "o4-mini", expected: "openai", fallback: false},
-		{model: "deepseek-v3", expected: "deepseek-fallback", fallback: true},
+		{model: "deepseek-v3", expected: "unknown", fallback: true},
 	}
 
 	for _, tt := range tests {

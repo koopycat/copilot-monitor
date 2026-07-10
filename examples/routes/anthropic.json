@@ -10,7 +10,8 @@
       "label": "chat",
       "path": "/v1/messages",
       "upstream_host": "api.anthropic.com",
-      "capture": "usage"
+      "capture": "usage",
+      "provider": "anthropic"
     }
   ]
 }

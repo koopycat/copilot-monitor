@@ -58,14 +58,17 @@ func TestCalculateProviderFallback(t *testing.T) {
 		PromptTokens:     1_000_000,
 		CompletionTokens: 1_000_000,
 		TotalTokens:      2_000_000,
+		Provider:         "anthropic",
 	}}, catalog)
 
 	if !got.Rows[0].Fallback {
 		t.Fatal("expected fallback row")
 	}
-	if got.Rows[0].Provider != "anthropic-fallback" {
-		t.Fatalf("provider = %q", got.Rows[0].Provider)
+	// Provider comes from the route config (ModelStats), not from the catalog
+	if got.Rows[0].Provider != "anthropic" {
+		t.Fatalf("provider = %q, want anthropic", got.Rows[0].Provider)
 	}
+	// Pricing should come from the provider fallback via the provider hint
 	if got.Rows[0].TotalUSD != 18 {
 		t.Fatalf("total usd = %f, want 18", got.Rows[0].TotalUSD)
 	}
@@ -74,7 +77,7 @@ func TestCalculateProviderFallback(t *testing.T) {
 	}
 }
 
-func TestCalculateCodeCompletionsAreNotBilled(t *testing.T) {
+func TestCalculateNotBilled(t *testing.T) {
 	catalog, err := catalog.Load([]byte(`{
 		"currency":"USD",
 		"fallback":{"provider":"unknown","input_per_m":5,"cached_input_per_m":0.5,"cache_write_per_m":5,"output_per_m":15},
@@ -88,6 +91,7 @@ func TestCalculateCodeCompletionsAreNotBilled(t *testing.T) {
 		Model:            "gpt-5-mini",
 		Endpoint:         "completions",
 		Requests:         1,
+		NotBilled:        true,
 		PromptTokens:     1_000_000,
 		CompletionTokens: 1_000_000,
 		TotalTokens:      2_000_000,
