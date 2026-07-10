@@ -113,13 +113,13 @@ For a first local verification after checkout or before a small change:
 devenv shell
 just test
 just build
-./copilot-monitor version
+./bin/copilot-monitor version
 ```
 
 In one terminal, start the dashboard API:
 
 ```sh
-./copilot-monitor serve --addr 127.0.0.1:7734
+./bin/copilot-monitor serve --addr 127.0.0.1:7734
 ```
 
 In another terminal, verify it responds:
@@ -131,7 +131,7 @@ curl http://127.0.0.1:7734/api/health
 Then start the proxy:
 
 ```sh
-./copilot-monitor run --addr 127.0.0.1:7733
+./bin/copilot-monitor run --addr 127.0.0.1:7733
 ```
 
 And verify the local ping endpoint:
@@ -176,7 +176,7 @@ Configure pi to route its API calls through the proxy:
 **2. Start the proxy** with the routes config:
 
 ```sh
-./copilot-monitor run --routes-config routes.json
+./bin/copilot-monitor run --routes-config routes.json
 ```
 
 **3. Start pi** with its base URL pointing at the proxy:
@@ -228,10 +228,10 @@ Use `prefix_match: true` for routes that match a path and all sub-paths
 
 ```sh
 # Terminal 1: proxy captures API traffic
-./copilot-monitor run --routes-config routes.json
+./bin/copilot-monitor run --routes-config routes.json
 
 # Terminal 2: dashboard shows captured data
-./copilot-monitor serve
+./bin/copilot-monitor serve
 
 # Terminal 3 (or herdr pane): your tool pointing at the proxy
 KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi
@@ -283,7 +283,7 @@ The dashboard loads Petite-Vue from `unpkg` at runtime, so that page needs netwo
 Print VSCode settings:
 
 ```sh
-./copilot-monitor configure-vscode
+./bin/copilot-monitor configure-vscode
 ```
 
 Then paste the output into VSCode's `settings.json`.
@@ -292,7 +292,7 @@ Open it via **Cmd+Shift+P > Preferences: Open User Settings (JSON)**.
 Start the proxy:
 
 ```sh
-./copilot-monitor run
+./bin/copilot-monitor run
 ```
 
 While the proxy runs, a live session tail refreshes every 2 seconds in your terminal: status, duration, request count, tokens, and estimated cost for the current session.
@@ -312,21 +312,21 @@ completions, source code, or auth material.
 ## Commands
 
 ```sh
-./copilot-monitor stats --since all
-./copilot-monitor cost --since all
-./copilot-monitor today
-./copilot-monitor live
-./copilot-monitor sessions --since 7d --limit 20
+./bin/copilot-monitor stats --since all
+./bin/copilot-monitor cost --since all
+./bin/copilot-monitor today
+./bin/copilot-monitor live
+./bin/copilot-monitor sessions --since 7d --limit 20
 ```
 
 JSON output for machine processing:
 
 ```sh
-./copilot-monitor stats --since 7d --json
-./copilot-monitor cost --since 7d --json
-./copilot-monitor today --json
-./copilot-monitor live --json
-./copilot-monitor sessions --since 7d --json
+./bin/copilot-monitor stats --since 7d --json
+./bin/copilot-monitor cost --since 7d --json
+./bin/copilot-monitor today --json
+./bin/copilot-monitor live --json
+./bin/copilot-monitor sessions --since 7d --json
 ```
 
 `live` prints the current active session: status, project, duration, request count, total tokens, and a per-model overview with cache hit rate and cost.
@@ -335,7 +335,7 @@ This is the same data the dashboard's "Live Session" panel shows, so you can che
 Add `--watch` to keep it refreshing on screen (like `watch` on Unix):
 
 ```sh
-./copilot-monitor live --watch
+./bin/copilot-monitor live --watch
 ```
 
 Press `Ctrl+C` to stop.
