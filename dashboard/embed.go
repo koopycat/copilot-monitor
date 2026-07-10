@@ -1,5 +1,10 @@
+//go:build !nodashboard
+
 // Package dashboard embeds the production build for single-binary deployment.
 // Requires the dashboard to be built first (pnpm build in this directory).
+//
+// When the "nodashboard" build tag is set, embed_stub.go replaces this file
+// so tooling can compile without the built frontend.
 package dashboard
 
 import (

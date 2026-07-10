@@ -35,14 +35,17 @@ jobs:
           go-version: "1.26.5"
           check-latest: true
           cache: true
+      # "nodashboard" stubs out the embedded frontend (dashboard/embed_stub.go)
+      # so Go tooling compiles without first building the Vite bundle. The
+      # release workflow builds the dashboard and uses the real embed.
       - name: Ensure tidy go.mod
         run: go mod tidy -diff
       - name: Build
-        run: go build ./...
+        run: go build -tags nodashboard ./...
       - name: Vet
-        run: go vet ./...
+        run: go vet -tags nodashboard ./...
       - name: Staticcheck
-        run: go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 -tags nodashboard ./...
 
   test:
     name: test
@@ -54,15 +57,7 @@ jobs:
           go-version: "1.26.5"
           check-latest: true
           cache: true
-      - uses: pnpm/action-setup@v6
-        with:
-          version: latest
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-          cache-dependency-path: dashboard/pnpm-lock.yaml
-      - name: Build dashboard
-        run: cd dashboard && pnpm install --frozen-lockfile && pnpm build
+      # No Node/pnpm or frontend build needed: no Go test references the
+      # embedded dashboard assets, and -tags nodashboard stubs out the embed.
       - name: Test
-        run: go test -race -count=1 -timeout 120s ./...
+        run: go test -race -count=1 -timeout 120s -tags nodashboard ./...
