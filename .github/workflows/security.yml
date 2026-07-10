@@ -30,9 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run OSV-Scanner
-        uses: google/osv-scanner-action@v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
         with:
-          scan-args: --recursive ./
+          scan-args: |-
+            --recursive
+            ./
 
   gitleaks:
     name: gitleaks
@@ -42,3 +44,5 @@ jobs:
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
