@@ -22,6 +22,12 @@ type compressionMeta struct {
 	LatencyMS      int64
 }
 
+// SetRawLogger sets the raw debug logger on the handler. It must be called
+// before the handler is serving requests.
+func (h *Handler) SetRawLogger(rl *RawLogger) {
+	h.rawLogger = rl
+}
+
 // ConfigureCompression installs the startup-time request compressor. It must
 // be called before the handler is serving requests.
 func (h *Handler) ConfigureCompression(compressor headroom.MessageCompressor, required bool) {

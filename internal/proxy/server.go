@@ -25,6 +25,7 @@ type Handler struct {
 	store               *store.Store
 	project             string
 	usageDebug          *UsageDebugLogger
+	rawLogger           *RawLogger
 	router              *Router
 	compressor          headroom.MessageCompressor
 	compressionRequired bool
@@ -133,6 +134,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	route, ok := h.router.MatchModel(r.URL.Path, meta.Model, provider)
 	if !ok {
 		h.log.Error("id=%d path=%q provider=%q route=unknown status=502\n", id, originalURI, provider)
+		h.writeRawLog(started, id, Route{}, r, meta, body, nil, provider, compressionMeta{}, false)
 		http.Error(w, "unknown Copilot path", http.StatusBadGateway)
 		return
 	}
@@ -179,6 +181,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.persistBlockedRequest(r.Context(), started, route, r, meta)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
+			h.writeRawLog(started, id, route, r, meta, body, nil, provider, compressionMeta{}, true)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error":   "model_blocked",
 				"model":   meta.Model,
@@ -274,6 +277,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, compMeta, observer)
 	h.writeUsageDebug(started, id, route, r, meta, resp, observer)
+	h.writeRawLog(started, id, route, r, meta, body, resp, provider, compMeta, true)
 
 	// Emit structured log line
 	h.log.RequestLogEntry(log.RequestLog{
@@ -380,5 +384,35 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, route Route,
 		CompressionLatencyMS:      compMeta.LatencyMS,
 	}); err != nil {
 		h.log.Warn("store_error=%q\n", err.Error())
+	}
+}
+
+func (h *Handler) writeRawLog(ts time.Time, id uint64, route Route, r *http.Request, meta RequestMetadata, body []byte, resp *http.Response, provider string, compMeta compressionMeta, routeMatched bool) {
+	if h.rawLogger == nil {
+		return
+	}
+	reqBodyEnc, reqBodyTrunc := encodeRequestBody(body)
+	record := RawLogRecord{
+		RequestID:            id,
+		Timestamp:            ts,
+		Method:               r.Method,
+		Path:                 r.URL.RequestURI(),
+		Provider:             provider,
+		Endpoint:             string(route.Endpoint),
+		Upstream:             route.Upstream,
+		Model:                meta.Model,
+		Stream:               streamLogValue(meta),
+		RequestBody:          reqBodyEnc,
+		RequestBodyTruncated: reqBodyTrunc,
+		RouteMatched:         routeMatched,
+		CompressionStatus:    compMeta.Status,
+	}
+	if resp != nil {
+		record.Status = resp.StatusCode
+		record.ResponseHeaders = SafeHeaders(resp.Header)
+		record.PolicyAllowed = true
+	}
+	if err := h.rawLogger.Write(record); err != nil {
+		h.log.Warn("raw_log_error=%q\n", err.Error())
 	}
 }
