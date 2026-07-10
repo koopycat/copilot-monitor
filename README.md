@@ -17,10 +17,10 @@ direct API calls, etc.).
 
 ```sh
 # run the proxy
-./copilot-monitor run &
+./bin/copilot-monitor run &
 
 # start the dashboard API
-./copilot-monitor serve
+./bin/copilot-monitor serve
 # → open http://127.0.0.1:7734
 ```
 
