@@ -13,10 +13,6 @@ import (
 
 var errCompressionRequired = errors.New("request compression failed")
 
-type requestCompressor interface {
-	Compress(context.Context, headroom.CompressionRequest) (headroom.CompressionResult, error)
-}
-
 // compressionMeta records the outcome of an optional compression step.
 // Zeros mean compression was not attempted or did not apply.
 type compressionMeta struct {
@@ -80,7 +76,7 @@ func (h *Handler) maybeCompress(ctx context.Context, id uint64, r *http.Request,
 	return body, nil
 }
 
-func compressionEligible(r *http.Request, route Route, compressor requestCompressor) bool {
+func compressionEligible(r *http.Request, route Route, compressor headroom.MessageCompressor) bool {
 	if compressor == nil || r.Method != http.MethodPost || route.Local {
 		return false
 	}

@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"copilot-monitoring/internal/compression/headroom"
 	"copilot-monitoring/internal/log"
 	"copilot-monitoring/internal/policy"
 	"copilot-monitoring/internal/store"
@@ -24,7 +25,7 @@ type Handler struct {
 	project             string
 	usageDebug          *UsageDebugLogger
 	router              *Router
-	compressor          requestCompressor
+	compressor          headroom.MessageCompressor
 	compressionRequired bool
 	nextID              atomic.Uint64
 
