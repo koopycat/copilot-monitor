@@ -1215,9 +1215,14 @@
 <span class="cmd">./copilot-monitor run</span><span class="arrow"> &amp;</span>
 <span class="cmd">./copilot-monitor serve</span>
 
-<span class="comment"># point VSCode at the proxy</span>
-<span class="cmd">./copilot-monitor configure-vscode</span><span class="arrow"> &gt;&gt; ~/.config/Code/User/settings.json</span>
-<span class="comment"># reload VSCode and use Copilot normally</span></pre>
+<span class="comment"># point VSCode at the proxy — add this to settings.json:</span>
+<span>{</span>
+<span>  &quot;github.copilot.advanced&quot;: {</span>
+<span>    &quot;debug.overrideCapiUrl&quot;: &quot;http://127.0.0.1:7733/copilot&quot;</span>
+<span>  }</span>
+<span>}</span>
+
+<span class="comment"># reload VSCode, then use Copilot normally</span></pre>
       </div>
       <p data-reveal style="margin-top:1.1rem">Open <a href="http://127.0.0.1:7734">http://127.0.0.1:7734</a> for the dashboard.</p>
     </section>
