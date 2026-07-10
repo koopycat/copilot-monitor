@@ -6,6 +6,41 @@ import (
 	"strings"
 )
 
+// KnownProviders lists the recognized URL path prefixes for provider routing.
+var KnownProviders = map[string]bool{
+	"copilot": true,
+	"openai":  true,
+	"kilo":    true,
+}
+
+// StripProviderPrefix extracts a known provider prefix from the first path segment
+// and returns the provider name with the remaining path.
+// "/copilot/chat/completions" → ("copilot", "/chat/completions")
+// "/copilot" → ("copilot", "/")
+// "/unknown/path" → ("", "/unknown/path")
+func StripProviderPrefix(urlPath string) (provider, remaining string) {
+	if urlPath == "" || urlPath == "/" {
+		return "", urlPath
+	}
+	rest := strings.TrimPrefix(urlPath, "/")
+	idx := strings.Index(rest, "/")
+	var first string
+	if idx < 0 {
+		first = rest
+		rest = ""
+	} else {
+		first = rest[:idx]
+		rest = rest[idx:]
+	}
+	if KnownProviders[first] {
+		if rest == "" {
+			return first, "/"
+		}
+		return first, rest
+	}
+	return "", urlPath
+}
+
 type CaptureMode string
 
 const (

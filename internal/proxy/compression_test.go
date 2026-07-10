@@ -11,10 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"copilot-monitoring/internal/compression/headroom"
-	"copilot-monitoring/internal/log"
-	"copilot-monitoring/internal/policy"
-	"copilot-monitoring/internal/store"
+	"llm-proxy/internal/compression/headroom"
+	"llm-proxy/internal/log"
+	"llm-proxy/internal/policy"
+	"llm-proxy/internal/store"
 )
 
 type recordingCompressor struct {
@@ -36,9 +36,17 @@ func (f compressionRoundTripFunc) RoundTrip(r *http.Request) (*http.Response, er
 	return f(r)
 }
 
+func compressionTestRouter() *Router {
+	return NewRouter(&ProxyConfig{
+		Routes: []RouteConfig{
+			{Path: "/chat/completions", UpstreamHost: "provider.example.com", Capture: "usage"},
+		},
+	})
+}
+
 func TestHandlerCompressionReplacesMessagesAndPreservesProviderHeaders(t *testing.T) {
 	var logs bytes.Buffer
-	h := NewHandler(log.NewWriter(&logs))
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), nil, "", nil, compressionTestRouter())
 	fake := &recordingCompressor{result: headroom.CompressionResult{
 		Messages:         json.RawMessage(`[{"role":"user","content":"compressed"}]`),
 		OriginalTokens:   20,
@@ -95,7 +103,7 @@ func TestHandlerCompressionReplacesMessagesAndPreservesProviderHeaders(t *testin
 }
 
 func TestHandlerCompressionFailOpenForwardsOriginalBody(t *testing.T) {
-	h := NewHandler(log.Disabled())
+	h := NewHandlerWithRouter(log.Disabled(), nil, "", nil, compressionTestRouter())
 	fake := &recordingCompressor{err: errors.New("synthetic Headroom outage")}
 	h.ConfigureCompression(fake, false)
 	var providerBody []byte
@@ -123,7 +131,7 @@ func TestHandlerCompressionFailOpenForwardsOriginalBody(t *testing.T) {
 }
 
 func TestHandlerCompressionRequiredReturns502WithoutProviderCall(t *testing.T) {
-	h := NewHandler(log.Disabled())
+	h := NewHandlerWithRouter(log.Disabled(), nil, "", nil, compressionTestRouter())
 	fake := &recordingCompressor{err: errors.New("synthetic Headroom outage")}
 	h.ConfigureCompression(fake, true)
 	providerCalls := 0
@@ -149,7 +157,7 @@ func TestHandlerCompressionRequiredReturns502WithoutProviderCall(t *testing.T) {
 }
 
 func TestHandlerCompressionUnsupportedEnvelopeBypassesEvenWhenRequired(t *testing.T) {
-	h := NewHandler(log.Disabled())
+	h := NewHandlerWithRouter(log.Disabled(), nil, "", nil, compressionTestRouter())
 	fake := &recordingCompressor{result: headroom.CompressionResult{
 		Messages:         json.RawMessage(`[]`),
 		OriginalTokens:   1,
@@ -194,7 +202,7 @@ func TestHandlerPolicyRunsBeforeCompression(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h := NewHandlerWithStore(log.Disabled(), st, "")
+	h := NewHandlerWithRouter(log.Disabled(), st, "", nil, compressionTestRouter())
 	fake := &recordingCompressor{err: errors.New("compressor must not be called")}
 	h.ConfigureCompression(fake, true)
 	h.client = &http.Client{Transport: compressionRoundTripFunc(func(*http.Request) (*http.Response, error) {
@@ -217,7 +225,7 @@ func TestCompressionEligiblePaths(t *testing.T) {
 	fake := &recordingCompressor{}
 	base := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", nil)
 	base.Header.Set("Content-Type", "application/json; charset=utf-8")
-	route := Route{Endpoint: EndpointChat}
+	route := Route{Endpoint: "chat"}
 	tests := []struct {
 		name string
 		edit func(*http.Request, *Route)
