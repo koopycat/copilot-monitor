@@ -10,7 +10,7 @@
 Copilot Monitor is a Go reverse proxy with a **monolithic `Handler.ServeHTTP`**
 that does everything inline:
 
-```
+```text
 ServeHTTP (server.go)
   ├─ readAndRestoreBody → ParseRequestMetadata
   ├─ Router.MatchModel → route, upstream
@@ -47,7 +47,7 @@ identified that running two full proxies in sequence (Headroom + Copilot
 Monitor) works but adds operational complexity. A pipeline architecture would
 let a single proxy run multiple stages:
 
-```
+```text
 Tool → [Route] → [Policy] → [Compress] → [Observe] → [Forward] → LLM API
 ```
 
@@ -126,7 +126,7 @@ Envoy's HTTP filter chain is the most expressive pattern, with:
 - **Shared context**: `StreamInfo` carries per-request metadata
 - **Buffer control**: Filters can pause the stream, buffer the body, then resume
 
-```
+```text
 Request  → [Filter1.decode] → [Filter2.decode] → [Filter3.decode] → Upstream
 Response ← [Filter1.encode] ← [Filter2.encode] ← [Filter3.encode] ← Upstream
 ```
@@ -224,7 +224,7 @@ A **proxy pipeline** is an ordered sequence of stages. Each stage can:
 After the upstream call (the final stage), each stage gets a second callback for
 observation, logging, and persistence.
 
-```
+```text
                     PRE-UPSTREAM                    POST-UPSTREAM
                     ────────────                    ─────────────
 Request ──► [Route] ──► [Policy] ──► [Forward] ──► [Route] ──► [Policy] ──► Client
@@ -637,7 +637,7 @@ pipeline := builder.Build()
 Today, to get both compression (Headroom) and observability (Copilot Monitor),
 you run two full proxy processes:
 
-```
+```text
 Tool → copilot-monitor:7733 → headroom:8787 → LLM API
 ```
 
@@ -647,7 +647,7 @@ This works but has dual configs, dual ports, dual process management.
 
 With a pipeline architecture, a single process can run both stages:
 
-```
+```text
 Tool → copilot-monitor:7733
          ├─ RoutingStage: match path, set upstream = localhost:8787
          ├─ PolicyStage: check allow/deny
@@ -660,7 +660,7 @@ Tool → copilot-monitor:7733
 But this still has Headroom as a separate process. The **ideal** integration
 would be Headroom running as a **pipeline stage within the same process**:
 
-```
+```text
 Tool → copilot-monitor:7733
          ├─ RoutingStage
          ├─ PolicyStage
@@ -723,7 +723,7 @@ func (s *CompressStage) Before(ctx context.Context, req *ProxyRequest) (*ProxyRe
 
 ### 5.1 `http.Handler` wrapping (Alice/chi)
 
-```
+```text
 func(http.Handler) http.Handler
 ```
 
@@ -735,7 +735,7 @@ func(http.Handler) http.Handler
 
 ### 5.2 Explicit Stage interface (recommended)
 
-```
+```text
 Stage { Before(); After() }
 ```
 
@@ -748,7 +748,7 @@ Stage { Before(); After() }
 
 ### 5.3 Envoy-style filter chain
 
-```
+```text
 Filter { decodeHeaders(); decodeData(); encodeHeaders(); encodeData() }
 ```
 
@@ -760,7 +760,7 @@ Filter { decodeHeaders(); decodeData(); encodeHeaders(); encodeData() }
 
 ### 5.4 Tower-style Service + Layer
 
-```
+```text
 Service { call(Request) → Future<Response> }
 Layer { layer(Service) → Service }
 ```
@@ -773,7 +773,7 @@ Layer { layer(Service) → Service }
 
 ### 5.5 MaaS (Middleware as a Service)
 
-```
+```text
 Proxy → HTTP/Unix socket → External service → Proxy
 ```
 
@@ -916,7 +916,7 @@ right architecture for a single-purpose, lightweight, local proxy.
 
 ### 7.4 The "pipeline spectrum" principle
 
-```
+```text
 Monolithic handler  ──►  Named stages/helpers  ──►  Stage interface  ──►  Config-driven  ──►  External services
       ↑                          ↑                        ↑                    ↑                  ↑
    We were here            We are here              Phase 2 milestone    Phase 3            Phase 4
