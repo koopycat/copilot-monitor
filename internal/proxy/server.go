@@ -36,13 +36,11 @@ type Handler struct {
 	nextID              atomic.Uint64
 	anomalyRecorder     *AnomalyRecorder
 
-	policyMu        sync.RWMutex
-	policyCache     *policy.Policy
-	policyUntil     time.Time
-	requestCount    atomic.Int64
-	startTime       time.Time
-	seenUpstreamsMu sync.Mutex
-	seenUpstreams   map[string]bool
+	policyMu     sync.RWMutex
+	policyCache  *policy.Policy
+	policyUntil  time.Time
+	requestCount atomic.Int64
+	startTime    time.Time
 }
 
 func (h *Handler) RequestCount() int64 {
@@ -164,9 +162,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown Copilot path", http.StatusBadGateway)
 		return
 	}
-
-	// Detect unknown upstream hosts
-	h.recordUnknownUpstream(route.Upstream, started)
 
 	// Detect missing auth on non-local routes
 	if !route.Local && r.Header.Get("Authorization") == "" && r.Header.Get("authorization") == "" {
@@ -527,32 +522,6 @@ func (h *Handler) recordAnomaly(rec store.AnomalyRecord) {
 	if h.anomalyRecorder != nil {
 		h.anomalyRecorder.Record(rec)
 	}
-}
-
-// recordUnknownUpstream checks if an upstream host has been seen before in this
-// proxy session and records an anomaly if it hasn't.
-func (h *Handler) recordUnknownUpstream(upstream string, started time.Time) {
-	if upstream == "" {
-		return
-	}
-	h.seenUpstreamsMu.Lock()
-	if h.seenUpstreams == nil {
-		h.seenUpstreams = make(map[string]bool)
-	}
-	if h.seenUpstreams[upstream] {
-		h.seenUpstreamsMu.Unlock()
-		return
-	}
-	h.seenUpstreams[upstream] = true
-	h.seenUpstreamsMu.Unlock()
-
-	h.recordAnomaly(store.AnomalyRecord{
-		Timestamp: started,
-		Category:  "unknown_upstream",
-		Severity:  "info",
-		Upstream:  upstream,
-		Detail:    fmt.Sprintf("first request to upstream %s", upstream),
-	})
 }
 
 var knownContentTypes = map[string]bool{

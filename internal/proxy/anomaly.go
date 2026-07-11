@@ -28,7 +28,8 @@ type AnomalyRecorder struct {
 	dedup    sync.Map // key: dedupKey -> time.Time of last write
 	stopped  chan struct{}
 	once     sync.Once
-	shutdown atomic.Bool
+	mu       sync.Mutex
+	shutdown bool
 	dropped  atomic.Int64
 }
 
@@ -54,7 +55,7 @@ func NewAnomalyRecorder(st *store.Store) *AnomalyRecorder {
 	stopped := make(chan struct{})
 	close(stopped)
 	r.stopped = stopped
-	r.shutdown.Store(true)
+	r.shutdown = true
 	return r
 }
 
@@ -73,7 +74,7 @@ func (r *AnomalyRecorder) run() {
 // sends to the buffered channel. If the channel is full, the record is
 // silently dropped. This method never blocks the caller.
 func (r *AnomalyRecorder) Record(rec store.AnomalyRecord) {
-	if r.store == nil || r.shutdown.Load() {
+	if r.store == nil {
 		return
 	}
 
@@ -89,13 +90,20 @@ func (r *AnomalyRecorder) Record(rec store.AnomalyRecord) {
 			return
 		}
 	}
-	r.dedup.Store(key, time.Now())
+
+	r.mu.Lock()
+	if r.shutdown {
+		r.mu.Unlock()
+		return
+	}
 
 	select {
 	case r.ch <- rec:
+		r.dedup.Store(key, time.Now())
 	default:
 		r.dropped.Add(1)
 	}
+	r.mu.Unlock()
 }
 
 // Shutdown stops the background goroutine and drains remaining records from
@@ -106,8 +114,10 @@ func (r *AnomalyRecorder) Shutdown() {
 		return
 	}
 	r.once.Do(func() {
-		r.shutdown.Store(true)
+		r.mu.Lock()
+		r.shutdown = true
 		close(r.ch)
+		r.mu.Unlock()
 		<-r.stopped
 	})
 }

@@ -200,7 +200,8 @@ func (w *wsInspector) inspectTextFrame(payload []byte) {
 	// Record anomaly for unrecognized WebSocket event types
 	if msgType != "" && !isKnownWSEvent(msgType) {
 		w.h.recordAnomaly(store.AnomalyRecord{
-			Timestamp: time.Now().UTC(),
+			Timestamp: w.started,
+			RequestID: w.idBase,
 			Category:  "unknown_ws_event",
 			Severity:  "info",
 			Path:      w.r.URL.Path,
