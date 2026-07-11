@@ -10,13 +10,19 @@ import (
 type RouteConfig struct {
 	Provider           string   `json:"provider,omitempty"`
 	Label              string   `json:"label,omitempty"`
-	Path               string   `json:"path"`
-	UpstreamHost       string   `json:"upstream_host"`
+	Path               string   `json:"path,omitempty"`
+	UpstreamHost       string   `json:"upstream_host,omitempty"`
 	UpstreamPathPrefix string   `json:"upstream_path_prefix,omitempty"`
-	Capture            string   `json:"capture"`
+	Capture            string   `json:"capture,omitempty"`
 	PrefixMatch        bool     `json:"prefix_match,omitempty"`
 	Models             []string `json:"models,omitempty"`
 	NotBilled          bool     `json:"not_billed,omitempty"`
+}
+
+// isProviderDefault returns true when the route has no path but has
+// a provider set (attempted provider default, regardless of upstream_host).
+func (rc *RouteConfig) isProviderDefault() bool {
+	return rc.Path == "" && rc.Provider != ""
 }
 
 type ProxyConfig struct {
@@ -50,12 +56,28 @@ func routeID(i int, rc *RouteConfig) string {
 }
 
 func (c *ProxyConfig) Validate() error {
+	seenDefaults := make(map[string]int) // provider -> first index
 	for i := range c.Routes {
 		rc := &c.Routes[i]
 		rc.Path = strings.TrimSpace(rc.Path)
 		rc.UpstreamHost = strings.TrimSpace(rc.UpstreamHost)
 
 		id := routeID(i, rc)
+
+		// Provider default routes: no path, must have provider + upstream_host.
+		if rc.isProviderDefault() {
+			if rc.Provider == "" {
+				return fmt.Errorf("route at index %d: provider default route requires provider", i)
+			}
+			if rc.UpstreamHost == "" {
+				return fmt.Errorf("route at index %d: provider default route requires upstream_host", i)
+			}
+			if firstIdx, exists := seenDefaults[rc.Provider]; exists {
+				return fmt.Errorf("route at index %d: duplicate provider default for %q (first defined at index %d)", i, rc.Provider, firstIdx)
+			}
+			seenDefaults[rc.Provider] = i
+			continue
+		}
 
 		if rc.Path == "" {
 			return fmt.Errorf("%s: path is required", id)

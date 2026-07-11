@@ -302,6 +302,147 @@ func TestMatchModel_PrefixWithModel(t *testing.T) {
 	}
 }
 
+func TestMatchModel_ProviderDefault_CatchesUnmatched(t *testing.T) {
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{Provider: "copilot", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+		},
+	}
+	r := NewRouter(cfg)
+
+	route, ok := r.MatchModel("/models/session", "", "copilot")
+	if !ok {
+		t.Fatal("expected default route for /models/session with copilot provider")
+	}
+	if route.Upstream != "api.githubcopilot.com" {
+		t.Fatalf("upstream = %q, want api.githubcopilot.com", route.Upstream)
+	}
+	if route.Capture != CaptureUsage {
+		t.Fatalf("capture = %q, want usage", route.Capture)
+	}
+}
+
+func TestMatchModel_ProviderDefault_SpecificPathWins(t *testing.T) {
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{Provider: "copilot", Path: "/models", UpstreamHost: "models.example.com", Capture: "none"},
+			{Provider: "copilot", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+		},
+	}
+	r := NewRouter(cfg)
+
+	// Specific path route wins
+	route, ok := r.MatchModel("/models", "", "copilot")
+	if !ok {
+		t.Fatal("expected route for /models")
+	}
+	if route.Upstream != "models.example.com" {
+		t.Fatalf("upstream = %q, want models.example.com", route.Upstream)
+	}
+
+	// Unmatched path falls to default
+	route, ok = r.MatchModel("/agents", "", "copilot")
+	if !ok {
+		t.Fatal("expected default route for /agents")
+	}
+	if route.Upstream != "api.githubcopilot.com" {
+		t.Fatalf("upstream = %q, want api.githubcopilot.com", route.Upstream)
+	}
+}
+
+func TestMatchModel_ProviderDefault_WrongProvider(t *testing.T) {
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{Provider: "copilot", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+		},
+	}
+	r := NewRouter(cfg)
+
+	// Wrong provider prefix should not match
+	_, ok := r.MatchModel("/chat/completions", "", "openai")
+	if ok {
+		t.Fatal("expected no route for openai provider")
+	}
+
+	// Empty provider should not match default (no provider context)
+	_, ok = r.MatchModel("/chat/completions", "", "")
+	if ok {
+		t.Fatal("expected no route for empty provider")
+	}
+}
+
+func TestMatchModel_ProviderDefault_MultipleProviders(t *testing.T) {
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{Provider: "copilot", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+			{Provider: "openai", UpstreamHost: "api.openai.com", Capture: "usage"},
+		},
+	}
+	r := NewRouter(cfg)
+
+	// Copilot default
+	route, ok := r.MatchModel("/models", "", "copilot")
+	if !ok {
+		t.Fatal("expected copilot default")
+	}
+	if route.Upstream != "api.githubcopilot.com" {
+		t.Fatalf("upstream = %q, want api.githubcopilot.com", route.Upstream)
+	}
+
+	// OpenAI default
+	route, ok = r.MatchModel("/v1/models", "", "openai")
+	if !ok {
+		t.Fatal("expected openai default")
+	}
+	if route.Upstream != "api.openai.com" {
+		t.Fatalf("upstream = %q, want api.openai.com", route.Upstream)
+	}
+}
+
+func TestMatchModel_ProviderDefault_DefaultCapture(t *testing.T) {
+	// When capture is not specified, it should default to "usage"
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{Provider: "copilot", UpstreamHost: "api.githubcopilot.com"},
+		},
+	}
+	r := NewRouter(cfg)
+
+	route, ok := r.MatchModel("/any/path", "", "copilot")
+	if !ok {
+		t.Fatal("expected default route")
+	}
+	if route.Capture != CaptureUsage {
+		t.Fatalf("capture = %q, want usage (default)", route.Capture)
+	}
+}
+
+func TestMatchModel_ProviderDefault_ModelFilter(t *testing.T) {
+	// A provider default with a model filter only matches that model;
+	// other models get no route.
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{Provider: "openai", UpstreamHost: "gpt.example.com", Capture: "usage", Models: []string{"gpt-*"}},
+		},
+	}
+	r := NewRouter(cfg)
+
+	// gpt-4o matches the model filter
+	route, ok := r.MatchModel("/v1/chat/completions", "gpt-4o", "openai")
+	if !ok {
+		t.Fatal("expected route for gpt-4o")
+	}
+	if route.Upstream != "gpt.example.com" {
+		t.Fatalf("upstream = %q, want gpt.example.com", route.Upstream)
+	}
+
+	// claude-3 does not match the model filter → no route
+	_, ok = r.MatchModel("/v1/chat/completions", "claude-3", "openai")
+	if ok {
+		t.Fatal("expected no route for claude-3 (model filter mismatch)")
+	}
+}
+
 func TestRoute_ApplyPathPrefix(t *testing.T) {
 	t.Run("prepends", func(t *testing.T) {
 		r := Route{UpstreamPathPrefix: "/proxy"}

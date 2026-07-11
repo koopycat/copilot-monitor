@@ -108,14 +108,26 @@ func (e routeEntry) routeMatchesProvider(provider string) bool {
 	return e.route.Provider == "" || e.route.Provider == provider
 }
 
+// defaultCapture returns CaptureUsage when capture is empty, otherwise the
+// specified capture mode. Used for provider default routes where a capture
+// mode is optional (defaults to usage).
+func defaultCapture(c string) CaptureMode {
+	if c == "" {
+		return CaptureUsage
+	}
+	return CaptureMode(c)
+}
+
 type Router struct {
-	exactRoutes map[string]Route // fast lookup for path-only exact matches
-	entries     []routeEntry     // exact entries (insertion order) then prefix entries (longest first)
+	exactRoutes   map[string]Route // fast lookup for path-only exact matches
+	entries       []routeEntry     // exact entries (insertion order) then prefix entries (longest first)
+	defaultRoutes map[string]Route // provider -> default catch-all route
 }
 
 func NewRouter(cfg *ProxyConfig) *Router {
 	r := &Router{
-		exactRoutes: make(map[string]Route),
+		exactRoutes:   make(map[string]Route),
+		defaultRoutes: make(map[string]Route),
 	}
 	if cfg == nil {
 		return r
@@ -123,6 +135,23 @@ func NewRouter(cfg *ProxyConfig) *Router {
 	var exactEntries []routeEntry
 	var prefixEntries []routeEntry
 	for _, rc := range cfg.Routes {
+		if rc.isProviderDefault() {
+			endpoint := Endpoint(rc.Provider + "/*")
+			if rc.Label != "" {
+				endpoint = Endpoint(rc.Label)
+			}
+			r.defaultRoutes[rc.Provider] = Route{
+				Endpoint:           endpoint,
+				Upstream:           rc.UpstreamHost,
+				UpstreamPathPrefix: rc.UpstreamPathPrefix,
+				Capture:            defaultCapture(rc.Capture),
+				Local:              false,
+				Models:             rc.Models,
+				NotBilled:          rc.NotBilled,
+				Provider:           rc.Provider,
+			}
+			continue
+		}
 		endpoint := Endpoint(rc.Path)
 		if rc.Label != "" {
 			endpoint = Endpoint(rc.Label)
@@ -189,6 +218,12 @@ func (r *Router) MatchModel(path, model, provider string) (Route, bool) {
 	for _, e := range r.entries {
 		if e.prefix != "" && strings.HasPrefix(path, e.prefix) && e.routeMatchesProvider(provider) && e.route.routeMatchesModel(model) {
 			return e.route, true
+		}
+	}
+	// Provider default: catch-all for unmatched paths on a given provider.
+	if provider != "" {
+		if defaultRoute, ok := r.defaultRoutes[provider]; ok && defaultRoute.routeMatchesModel(model) {
+			return defaultRoute, true
 		}
 	}
 	return Route{}, false

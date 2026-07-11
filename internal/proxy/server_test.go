@@ -135,6 +135,45 @@ func TestHandlerUnknownPath(t *testing.T) {
 	}
 }
 
+func TestHandlerProviderDefaultRoute(t *testing.T) {
+	// A route config with a provider default for copilot and no specific routes.
+	defaultRouter := NewRouter(&ProxyConfig{
+		Routes: []RouteConfig{
+			{Provider: "copilot", UpstreamHost: "api.githubcopilot.com", Capture: "none"},
+		},
+	})
+
+	var logs bytes.Buffer
+	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), nil, "", nil, defaultRouter)
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Host != "api.githubcopilot.com" {
+			t.Fatalf("host = %q, want api.githubcopilot.com", req.URL.Host)
+		}
+		if req.URL.Path != "/models/session" {
+			t.Fatalf("path = %q, want /models/session", req.URL.Path)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"models":[]}`)),
+		}, nil
+	})}
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/copilot/models/session", nil)
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	// Log should not show "route=unknown" with provider default
+	logStr := logs.String()
+	if strings.Contains(logStr, "route=unknown") {
+		t.Fatalf("logs should not contain route=unknown with provider default: %s", logStr)
+	}
+}
+
 func TestHandlerPersistsUsageMissingWhenNoUsage(t *testing.T) {
 	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
 	if err != nil {

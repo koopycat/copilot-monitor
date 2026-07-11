@@ -221,6 +221,79 @@ func TestValidate_ModelsEmptySlice(t *testing.T) {
 	}
 }
 
+func TestValidate_ProviderDefault_Valid(t *testing.T) {
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{Provider: "copilot", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+		},
+	}
+	err := cfg.Validate()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestValidate_ProviderDefault_MissingUpstreamHost(t *testing.T) {
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{Provider: "copilot", Capture: "usage"},
+		},
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "provider default route requires upstream_host") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestValidate_ProviderDefault_MissingProvider(t *testing.T) {
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{UpstreamHost: "example.com", Capture: "none"},
+		},
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	// Without path and without provider, it should fail with "path is required" not "provider default"
+	if !strings.Contains(err.Error(), "path is required") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestValidate_ProviderDefault_Duplicate(t *testing.T) {
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{Provider: "copilot", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+			{Provider: "copilot", UpstreamHost: "other.example.com", Capture: "none"},
+		},
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "duplicate provider default") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestValidate_ProviderDefault_WithPathRoutes(t *testing.T) {
+	cfg := &ProxyConfig{
+		Routes: []RouteConfig{
+			{Provider: "copilot", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+			{Provider: "copilot", Path: "/_ping", Capture: "local"},
+			{Provider: "copilot", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
+		},
+	}
+	err := cfg.Validate()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestValidate_TrimsWhitespaceAndNormalizes(t *testing.T) {
 	cfg := &ProxyConfig{
 		Routes: []RouteConfig{

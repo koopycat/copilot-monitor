@@ -5,7 +5,7 @@
       "upstream_host": "api.kilo.ai",
       "upstream_path_prefix": "/api/gateway",
       "capture": "usage",
-      "label": "chat",
+      "label": "kilo-chat-v1",
       "models": ["*/*"],
       "provider": "kilo"
     },
@@ -14,59 +14,56 @@
       "upstream_host": "api.kilo.ai",
       "upstream_path_prefix": "/api/gateway",
       "capture": "usage",
-      "label": "chat",
+      "label": "kilo-chat",
       "models": ["*/*"],
       "provider": "kilo"
     },
     {
-      "label": "models",
-      "path": "/models",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "none",
-      "provider": "copilot"
-    },
-    {
-      "label": "models-session",
-      "path": "/models/session",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "none",
-      "provider": "copilot"
-    },
-    {
-      "label": "agent",
-      "path": "/agents",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "usage",
-      "prefix_match": true,
-      "provider": "copilot"
-    },
-    {
-      "label": "responses-websocket",
-      "path": "/responses",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "usage",
-      "provider": "copilot"
-    },
-    {
-      "label": "embeddings",
-      "path": "/embeddings",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "metadata",
-      "provider": "copilot"
-    },
-    {
-      "label": "chat",
-      "path": "/v1/messages",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "usage",
-      "prefix_match": true,
-      "provider": "copilot"
-    },
-    {
-      "label": "copilot-chat",
       "path": "/chat/completions",
       "upstream_host": "api.githubcopilot.com",
       "capture": "usage",
+      "label": "copilot-chat",
+      "provider": "copilot"
+    },
+    {
+      "path": "/v1/engines",
+      "upstream_host": "copilot-proxy.githubusercontent.com",
+      "capture": "usage",
+      "label": "copilot-completions",
+      "prefix_match": true,
+      "provider": "copilot"
+    },
+    {
+      "path": "/v1/engines",
+      "upstream_host": "copilot-proxy.githubusercontent.com",
+      "capture": "usage",
+      "label": "completions",
+      "prefix_match": true
+    },
+    {
+      "path": "/models",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "none",
+      "label": "copilot-models",
+      "provider": "copilot"
+    },
+    {
+      "path": "/models",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "none",
+      "label": "models"
+    },
+    {
+      "path": "/chat/completions",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "usage",
+      "label": "chat"
+    },
+    {
+      "path": "/embeddings",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "usage",
+      "label": "copilot-embeddings",
       "provider": "copilot"
     }
   ]
