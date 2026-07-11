@@ -534,3 +534,33 @@ func TestInitCommand_ForceOverwrites(t *testing.T) {
 		t.Fatalf("expected routes.json in output: %s", stdout2.String())
 	}
 }
+
+func TestInspectCommandEmptyDB(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"inspect", "--db", filepath.Join(t.TempDir(), "unused.db")}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "No anomalies") {
+		t.Fatalf("expected 'No anomalies' in output: %s", stdout.String())
+	}
+}
+
+func TestInspectCommandInvalidCategory(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"inspect", "--db", filepath.Join(t.TempDir(), "unused.db"), "--category", "nonexistent"}, &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	if !strings.Contains(stderr.String(), "invalid --category") {
+		t.Fatalf("expected 'invalid --category' in stderr: %s", stderr.String())
+	}
+}
+
+func TestInspectCommandInvalidSeverity(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"inspect", "--db", filepath.Join(t.TempDir(), "unused.db"), "--severity", "critical"}, &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+}

@@ -197,6 +197,20 @@ func (w *wsInspector) inspectTextFrame(payload []byte) {
 
 	msgType, _ := msg["type"].(string)
 
+	// Record anomaly for unrecognized WebSocket event types
+	if msgType != "" && !isKnownWSEvent(msgType) {
+		w.h.recordAnomaly(store.AnomalyRecord{
+			Timestamp: time.Now().UTC(),
+			Category:  "unknown_ws_event",
+			Severity:  "info",
+			Path:      w.r.URL.Path,
+			Method:    w.r.Method,
+			Endpoint:  string(w.route.Endpoint),
+			Upstream:  w.route.Upstream,
+			Detail:    fmt.Sprintf("unknown WebSocket event type: %s", msgType),
+		})
+	}
+
 	// Track model from response.create events.
 	if msgType == "response.create" {
 		if resp, ok := msg["response"].(map[string]any); ok {
@@ -389,4 +403,34 @@ func cloneHeaders(headers http.Header) http.Header {
 		out[name] = append([]string(nil), values...)
 	}
 	return out
+}
+
+// knownWSEvents lists Copilot Responses API event types that the proxy expects.
+// Any text frame with a type not in this set triggers an anomaly.
+var knownWSEvents = map[string]bool{
+	"response.create":                          true,
+	"response.created":                         true,
+	"response.text.delta":                      true,
+	"response.text.done":                       true,
+	"response.audio.delta":                     true,
+	"response.audio.done":                      true,
+	"response.code_interpreter.call_started":   true,
+	"response.code_interpreter.call.completed": true,
+	"response.completed":                       true,
+	"response.cancelled":                       true,
+	"response.failed":                          true,
+	"response.in_progress":                     true,
+	"response.output_item.added":               true,
+	"response.output_item.done":                true,
+	"response.content_part.added":              true,
+	"response.content_part.done":               true,
+	"rate_limit.updated":                       true,
+	"session.created":                          true,
+	"session.updated":                          true,
+	"error":                                    true,
+	"ping":                                     true,
+}
+
+func isKnownWSEvent(msgType string) bool {
+	return knownWSEvents[msgType]
 }

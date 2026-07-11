@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -33,12 +34,15 @@ type Handler struct {
 	compressor          headroom.MessageCompressor
 	compressionRequired bool
 	nextID              atomic.Uint64
+	anomalyRecorder     *AnomalyRecorder
 
-	policyMu     sync.RWMutex
-	policyCache  *policy.Policy
-	policyUntil  time.Time
-	requestCount atomic.Int64
-	startTime    time.Time
+	policyMu        sync.RWMutex
+	policyCache     *policy.Policy
+	policyUntil     time.Time
+	requestCount    atomic.Int64
+	startTime       time.Time
+	seenUpstreamsMu sync.Mutex
+	seenUpstreams   map[string]bool
 }
 
 func (h *Handler) RequestCount() int64 {
@@ -85,6 +89,11 @@ func NewHandlerWithRouter(log *log.Writer, st *store.Store, project string, usag
 // SetCatalog sets the pricing catalog used for per-request cost estimation.
 func (h *Handler) SetCatalog(cat catalog.Catalog) {
 	h.cat = cat
+}
+
+// SetAnomalyRecorder sets the anomaly recorder for detection hooks.
+func (h *Handler) SetAnomalyRecorder(r *AnomalyRecorder) {
+	h.anomalyRecorder = r
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -143,8 +152,34 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		h.log.Error("id=%d path=%q provider=%q route=unknown status=502\n", id, originalURI, provider)
 		h.writeRawLog(started, id, Route{}, r, meta, body, nil, provider, compressionMeta{}, false)
+		h.recordAnomaly(store.AnomalyRecord{
+			Timestamp: started,
+			Category:  "unrouted_path",
+			Severity:  "warn",
+			RequestID: id,
+			Path:      r.URL.Path,
+			Method:    r.Method,
+			Detail:    "no route matched for path",
+		})
 		http.Error(w, "unknown Copilot path", http.StatusBadGateway)
 		return
+	}
+
+	// Detect unknown upstream hosts
+	h.recordUnknownUpstream(route.Upstream, started)
+
+	// Detect missing auth on non-local routes
+	if !route.Local && r.Header.Get("Authorization") == "" && r.Header.Get("authorization") == "" {
+		h.recordAnomaly(store.AnomalyRecord{
+			Timestamp: started,
+			Category:  "auth_missing",
+			Severity:  "error",
+			RequestID: id,
+			Path:      r.URL.Path,
+			Method:    r.Method,
+			Endpoint:  string(route.Endpoint),
+			Detail:    "no Authorization header on proxied request",
+		})
 	}
 
 	if route.Local {
@@ -251,7 +286,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	copyHeaders(w.Header(), StripHopByHopHeaders(resp.Header))
 	w.WriteHeader(resp.StatusCode)
-	observer := newResponseObserver(route, resp.Header.Get("Content-Type"))
+
+	// Detect unknown Content-Type on captured routes
+	contentType := resp.Header.Get("Content-Type")
+	if route.Capture != CaptureNone && route.Capture != CaptureTunnel {
+		if !isKnownContentType(contentType) {
+			h.recordAnomaly(store.AnomalyRecord{
+				Timestamp: started,
+				Category:  "unknown_content_type",
+				Severity:  "info",
+				RequestID: id,
+				Path:      r.URL.Path,
+				Method:    r.Method,
+				Endpoint:  string(route.Endpoint),
+				Upstream:  route.Upstream,
+				Detail:    fmt.Sprintf("unexpected Content-Type: %s", contentType),
+			})
+		}
+	}
+
+	observer := newResponseObserver(route, contentType)
 	bytesWritten, err := streamResponse(w, resp.Body, observer)
 	if err != nil {
 		if r.Context().Err() != nil {
@@ -286,6 +340,22 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.persistRequest(r.Context(), started, route, r, meta, resp.StatusCode, latencyMS, compMeta, observer)
 	h.writeUsageDebug(started, id, route, r, meta, resp, observer)
 	h.writeRawLog(started, id, route, r, meta, body, resp, provider, compMeta, true)
+
+	// Record SSE parse errors as anomalies
+	if observer != nil && observer.ParseErrors > 0 {
+		h.recordAnomaly(store.AnomalyRecord{
+			Timestamp: started,
+			Category:  "parse_error",
+			Severity:  "warn",
+			RequestID: id,
+			Path:      r.URL.Path,
+			Method:    r.Method,
+			Endpoint:  string(route.Endpoint),
+			Upstream:  route.Upstream,
+			Model:     meta.Model,
+			Detail:    fmt.Sprintf("SSE parse errors: %d", observer.ParseErrors),
+		})
+	}
 
 	// Emit structured log line
 	entry := log.RequestLog{
@@ -450,4 +520,53 @@ func (h *Handler) writeRawLog(ts time.Time, id uint64, route Route, r *http.Requ
 	if err := h.rawLogger.Write(record); err != nil {
 		h.log.Warn("raw_log_error=%q\n", err.Error())
 	}
+}
+
+// recordAnomaly sends an anomaly record to the background recorder if one is configured.
+func (h *Handler) recordAnomaly(rec store.AnomalyRecord) {
+	if h.anomalyRecorder != nil {
+		h.anomalyRecorder.Record(rec)
+	}
+}
+
+// recordUnknownUpstream checks if an upstream host has been seen before in this
+// proxy session and records an anomaly if it hasn't.
+func (h *Handler) recordUnknownUpstream(upstream string, started time.Time) {
+	if upstream == "" {
+		return
+	}
+	h.seenUpstreamsMu.Lock()
+	if h.seenUpstreams == nil {
+		h.seenUpstreams = make(map[string]bool)
+	}
+	if h.seenUpstreams[upstream] {
+		h.seenUpstreamsMu.Unlock()
+		return
+	}
+	h.seenUpstreams[upstream] = true
+	h.seenUpstreamsMu.Unlock()
+
+	h.recordAnomaly(store.AnomalyRecord{
+		Timestamp: started,
+		Category:  "unknown_upstream",
+		Severity:  "info",
+		Upstream:  upstream,
+		Detail:    fmt.Sprintf("first request to upstream %s", upstream),
+	})
+}
+
+var knownContentTypes = map[string]bool{
+	"text/event-stream":        true,
+	"application/json":         true,
+	"text/plain":               true,
+	"text/html":                true,
+	"application/octet-stream": true,
+}
+
+func isKnownContentType(ct string) bool {
+	// Normalize: take part before semicolon
+	if idx := strings.Index(ct, ";"); idx >= 0 {
+		ct = strings.TrimSpace(ct[:idx])
+	}
+	return knownContentTypes[strings.ToLower(ct)]
 }

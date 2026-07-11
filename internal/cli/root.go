@@ -43,6 +43,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runValidate(args[1:], stdout, stderr)
 	case "init":
 		return runInit(args[1:], stdout, stderr)
+	case "inspect":
+		return runInspect(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
@@ -84,6 +86,7 @@ Commands:
   export            Export captured request metadata to CSV.
   init              Create a starter routes.json config file.
   validate          Validate a routes config file.
+  inspect           Show detected proxy anomalies (unrouted paths, parse errors, auth issues).
   version           Print the version.
 `)+"\n")
 }
