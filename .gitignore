@@ -19,6 +19,9 @@ usage-debug*.jsonl
 # devenv
 /.devenv/
 
+# Backup files
+*.bak
+
 # OS/editor noise
 .DS_Store
 /.idea/
