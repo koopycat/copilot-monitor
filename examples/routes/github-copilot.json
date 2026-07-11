@@ -1,86 +1,46 @@
 {
   "routes": [
     // Local ping endpoint — responds with OK without proxying.
+    // No provider set, so it matches any prefix (copilot, openai, kilo, etc.).
     {
       "label": "ping",
       "path": "/_ping",
-      "upstream_host": "",
       "capture": "local"
     },
-    // GitHub Copilot chat completions — captures token usage.
+    // Provider default — all unmatched paths on the copilot prefix
+    // fall through to this route. Covers: /chat/completions, /agents/*,
+    // /models, /models/session, /responses, /v1/messages/*, and unknown paths.
     {
-      "label": "chat",
-      "path": "/chat/completions",
+      "provider": "copilot",
       "upstream_host": "api.githubcopilot.com",
-      "capture": "usage",
-      "provider": "github"
+      "capture": "usage"
     },
-    // Agent endpoints (prefix match) — captures usage for all /agents/* paths.
-    {
-      "label": "agent",
-      "path": "/agents",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "usage",
-      "prefix_match": true,
-      "provider": "github"
-    },
-    // Models listing — no capture needed.
-    {
-      "label": "models",
-      "path": "/models",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "none",
-      "provider": "github"
-    },
-    {
-      "label": "models-session",
-      "path": "/models/session",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "none",
-      "provider": "github"
-    },
-    // Copilot responses (WebSocket) — captures usage.
-    {
-      "label": "responses-websocket",
-      "path": "/responses",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "usage",
-      "provider": "github"
-    },
-    // Embeddings — captures request metadata only.
+    // Embeddings — metadata capture overrides the default.
     {
       "label": "embeddings",
       "path": "/embeddings",
       "upstream_host": "api.githubcopilot.com",
       "capture": "metadata",
-      "provider": "github"
+      "provider": "copilot"
     },
-    // Legacy completions engines (not billed).
+    // Legacy completions engines — different upstream, not billed.
     {
       "label": "completions",
       "path": "/v1/engines",
       "upstream_host": "copilot-proxy.githubusercontent.com",
       "capture": "usage",
       "prefix_match": true,
-      "provider": "github",
+      "provider": "copilot",
       "not_billed": true
     },
+    // Legacy completions — different upstream, not billed.
     {
       "label": "completions",
       "path": "/v1/completions",
       "upstream_host": "copilot-proxy.githubusercontent.com",
       "capture": "usage",
-      "provider": "github",
+      "provider": "copilot",
       "not_billed": true
-    },
-    // Copilot v1/messages (prefix match) — captures usage for all chat variants.
-    {
-      "label": "chat",
-      "path": "/v1/messages",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "usage",
-      "prefix_match": true,
-      "provider": "github"
     }
   ]
 }
