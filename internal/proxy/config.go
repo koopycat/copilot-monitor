@@ -66,9 +66,6 @@ func (c *ProxyConfig) Validate() error {
 
 		// Provider default routes: no path, must have provider + upstream_host.
 		if rc.isProviderDefault() {
-			if rc.Provider == "" {
-				return fmt.Errorf("route at index %d: provider default route requires provider", i)
-			}
 			if rc.UpstreamHost == "" {
 				return fmt.Errorf("route at index %d: provider default route requires upstream_host", i)
 			}
