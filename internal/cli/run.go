@@ -141,6 +141,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	proxyHandler.SetCatalog(cat)
 	proxyHandler.SetRawLogger(rawLogger)
 	anomalyRecorder := proxy.NewAnomalyRecorder(st)
+	defer anomalyRecorder.Shutdown()
 	proxyHandler.SetAnomalyRecorder(anomalyRecorder)
 	if compressor != nil {
 		proxyHandler.ConfigureCompression(compressor, *headroomRequired)
@@ -190,7 +191,6 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)
-		anomalyRecorder.Shutdown()
 	}()
 
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, context.Canceled) {
