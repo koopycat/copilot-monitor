@@ -116,3 +116,70 @@ func TestStatsFilterSince(t *testing.T) {
 		t.Fatalf("stats = %#v", stats)
 	}
 }
+
+func TestWriteAndQueryAnomalies(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	// Write anomalies
+	if err := s.WriteAnomaly(ctx, AnomalyRecord{
+		Timestamp: now, Category: "unrouted_path", Severity: "warn",
+		Path: "/v1/new-endpoint", Method: "POST", Detail: "no route matched",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.WriteAnomaly(ctx, AnomalyRecord{
+		Timestamp: now.Add(-1 * time.Hour), Category: "parse_error", Severity: "warn",
+		Path: "/chat/completions", Detail: "malformed JSON in SSE",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.WriteAnomaly(ctx, AnomalyRecord{
+		Timestamp: now.Add(-2 * time.Hour), Category: "auth_missing", Severity: "error",
+		Path: "/chat/completions", Detail: "no Authorization header",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Query all
+	all, err := s.QueryAnomalies(ctx, AnomalyFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("len(all) = %d, want 3", len(all))
+	}
+
+	// Query by category
+	cat, err := s.QueryAnomalies(ctx, AnomalyFilter{Category: "unrouted_path"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cat) != 1 || cat[0].Category != "unrouted_path" {
+		t.Fatalf("cat = %#v", cat)
+	}
+
+	// Query by severity
+	sev, err := s.QueryAnomalies(ctx, AnomalyFilter{Severity: "error"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sev) != 1 || sev[0].Category != "auth_missing" {
+		t.Fatalf("sev = %#v", sev)
+	}
+
+	// Query by time
+	recent, err := s.QueryAnomalies(ctx, AnomalyFilter{Since: now.Add(-30 * time.Minute)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recent) != 1 || recent[0].Category != "unrouted_path" {
+		t.Fatalf("recent = %#v", recent)
+	}
+}

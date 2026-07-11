@@ -506,6 +506,136 @@ func nullInt64(value int64) any {
 	return value
 }
 
+// AnomalyRecord holds one detected anomaly for persistence.
+type AnomalyRecord struct {
+	Timestamp  time.Time
+	Category   string // e.g. unrouted_path, parse_error, auth_missing
+	Severity   string // info, warn, error
+	RequestID  uint64
+	Path       string
+	Method     string
+	Endpoint   string
+	Model      string
+	Upstream   string
+	Status     int
+	Detail     string
+	JSONDetail string
+}
+
+// AnomalyFilter controls which anomalies to return from QueryAnomalies.
+type AnomalyFilter struct {
+	Since    time.Time
+	Category string
+	Severity string
+}
+
+func (s *Store) WriteAnomaly(ctx context.Context, rec AnomalyRecord) error {
+	if s == nil || s.db == nil {
+		return nil
+	}
+	if rec.Timestamp.IsZero() {
+		rec.Timestamp = time.Now().UTC()
+	}
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO anomalies (
+  ts, category, severity, request_id, path, method, endpoint, model,
+  upstream, status, detail, json_detail
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		rec.Timestamp.UTC().Format(time.RFC3339Nano),
+		rec.Category,
+		rec.Severity,
+		nullUint64(rec.RequestID),
+		nullString(rec.Path),
+		nullString(rec.Method),
+		nullString(rec.Endpoint),
+		nullString(rec.Model),
+		nullString(rec.Upstream),
+		nullInt(rec.Status),
+		nullString(rec.Detail),
+		nullString(rec.JSONDetail),
+	)
+	return err
+}
+
+// Anomaly wraps anomaly data for JSON/CLI output.
+type Anomaly struct {
+	ID         int64  `json:"id"`
+	TS         string `json:"ts"`
+	Category   string `json:"category"`
+	Severity   string `json:"severity"`
+	RequestID  *int64 `json:"request_id,omitempty"`
+	Path       string `json:"path,omitempty"`
+	Method     string `json:"method,omitempty"`
+	Endpoint   string `json:"endpoint,omitempty"`
+	Model      string `json:"model,omitempty"`
+	Upstream   string `json:"upstream,omitempty"`
+	Status     *int   `json:"status,omitempty"`
+	Detail     string `json:"detail,omitempty"`
+	JSONDetail string `json:"json_detail,omitempty"`
+}
+
+func (s *Store) QueryAnomalies(ctx context.Context, filter AnomalyFilter) ([]Anomaly, error) {
+	if s == nil || s.db == nil {
+		return nil, nil
+	}
+	query := "SELECT id, ts, category, severity, request_id, path, method, endpoint, model, upstream, status, detail, json_detail FROM anomalies WHERE 1=1"
+	var args []any
+	if !filter.Since.IsZero() {
+		query += " AND ts >= ?"
+		args = append(args, filter.Since.UTC().Format(time.RFC3339Nano))
+	}
+	if filter.Category != "" {
+		query += " AND category = ?"
+		args = append(args, filter.Category)
+	}
+	if filter.Severity != "" {
+		query += " AND severity = ?"
+		args = append(args, filter.Severity)
+	}
+	query += " ORDER BY ts DESC"
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []Anomaly
+	for rows.Next() {
+		var a Anomaly
+		var reqID sql.NullInt64
+		var status sql.NullInt64
+		var path, method, endpoint, model, upstream, detail, jsonDetail sql.NullString
+		if err := rows.Scan(&a.ID, &a.TS, &a.Category, &a.Severity, &reqID,
+			&path, &method, &endpoint, &model, &upstream, &status, &detail, &jsonDetail); err != nil {
+			return nil, err
+		}
+		if reqID.Valid {
+			a.RequestID = &reqID.Int64
+		}
+		if status.Valid {
+			s := int(status.Int64)
+			a.Status = &s
+		}
+		a.Path = path.String
+		a.Method = method.String
+		a.Endpoint = endpoint.String
+		a.Model = model.String
+		a.Upstream = upstream.String
+		a.Detail = detail.String
+		a.JSONDetail = jsonDetail.String
+		result = append(result, a)
+	}
+	return result, rows.Err()
+}
+
+func nullUint64(v uint64) any {
+	if v == 0 {
+		return nil
+	}
+	return int64(v)
+}
+
 func (s *Store) CountUsageMissing(ctx context.Context) (int, error) {
 	if s == nil || s.db == nil {
 		return 0, nil

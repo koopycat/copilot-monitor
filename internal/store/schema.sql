@@ -50,3 +50,23 @@ CREATE TABLE IF NOT EXISTS policies (
                       CHECK (mode IN ('allow_all', 'allowlist', 'blocklist')),
   models_json TEXT    NOT NULL DEFAULT '[]'
 );
+
+CREATE TABLE IF NOT EXISTS anomalies (
+  id          INTEGER PRIMARY KEY,
+  ts          TEXT    NOT NULL,
+  category    TEXT    NOT NULL,
+  severity    TEXT    NOT NULL CHECK (severity IN ('info', 'warn', 'error')),
+  request_id  INTEGER,
+  path        TEXT,
+  method      TEXT,
+  endpoint    TEXT,
+  model       TEXT,
+  upstream    TEXT,
+  status      INTEGER,
+  detail      TEXT,
+  json_detail TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_anomalies_ts       ON anomalies(ts);
+CREATE INDEX IF NOT EXISTS idx_anomalies_category  ON anomalies(category);
+CREATE INDEX IF NOT EXISTS idx_anomalies_severity  ON anomalies(severity);
