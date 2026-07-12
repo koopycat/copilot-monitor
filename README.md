@@ -16,12 +16,9 @@ Anthropic-compatible API via configurable routes (pi-agent, Claude Code, aider,
 direct API calls, etc.).
 
 ```sh
-# run the proxy
-./bin/copilot-monitor run &
-
-# start the dashboard API
-./bin/copilot-monitor serve
-# → open http://127.0.0.1:7734
+# run the proxy and dashboard together
+./bin/copilot-monitor run --dashboard &
+# → proxy on http://127.0.0.1:7733, dashboard on http://127.0.0.1:7734
 ```
 
 Project site: <https://koopycat.github.io/copilot-monitor/>
@@ -44,9 +41,8 @@ Extract and run:
 
 ```sh
 tar -xzf copilot-monitor-linux-amd64.tar.gz
-./copilot-monitor run &
-./copilot-monitor serve
-# → open http://127.0.0.1:7734
+./copilot-monitor run --dashboard &
+# → proxy on http://127.0.0.1:7733, dashboard on http://127.0.0.1:7734
 ```
 
 Verify the binary matches the release on the
@@ -268,15 +264,21 @@ Copilot Monitor's own database never stores request or response bodies.
 
 ### Running proxy and dashboard together
 
+Use `--dashboard` to start both in a single process:
+
+```sh
+./bin/copilot-monitor run --dashboard &
+# → proxy on http://127.0.0.1:7733, dashboard on http://127.0.0.1:7734
+```
+
+Or run them separately in two terminals:
+
 ```sh
 # Terminal 1: proxy captures API traffic
 ./bin/copilot-monitor run
 
 # Terminal 2: dashboard shows captured data
 ./bin/copilot-monitor serve
-
-# Terminal 3 (or herdr pane): your tool pointing at the proxy
-KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi
 ```
 
 ### Policy — Model Allow/Block
