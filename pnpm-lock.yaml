@@ -6,6 +6,8 @@ settings:
 
 importers:
 
+  .: {}
+
   dashboard:
     devDependencies:
       '@sveltejs/vite-plugin-svelte':
