@@ -575,31 +575,45 @@ func TestRoutesConfigDefaults_PrintsValidJSON(t *testing.T) {
 	}
 }
 
+// signalWriter writes to an underlying io.Writer and sends the accumulated
+// output on a channel whenever a trigger string is detected.
+type signalWriter struct {
+	w       io.Writer
+	trigger string
+	signal  chan<- string
+	buf     bytes.Buffer
+}
+
+func (s *signalWriter) Write(p []byte) (int, error) {
+	s.buf.Write(p)
+	n, err := s.w.Write(p)
+	if strings.Contains(s.buf.String(), s.trigger) {
+		select {
+		case s.signal <- s.buf.String():
+		default:
+		}
+	}
+	return n, err
+}
+
 func TestRun_NoRoutesConfig_UsesDefaults(t *testing.T) {
-	var stderr bytes.Buffer
+	var underlying bytes.Buffer
+	sig := make(chan string, 1)
+	sw := &signalWriter{w: &underlying, trigger: "built-in default routes", signal: sig}
+
 	done := make(chan int, 1)
 	go func() {
-		code := Run([]string{"run", "--addr", "127.0.0.1:0", "--db", filepath.Join(t.TempDir(), "store.db"), "--no-live"}, io.Discard, &stderr)
+		code := Run([]string{"run", "--addr", "127.0.0.1:0", "--db", filepath.Join(t.TempDir(), "store.db"), "--no-live"}, io.Discard, sw)
 		done <- code
 	}()
 
-	// Wait for startup banner
-	deadline := time.After(2000 * time.Millisecond)
-	for {
-		select {
-		case <-deadline:
-			t.Fatal("timed out waiting for startup banner")
-		default:
-			if strings.Contains(stderr.String(), "built-in default routes") {
-				goto found
-			}
-			time.Sleep(10 * time.Millisecond)
+	select {
+	case banner := <-sig:
+		if !strings.Contains(banner, "built-in default routes") {
+			t.Fatalf("expected 'built-in default routes' in banner: %s", banner)
 		}
-	}
-found:
-	banner := stderr.String()
-	if !strings.Contains(banner, "built-in default routes") {
-		t.Fatalf("expected 'built-in default routes' in banner: %s", banner)
+	case <-time.After(2000 * time.Millisecond):
+		t.Fatal("timed out waiting for startup banner")
 	}
 }
 
@@ -615,32 +629,25 @@ func TestRun_WithRoutesConfig_OverridesDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var stderr bytes.Buffer
+	var underlying bytes.Buffer
+	sig := make(chan string, 1)
+	sw := &signalWriter{w: &underlying, trigger: "routes from config", signal: sig}
+
 	done := make(chan int, 1)
 	go func() {
-		code := Run([]string{"run", "--addr", "127.0.0.1:0", "--db", filepath.Join(t.TempDir(), "store.db"), "--routes-config", configPath, "--no-live"}, io.Discard, &stderr)
+		code := Run([]string{"run", "--addr", "127.0.0.1:0", "--db", filepath.Join(t.TempDir(), "store.db"), "--routes-config", configPath, "--no-live"}, io.Discard, sw)
 		done <- code
 	}()
 
-	// Wait for banner
-	deadline := time.After(2000 * time.Millisecond)
-	for {
-		select {
-		case <-deadline:
-			t.Fatal("timed out waiting for startup banner")
-		default:
-			if strings.Contains(stderr.String(), "routes from config") {
-				goto found
-			}
-			time.Sleep(10 * time.Millisecond)
+	select {
+	case banner := <-sig:
+		if !strings.Contains(banner, "routes from config") {
+			t.Fatalf("expected 'routes from config' in banner: %s", banner)
 		}
-	}
-found:
-	banner := stderr.String()
-	if !strings.Contains(banner, "routes from config") {
-		t.Fatalf("expected 'routes from config' in banner: %s", banner)
-	}
-	if strings.Contains(banner, "built-in default routes") {
-		t.Fatalf("banner should not mention defaults when config is provided: %s", banner)
+		if strings.Contains(banner, "built-in default routes") {
+			t.Fatalf("banner should not mention defaults when config is provided: %s", banner)
+		}
+	case <-time.After(2000 * time.Millisecond):
+		t.Fatal("timed out waiting for startup banner")
 	}
 }
