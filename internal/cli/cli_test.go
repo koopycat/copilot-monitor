@@ -723,6 +723,46 @@ func TestRun_DefaultConfigFile_InvalidFallsBack(t *testing.T) {
 		if !strings.Contains(banner, "built-in default routes") {
 			t.Fatalf("expected fallback to built-in defaults, banner: %s", banner)
 		}
+		if !strings.Contains(underlying.String(), "invalid") {
+			t.Fatalf("expected warning about invalid config, got: %s", underlying.String())
+		}
+	case <-time.After(2000 * time.Millisecond):
+		t.Fatal("timed out waiting for startup banner")
+	}
+}
+
+func TestRun_DefaultConfigFile_EmptyRoutesFallsBack(t *testing.T) {
+	configDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configDir)
+	monitorDir := filepath.Join(configDir, "copilot-monitor")
+	if err := os.MkdirAll(monitorDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(monitorDir, "routes.json")
+	// Write valid JSON with no routes
+	if err := os.WriteFile(configPath, []byte(`{"routes": []}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var underlying bytes.Buffer
+	sig := make(chan string, 1)
+	sw := &signalWriter{w: &underlying, trigger: "built-in default routes", signal: sig}
+
+	done := make(chan int, 1)
+	go func() {
+		code := Run([]string{"run", "--addr", "127.0.0.1:0", "--db", filepath.Join(t.TempDir(), "store.db"), "--no-live"}, io.Discard, sw)
+		done <- code
+	}()
+
+	select {
+	case banner := <-sig:
+		if !strings.Contains(banner, "built-in default routes") {
+			t.Fatalf("expected fallback to built-in defaults, banner: %s", banner)
+		}
+		// Warning should have been printed to the underlying writer
+		if !strings.Contains(underlying.String(), "no routes") {
+			t.Fatalf("expected warning about empty routes, got: %s", underlying.String())
+		}
 	case <-time.After(2000 * time.Millisecond):
 		t.Fatal("timed out waiting for startup banner")
 	}
