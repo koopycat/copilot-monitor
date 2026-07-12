@@ -79,11 +79,17 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	var sourceTag string
 	if *routesConfig == "" {
 		defaultPath := defaultConfigPath()
-		if cfg, err := proxy.LoadConfig(defaultPath); err == nil && len(cfg.Routes) > 0 {
+		cfg, err := proxy.LoadConfig(defaultPath)
+		if cfg != nil && err == nil && len(cfg.Routes) > 0 {
 			proxyCfg = cfg
 			*routesConfig = defaultPath
 			sourceTag = fmt.Sprintf("(%d routes from %s)", len(proxyCfg.Routes), defaultPath)
 		} else {
+			if err != nil {
+				fmt.Fprintf(stderr, "warning: default routes config %s is invalid (%v), using built-in defaults\n", defaultPath, err)
+			} else if cfg != nil && len(cfg.Routes) == 0 {
+				fmt.Fprintf(stderr, "warning: default routes config %s contains no routes, using built-in defaults\n", defaultPath)
+			}
 			proxyCfg = proxy.DefaultRoutes()
 			sourceTag = "(built-in default routes)"
 		}
