@@ -37,18 +37,18 @@ matching the given pattern across all packages. The repo SHALL provide
 
 ### Requirement: Fast pre-commit hooks
 
-Pre-commit hooks SHALL include formatting (gofmt, goimports, prettier), secret
-scanning (gitleaks), whitespace checks, and dashboard svelte-check (only on
-dashboard file changes). Slow Go checks (`go vet`, `go mod tidy`) SHALL be
-enforced in CI instead.
+Pre-commit hooks SHALL complete in under 3 seconds on average. Pre-commit SHALL
+include only formatting (gofmt, goimports, prettier), secret scanning
+(gitleaks), and whitespace checks. Slow checks (go vet, go mod tidy, dashboard
+svelte-check) SHALL be enforced in CI instead.
 
 #### Scenario: Agent commits a Go change
 
 - **WHEN** an agent runs `git commit` after a Go-only change
 - **THEN** the pre-commit hooks complete in under 3 seconds
-- **AND** go vet and go mod tidy are not executed
+- **AND** go vet, go mod tidy, and svelte-check are not executed
 
-#### Scenario: CI enforces Go checks
+#### Scenario: CI catches what pre-commit no longer checks
 
 - **WHEN** code is pushed that would fail `go vet` or `go mod tidy`
 - **THEN** the CI workflow fails and reports the violation

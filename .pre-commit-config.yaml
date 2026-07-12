@@ -40,7 +40,12 @@ repos:
         entry: bash -c 'go run golang.org/x/tools/cmd/goimports@latest -l -w "$@"' --
         language: system
         types: [go]
-
+      - id: dashboard-check
+        name: dashboard svelte-check
+        entry: bash -c 'cd dashboard && pnpm check'
+        language: system
+        files: ^dashboard/.*\.(svelte|ts|js)$
+        pass_filenames: false
       - id: e2e-eslint
         name: e2e eslint
         entry: bash -c 'cd internal/e2e && pnpm lint'

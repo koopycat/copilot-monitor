@@ -30,8 +30,8 @@ direnv.
 - `just format` -- format all code (Go, JS, Svelte, MD, JSON, YAML)
 - `just fmt-go` -- format Go code only
 
-Pre-commit runs only fast checks (formatting + secrets). Slow checks (`go vet`,
-`go mod tidy`, `svelte-check`) are enforced in CI.
+Pre-commit runs formatting, secrets, and dashboard svelte-check. Slow Go checks
+(`go vet`, `go mod tidy`) are enforced in CI.
 
 ## Project Structure & Module Organization
 
@@ -61,10 +61,10 @@ Use the `justfile` as the main task runner:
 
 Pre-commit hooks (configured in `.pre-commit-config.yaml`) run automatically on
 `git commit` and enforce formatting (`gofmt`, `goimports`, `prettier`), secret
-scanning (`gitleaks`), and whitespace consistency. Slow checks (`go vet`,
-`go mod tidy`, `svelte-check`) are enforced in CI instead, keeping pre-commit
-under 3 seconds. Install once with `pre-commit install`; bypass only with a
-strong reason and `git commit --no-verify`.
+scanning (`gitleaks`), and whitespace consistency. Slow Go checks (`go vet`,
+`go mod tidy`) are enforced in CI instead; `svelte-check` runs in pre-commit on
+dashboard file changes. Install once with `pre-commit install`; bypass only with
+a strong reason and `git commit --no-verify`.
 
 For local use, run `./copilot-monitor serve` for the dashboard API or
 `./copilot-monitor run` for the proxy.
