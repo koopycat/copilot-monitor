@@ -54,7 +54,6 @@ _copilot-monitor() {
             '--usage-debug-log[optional JSONL path]:file:_files' \
             '--raw-log[optional JSONL path for raw request debugging]:file:_files' \
             '--no-live[disable live session tail]' \
-            '--dashboard[serve dashboard API/UI on same port]' \
             '--log-format[log output format]:format:(human json)'
           ;;
         serve)
