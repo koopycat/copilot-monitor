@@ -13,6 +13,9 @@ output. Dashboard assets live in `dashboard/`; the schema is
 
 ## Build, Test, and Development Commands
 
+The development environment is managed by **devenv** (`devenv.nix`). It provides
+Go 1.26, Node.js 24, and pnpm 11.
+
 Use the `justfile` as the main task runner:
 
 - `just build` builds `./cmd/copilot-monitor` into `./copilot-monitor`.
