@@ -1,0 +1,8 @@
+{
+  "name": "copilot-monitor",
+  "private": true,
+  "packageManager": "pnpm@11.12.0",
+  "engines": {
+    "node": ">=24"
+  }
+}
