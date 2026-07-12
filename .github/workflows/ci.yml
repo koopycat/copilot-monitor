@@ -2,17 +2,18 @@ name: ci
 
 on:
   push:
+    branches: [main]
     paths-ignore:
       - '**.md'
       - 'docs/**'
-      - 'specs/**'
+      - 'openspec/**'
       - 'plans/**'
       - 'PRODUCT.md'
   pull_request:
     paths-ignore:
       - '**.md'
       - 'docs/**'
-      - 'specs/**'
+      - 'openspec/**'
       - 'plans/**'
       - 'PRODUCT.md'
   workflow_dispatch:
