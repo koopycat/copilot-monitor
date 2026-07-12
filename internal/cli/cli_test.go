@@ -597,6 +597,9 @@ func (s *signalWriter) Write(p []byte) (int, error) {
 }
 
 func TestRun_NoRoutesConfig_UsesDefaults(t *testing.T) {
+	// Ensure no default config file is found
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
 	var underlying bytes.Buffer
 	sig := make(chan string, 1)
 	sw := &signalWriter{w: &underlying, trigger: "built-in default routes", signal: sig}
@@ -631,7 +634,7 @@ func TestRun_WithRoutesConfig_OverridesDefaults(t *testing.T) {
 
 	var underlying bytes.Buffer
 	sig := make(chan string, 1)
-	sw := &signalWriter{w: &underlying, trigger: "routes from config", signal: sig}
+	sw := &signalWriter{w: &underlying, trigger: "routes from", signal: sig}
 
 	done := make(chan int, 1)
 	go func() {
@@ -641,11 +644,138 @@ func TestRun_WithRoutesConfig_OverridesDefaults(t *testing.T) {
 
 	select {
 	case banner := <-sig:
-		if !strings.Contains(banner, "routes from config") {
-			t.Fatalf("expected 'routes from config' in banner: %s", banner)
+		if !strings.Contains(banner, "routes from") {
+			t.Fatalf("expected 'routes from' in banner: %s", banner)
 		}
 		if strings.Contains(banner, "built-in default routes") {
 			t.Fatalf("banner should not mention defaults when config is provided: %s", banner)
+		}
+	case <-time.After(2000 * time.Millisecond):
+		t.Fatal("timed out waiting for startup banner")
+	}
+}
+
+func TestRun_DefaultConfigFile_LoadedAutomatically(t *testing.T) {
+	configDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configDir)
+	monitorDir := filepath.Join(configDir, "copilot-monitor")
+	if err := os.MkdirAll(monitorDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(monitorDir, "routes.json")
+	if err := os.WriteFile(configPath, []byte(`{
+		"routes": [
+			{"path": "/_ping", "capture": "local"},
+			{"path": "/chat", "upstream_host": "default-config.example.com", "capture": "usage"}
+		]
+	}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var underlying bytes.Buffer
+	sig := make(chan string, 1)
+	sw := &signalWriter{w: &underlying, trigger: "routes from", signal: sig}
+
+	done := make(chan int, 1)
+	go func() {
+		code := Run([]string{"run", "--addr", "127.0.0.1:0", "--db", filepath.Join(t.TempDir(), "store.db"), "--no-live"}, io.Discard, sw)
+		done <- code
+	}()
+
+	select {
+	case banner := <-sig:
+		if !strings.Contains(banner, "routes from") {
+			t.Fatalf("expected default config file to be loaded, banner: %s", banner)
+		}
+		if strings.Contains(banner, "built-in default routes") {
+			t.Fatalf("banner should not mention built-in defaults when config file exists: %s", banner)
+		}
+	case <-time.After(2000 * time.Millisecond):
+		t.Fatal("timed out waiting for startup banner")
+	}
+}
+
+func TestRun_DefaultConfigFile_InvalidFallsBack(t *testing.T) {
+	configDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configDir)
+	monitorDir := filepath.Join(configDir, "copilot-monitor")
+	if err := os.MkdirAll(monitorDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(monitorDir, "routes.json")
+	// Write invalid JSON
+	if err := os.WriteFile(configPath, []byte("not valid json"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var underlying bytes.Buffer
+	sig := make(chan string, 1)
+	sw := &signalWriter{w: &underlying, trigger: "built-in default routes", signal: sig}
+
+	done := make(chan int, 1)
+	go func() {
+		code := Run([]string{"run", "--addr", "127.0.0.1:0", "--db", filepath.Join(t.TempDir(), "store.db"), "--no-live"}, io.Discard, sw)
+		done <- code
+	}()
+
+	select {
+	case banner := <-sig:
+		if !strings.Contains(banner, "built-in default routes") {
+			t.Fatalf("expected fallback to built-in defaults, banner: %s", banner)
+		}
+	case <-time.After(2000 * time.Millisecond):
+		t.Fatal("timed out waiting for startup banner")
+	}
+}
+
+func TestRun_ExplicitRoutesConfig_OverridesDefaultFile(t *testing.T) {
+	// Set up a default config file that would be loaded
+	configDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configDir)
+	monitorDir := filepath.Join(configDir, "copilot-monitor")
+	if err := os.MkdirAll(monitorDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	defaultPath := filepath.Join(monitorDir, "routes.json")
+	if err := os.WriteFile(defaultPath, []byte(`{
+		"routes": [
+			{"path": "/_ping", "capture": "local"},
+			{"path": "/chat", "upstream_host": "default-config.example.com", "capture": "usage"}
+		]
+	}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// But we pass an explicit config that should override it
+	explicitDir := t.TempDir()
+	explicitPath := filepath.Join(explicitDir, "custom.json")
+	if err := os.WriteFile(explicitPath, []byte(`{
+		"routes": [
+			{"path": "/_ping", "capture": "local"},
+			{"path": "/chat", "upstream_host": "explicit-config.example.com", "capture": "usage"}
+		]
+	}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var underlying bytes.Buffer
+	// Trigger on the explicit path appearing in the banner
+	sig := make(chan string, 1)
+	sw := &signalWriter{w: &underlying, trigger: explicitPath, signal: sig}
+
+	done := make(chan int, 1)
+	go func() {
+		code := Run([]string{"run", "--addr", "127.0.0.1:0", "--db", filepath.Join(t.TempDir(), "store.db"), "--routes-config", explicitPath, "--no-live"}, io.Discard, sw)
+		done <- code
+	}()
+
+	select {
+	case banner := <-sig:
+		if !strings.Contains(banner, explicitPath) {
+			t.Fatalf("expected explicit config to be loaded, banner: %s", banner)
+		}
+		if strings.Contains(banner, "default-config.example.com") {
+			t.Fatalf("banner should NOT mention default config file: %s", banner)
 		}
 	case <-time.After(2000 * time.Millisecond):
 		t.Fatal("timed out waiting for startup banner")

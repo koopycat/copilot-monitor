@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -75,8 +76,17 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 
 	var proxyCfg *proxy.ProxyConfig
+	var sourceTag string
 	if *routesConfig == "" {
-		proxyCfg = proxy.DefaultRoutes()
+		defaultPath := defaultConfigPath()
+		if cfg, err := proxy.LoadConfig(defaultPath); err == nil && len(cfg.Routes) > 0 {
+			proxyCfg = cfg
+			*routesConfig = defaultPath
+			sourceTag = fmt.Sprintf("(%d routes from %s)", len(proxyCfg.Routes), defaultPath)
+		} else {
+			proxyCfg = proxy.DefaultRoutes()
+			sourceTag = "(built-in default routes)"
+		}
 	} else {
 		var err error
 		proxyCfg, err = proxy.LoadConfig(*routesConfig)
@@ -88,14 +98,11 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "error: routes config %q contains no routes\n", *routesConfig)
 			return 1
 		}
+		sourceTag = fmt.Sprintf("(%d routes from %s)", len(proxyCfg.Routes), *routesConfig)
 	}
 
 	// First-line startup banner — must appear before any other output.
-	if *routesConfig == "" {
-		fmt.Fprintf(stderr, "copilot-monitor: listening on %s (built-in default routes) - curl http://%s/_ping\n", settingsAddr(*addr), settingsAddr(*addr))
-	} else {
-		fmt.Fprintf(stderr, "copilot-monitor: listening on %s (%d routes from config) - curl http://%s/_ping\n", settingsAddr(*addr), len(proxyCfg.Routes), settingsAddr(*addr))
-	}
+	fmt.Fprintf(stderr, "copilot-monitor: listening on %s %s - curl http://%s/_ping\n", settingsAddr(*addr), sourceTag, settingsAddr(*addr))
 
 	router := proxy.NewRouter(proxyCfg)
 
@@ -264,4 +271,19 @@ func writeLines(w io.Writer, s string) int {
 	}
 	fmt.Fprintln(w, s)
 	return count
+}
+
+// defaultConfigPath returns the default routes config path at
+// $XDG_CONFIG_HOME/copilot-monitor/routes.json, falling back to
+// ~/.config/copilot-monitor/routes.json.
+func defaultConfigPath() string {
+	dir := os.Getenv("XDG_CONFIG_HOME")
+	if dir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		dir = filepath.Join(home, ".config")
+	}
+	return filepath.Join(dir, "copilot-monitor", "routes.json")
 }
