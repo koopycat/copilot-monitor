@@ -2,6 +2,7 @@
   "name": "copilot-monitor-dashboard",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.12.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
