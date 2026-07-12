@@ -39,7 +39,7 @@ the most common use case. Moving to built-in defaults means
 
 - `internal/cli/run.go`: Remove required-check for `--routes-config`, use
   built-in defaults when absent, add `--routes-config-defaults` flag
-- `internal/proxy/builtin.go` (new): Embedded route config with the Copilot
+- `internal/proxy/defaults.go` (new): Embedded route config with the Copilot
   defaults
 - `internal/cli/completion.go`: Add `--routes-config-defaults` completion
 - `openspec/specs/routing/spec.md`: Update "Missing routes config" scenario
