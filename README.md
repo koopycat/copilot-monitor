@@ -148,7 +148,9 @@ submitting changes.
 ## Using with Pi Agent and Other LLM Tools
 
 Copilot Monitor can proxy any OpenAI-compatible or Anthropic-compatible API by
-configuring additional routes via `--routes-config`.
+configuring additional routes. `--routes-config` is optional — when omitted, the
+proxy loads `~/.config/copilot-monitor/routes.json` if it exists (created by
+`copilot-monitor init`), or uses built-in Copilot defaults.
 
 ### Pi Agent (KiloCode gateway)
 
@@ -175,10 +177,12 @@ Configure pi to route its API calls through the proxy:
 }
 ```
 
-**2. Start the proxy** with the routes config:
+**2. Start the proxy** (the routes config is loaded automatically from
+`~/.config/copilot-monitor/routes.json` after `copilot-monitor init`, or pass it
+explicitly):
 
 ```sh
-./bin/copilot-monitor run --routes-config routes.json
+./bin/copilot-monitor run
 ```
 
 **3. Start pi** with its base URL pointing at the proxy:
@@ -230,22 +234,32 @@ match a path and all sub-paths (e.g., Anthropic's `/v1/messages` and
 
 ### Optional local request compression
 
-Run a local [Headroom](https://github.com/headroomai/headroom) process and point
-the proxy at its compression endpoint:
+Run a local [Headroom](https://github.com/headroomai/headroom) process and add a
+`compression` block to the routes you want compressed:
 
-```sh
-./bin/copilot-monitor run \
-  --routes-config routes.json \
-  --headroom-url http://127.0.0.1:8787/v1/compress
+```json
+{
+  "routes": [
+    {
+      "provider": "copilot",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "usage",
+      "compression": {
+        "endpoint": "127.0.0.1:8787",
+        "compress_user_messages": true,
+        "target_ratio": 0.5
+      }
+    }
+  ]
+}
 ```
 
-Compression applies automatically to supported OpenAI-compatible chat requests
-after routing and model policy checks. The default is fail-open: if Headroom is
-unavailable, the original request is forwarded. Add `--headroom-required` to
-return HTTP 502 instead. `--headroom-compress-user-messages` and
-`--headroom-target-ratio 0.5` expose the corresponding Headroom policy controls.
-The compression endpoint must be loopback HTTP; no separate privacy consent step
-is used for this personal, single-user tool.
+Compression is configured per-route. It applies to eligible POST
+`/chat/completions` requests after routing and policy checks. The default is
+fail-open: if Headroom is unavailable, the original request is forwarded. Set
+`"required": true` to return HTTP 502 instead. The compression endpoint must be
+loopback HTTP; no separate privacy consent step is used for this personal,
+single-user tool.
 
 **Privacy**: Headroom is a separate local process and may retain original
 content in its CCR (Compress-Cache-Retrieve) store according to its own
@@ -256,7 +270,7 @@ Copilot Monitor's own database never stores request or response bodies.
 
 ```sh
 # Terminal 1: proxy captures API traffic
-./bin/copilot-monitor run --routes-config routes.json
+./bin/copilot-monitor run
 
 # Terminal 2: dashboard shows captured data
 ./bin/copilot-monitor serve
@@ -366,17 +380,18 @@ Press `Ctrl+C` to stop.
 
 ## Flags
 
-| Flag                                | Default                                   | Description                                      |
-| ----------------------------------- | ----------------------------------------- | ------------------------------------------------ |
-| `--addr`                            | `127.0.0.1:7733`                          | HTTP listen address, loopback only               |
-| `--db`                              | `~/.local/share/copilot-monitor/store.db` | SQLite database path                             |
-| `--project`                         | none                                      | optional project label for reporting             |
-| `--usage-debug-log`                 | none                                      | optional JSONL path for pricing research         |
-| `--headroom-url`                    | none                                      | loopback Headroom `/v1/compress` endpoint        |
-| `--headroom-timeout`                | `30s`                                     | Headroom compression request timeout             |
-| `--headroom-required`               | false                                     | fail requests instead of forwarding uncompressed |
-| `--headroom-compress-user-messages` | false                                     | allow Headroom to transform user messages        |
-| `--headroom-target-ratio`           | 0                                         | optional Headroom target ratio (0 < ratio <= 1)  |
+| Flag                       | Default                                   | Description                                    |
+| -------------------------- | ----------------------------------------- | ---------------------------------------------- |
+| `--addr`                   | `127.0.0.1:7733`                          | HTTP listen address, loopback only             |
+| `--db`                     | `~/.local/share/copilot-monitor/store.db` | SQLite database path                           |
+| `--project`                | none                                      | optional project label for reporting           |
+| `--usage-debug-log`        | none                                      | optional JSONL path for pricing research       |
+| `--routes-config`          | none                                      | JSON file with route definitions (optional)    |
+| `--routes-config-defaults` |                                           | print built-in default routes as JSON and exit |
+| `--raw-log`                | none                                      | optional JSONL path for raw request debugging  |
+| `--no-live`                | false                                     | disable the live session tail                  |
+| `--dashboard`              | false                                     | serve dashboard API/UI on the same port        |
+| `--log-format`             | `human`                                   | log output format: `human` or `json`           |
 
 `--usage-debug-log` is for local pricing research only. It should remain
 metadata-only: no prompts, completions, source code, auth headers, cookies, or

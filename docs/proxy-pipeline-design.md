@@ -198,15 +198,15 @@ per-request Service.
 
 From the research, a lightweight proxy pipeline should meet these targets:
 
-| Metric            | Lightweight target             | What we have now      |
-| ----------------- | ------------------------------ | --------------------- |
-| Resident memory   | <50 MB                         | ~15 MB                |
-| Startup time      | <100 ms                        | <50 ms                |
-| Per-stage latency | <100 μs (sync) / <1 ms (async) | ~10 μs (inline calls) |
-| Dependencies      | stdlib + SQLite driver         | stdlib + go-sqlite3   |
-| Binary size       | <20 MB                         | ~12 MB                |
-| Config            | 1 file or env vars             | 1 routes.json + flags |
-| Process count     | 1                              | 2 (proxy + dashboard) |
+| Metric            | Lightweight target             | What we have now               |
+| ----------------- | ------------------------------ | ------------------------------ |
+| Resident memory   | <50 MB                         | ~15 MB                         |
+| Startup time      | <100 ms                        | <50 ms                         |
+| Per-stage latency | <100 μs (sync) / <1 ms (async) | ~10 μs (inline calls)          |
+| Dependencies      | stdlib + SQLite driver         | stdlib + go-sqlite3            |
+| Binary size       | <20 MB                         | ~12 MB                         |
+| Config            | 1 file or env vars             | routes.json (optional) + flags |
+| Process count     | 1                              | 2 (proxy + dashboard)          |
 
 Copilot Monitor already meets or exceeds all lightweight targets. Adding a
 pipeline architecture should maintain this profile.
@@ -897,8 +897,8 @@ immediately with zero code changes.
 
 The second most impactful is adding a **`--upstream` flag** to
 `copilot-monitor run` that sends all traffic to a single host. This makes the
-"monitor before Headroom" or "monitor after Headroom" setup trivial — no
-routes-config needed.
+"monitor before Headroom" or "monitor after Headroom" setup even simpler than
+the already-optional routes config.
 
 ### 7.3 When to build the pipeline interface
 

@@ -28,7 +28,7 @@ filters unless noted.
 
 ### Compression fields
 
-When Headroom compression is configured, model stat responses include:
+When compression is configured on a route, model stat responses include:
 
 - `compressed_requests` -- requests with compression applied
 - `compression_original_tokens` -- estimated original input tokens
