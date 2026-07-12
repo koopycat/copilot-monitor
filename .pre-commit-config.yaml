@@ -40,24 +40,7 @@ repos:
         entry: bash -c 'go run golang.org/x/tools/cmd/goimports@latest -l -w "$@"' --
         language: system
         types: [go]
-      - id: go-mod-tidy
-        name: go mod tidy
-        entry: go mod tidy -diff
-        language: system
-        files: ^(go\.mod|go\.sum|\.go)$
-        pass_filenames: false
-      - id: go-vet
-        name: go vet
-        entry: go vet ./...
-        language: system
-        types: [go]
-        pass_filenames: false
-      - id: dashboard-check
-        name: dashboard svelte-check
-        entry: bash -c 'cd dashboard && pnpm check'
-        language: system
-        files: ^dashboard/.*\.(svelte|ts|js)$
-        pass_filenames: false
+
       - id: e2e-eslint
         name: e2e eslint
         entry: bash -c 'cd internal/e2e && pnpm lint'

@@ -1,5 +1,38 @@
 # Repository Guidelines
 
+## Quick Reference
+
+Use `just` for all development commands. The environment auto-activates via
+direnv.
+
+**Prerequisites:** direnv, devenv, pre-commit. Run `just setup` on first clone.
+
+**Build:**
+
+- `just build-go` -- fast Go-only build (skips dashboard, ~2s)
+- `just build` -- full build including dashboard
+
+**Test:**
+
+- `just test` -- fast unit tests (excludes integration)
+- `just test-one TestName` -- run a single test by name pattern
+- `just test-pkg ./internal/store` -- run all tests in a package
+- `just test-all` -- run all tests across every package
+- `just all` -- vet + test + build (run before pushing)
+
+**Check:**
+
+- `just vet` -- go vet + staticcheck + govulncheck
+- `just secrets` -- fast secret scan
+
+**Format:**
+
+- `just format` -- format all code (Go, JS, Svelte, MD, JSON, YAML)
+- `just fmt-go` -- format Go code only
+
+Pre-commit runs only fast checks (formatting + secrets). Slow checks (`go vet`,
+`go mod tidy`, `svelte-check`) are enforced in CI.
+
 ## Project Structure & Module Organization
 
 This is a Go CLI and local proxy for monitoring GitHub Copilot API usage. The
@@ -27,10 +60,11 @@ Use the `justfile` as the main task runner:
   changes.
 
 Pre-commit hooks (configured in `.pre-commit-config.yaml`) run automatically on
-`git commit` and enforce formatting (`gofmt`, `goimports`), `go mod tidy`,
-`go vet`, and ESLint on the e2e tests. Tests, build, and the full e2e Playwright
-suite run in CI instead. Install once with `pre-commit install`; bypass only
-with a strong reason and `git commit --no-verify`.
+`git commit` and enforce formatting (`gofmt`, `goimports`, `prettier`), secret
+scanning (`gitleaks`), and whitespace consistency. Slow checks (`go vet`,
+`go mod tidy`, `svelte-check`) are enforced in CI instead, keeping pre-commit
+under 3 seconds. Install once with `pre-commit install`; bypass only with a
+strong reason and `git commit --no-verify`.
 
 For local use, run `./copilot-monitor serve` for the dashboard API or
 `./copilot-monitor run` for the proxy.
