@@ -7,16 +7,24 @@ import (
 	"strings"
 )
 
+type RouteCompression struct {
+	Endpoint             string   `json:"endpoint"`
+	Required             bool     `json:"required,omitempty"`
+	CompressUserMessages bool     `json:"compress_user_messages,omitempty"`
+	TargetRatio          *float64 `json:"target_ratio,omitempty"`
+}
+
 type RouteConfig struct {
-	Provider           string   `json:"provider,omitempty"`
-	Label              string   `json:"label,omitempty"`
-	Path               string   `json:"path,omitempty"`
-	UpstreamHost       string   `json:"upstream_host,omitempty"`
-	UpstreamPathPrefix string   `json:"upstream_path_prefix,omitempty"`
-	Capture            string   `json:"capture,omitempty"`
-	PrefixMatch        bool     `json:"prefix_match,omitempty"`
-	Models             []string `json:"models,omitempty"`
-	NotBilled          bool     `json:"not_billed,omitempty"`
+	Provider           string            `json:"provider,omitempty"`
+	Label              string            `json:"label,omitempty"`
+	Path               string            `json:"path,omitempty"`
+	UpstreamHost       string            `json:"upstream_host,omitempty"`
+	UpstreamPathPrefix string            `json:"upstream_path_prefix,omitempty"`
+	Capture            string            `json:"capture,omitempty"`
+	PrefixMatch        bool              `json:"prefix_match,omitempty"`
+	Models             []string          `json:"models,omitempty"`
+	NotBilled          bool              `json:"not_billed,omitempty"`
+	Compression        *RouteCompression `json:"compression,omitempty"`
 }
 
 // isProviderDefault returns true when the route has no path but has

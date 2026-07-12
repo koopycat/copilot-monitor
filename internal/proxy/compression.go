@@ -11,6 +11,8 @@ import (
 	"copilot-monitoring/internal/compression/headroom"
 )
 
+const defaultHeadroomTimeout = 30 * time.Second
+
 var errCompressionRequired = errors.New("request compression failed")
 
 // compressionMeta records the outcome of an optional compression step.
@@ -28,20 +30,64 @@ func (h *Handler) SetRawLogger(rl *RawLogger) {
 	h.rawLogger = rl
 }
 
-// ConfigureCompression installs the startup-time request compressor. It must
-// be called before the handler is serving requests.
-func (h *Handler) ConfigureCompression(compressor headroom.MessageCompressor, required bool) {
-	h.compressor = compressor
-	h.compressionRequired = required
+// getCompressor returns a headroom.MessageCompressor for the given compression
+// config. Clients are lazily constructed and cached per endpoint. Returns nil
+// when compression is not configured or construction fails.
+func (h *Handler) getCompressor(cc *RouteCompression) headroom.MessageCompressor {
+	if cc == nil || cc.Endpoint == "" {
+		return nil
+	}
+
+	h.compressorMu.Lock()
+	defer h.compressorMu.Unlock()
+
+	if h.compressorCache == nil {
+		h.compressorCache = make(map[string]headroom.MessageCompressor)
+	}
+
+	if c, ok := h.compressorCache[cc.Endpoint]; ok {
+		return c
+	}
+
+	url := "http://" + cc.Endpoint + "/v1/compress"
+	compressionConfig := headroom.CompressionConfig{
+		CompressUserMessages: cc.CompressUserMessages,
+	}
+	if cc.TargetRatio != nil && *cc.TargetRatio > 0 {
+		compressionConfig.TargetRatio = cc.TargetRatio
+	}
+	client, err := headroom.NewClient(url, headroom.ClientOptions{
+		HTTPClient:  &http.Client{Timeout: defaultHeadroomTimeout},
+		Compression: compressionConfig,
+	})
+	if err != nil {
+		h.log.Error("headroom endpoint=%s error=%q\n", cc.Endpoint, err.Error())
+		h.compressorCache[cc.Endpoint] = nil
+		return nil
+	}
+
+	h.log.Info("headroom endpoint=%s ready\n", cc.Endpoint)
+	h.compressorCache[cc.Endpoint] = client
+	return client
 }
 
 func (h *Handler) maybeCompress(ctx context.Context, id uint64, r *http.Request, route Route, body []byte, meta *compressionMeta) ([]byte, error) {
-	if !compressionEligible(r, route, h.compressor) {
+	if !compressionEligible(r, route) {
+		return body, nil
+	}
+
+	compressor := h.getCompressor(route.Compression)
+	if compressor == nil {
+		meta.Status = "failed_client_init"
+		h.log.Warn("id=%d compression=failed reason=client_init_error\n", id)
+		if route.Compression.Required {
+			return nil, errCompressionRequired
+		}
 		return body, nil
 	}
 
 	start := time.Now()
-	result, err := headroom.CompressOpenAIChat(ctx, h.compressor, body)
+	result, err := headroom.CompressOpenAIChat(ctx, compressor, body)
 	meta.LatencyMS = time.Since(start).Milliseconds()
 
 	if err == nil {
@@ -71,19 +117,19 @@ func (h *Handler) maybeCompress(ctx context.Context, id uint64, r *http.Request,
 
 	category := compressionErrorCategory(ctx, err)
 	mode := "fail_open"
-	if h.compressionRequired {
+	if route.Compression.Required {
 		mode = "required"
 	}
 	meta.Status = "failed_" + mode
 	h.log.Warn("id=%d compression=failed mode=%s category=%s\n", id, mode, category)
-	if h.compressionRequired {
+	if route.Compression.Required {
 		return nil, errCompressionRequired
 	}
 	return body, nil
 }
 
-func compressionEligible(r *http.Request, route Route, compressor headroom.MessageCompressor) bool {
-	if compressor == nil || r.Method != http.MethodPost || route.Local {
+func compressionEligible(r *http.Request, route Route) bool {
+	if route.Compression == nil || route.Compression.Endpoint == "" || r.Method != http.MethodPost || route.Local {
 		return false
 	}
 	if r.URL.Path != "/chat/completions" && r.URL.Path != "/v1/chat/completions" {

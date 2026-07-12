@@ -62,6 +62,7 @@ type Route struct {
 	Models             []string
 	NotBilled          bool
 	Provider           string
+	Compression        *RouteCompression
 }
 
 // matchModelPattern returns true if the given model name matches the pattern.
@@ -149,6 +150,7 @@ func NewRouter(cfg *ProxyConfig) *Router {
 				Models:             rc.Models,
 				NotBilled:          rc.NotBilled,
 				Provider:           rc.Provider,
+				Compression:        rc.Compression,
 			}
 			continue
 		}
@@ -165,6 +167,7 @@ func NewRouter(cfg *ProxyConfig) *Router {
 			Models:             rc.Models,
 			NotBilled:          rc.NotBilled,
 			Provider:           rc.Provider,
+			Compression:        rc.Compression,
 		}
 		if rc.PrefixMatch {
 			prefixEntries = append(prefixEntries, routeEntry{

@@ -54,12 +54,7 @@ _copilot-monitor() {
             '--raw-log[optional JSONL path for raw request debugging]:file:_files' \
             '--no-live[disable live session tail]' \
             '--dashboard[serve dashboard API/UI on same port]' \
-            '--log-format[log output format]:format:(human json)' \
-            '--headroom-url[loopback Headroom compression endpoint]:url:' \
-            '--headroom-timeout[Headroom compression request timeout]:duration:' \
-            '--headroom-required[fail requests when Headroom is unavailable]' \
-            '--headroom-compress-user-messages[allow Headroom to transform user messages]' \
-            '--headroom-target-ratio[optional Headroom target ratio]:ratio:'
+            '--log-format[log output format]:format:(human json)'
           ;;
         serve)
           _arguments \

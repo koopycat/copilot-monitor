@@ -10,6 +10,13 @@
     // Provider default — all unmatched paths on the copilot prefix
     // fall through to this route. Covers: /chat/completions, /agents/*,
     // /models, /models/session, /responses, /v1/messages/*, and unknown paths.
+    //
+    // Optional Headroom compression for /chat/completions. Uncomment to enable:
+    // "compression": {
+    //   "endpoint": "127.0.0.1:8787",
+    //   "compress_user_messages": false,
+    //   "target_ratio": 0.5
+    // },
     {
       "provider": "copilot",
       "upstream_host": "api.githubcopilot.com",
