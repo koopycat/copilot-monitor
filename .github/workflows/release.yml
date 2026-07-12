@@ -52,7 +52,7 @@ jobs:
         with:
           node-version: '24'
           cache: pnpm
-          cache-dependency-path: dashboard/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: Build dashboard
         run: cd dashboard && pnpm install --frozen-lockfile && pnpm build
       - name: Verify

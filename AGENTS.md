@@ -34,6 +34,11 @@ Pre-commit runs formatting, secrets, and dashboard svelte-check. Slow Go checks
 (`go vet`, `go mod tidy`) and svelte-check are enforced in CI as the
 comprehensive safety net.
 
+**Notes:**
+
+- TypeScript is pinned to ~6.0 in dashboard because svelte-check 4.x crashes on
+  TS 7 (typescript.sys undefined). Revisit when svelte-check 5 is available.
+
 ## Project Structure & Module Organization
 
 This is a Go CLI and local proxy for monitoring GitHub Copilot API usage. The
