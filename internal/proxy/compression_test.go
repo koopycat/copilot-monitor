@@ -36,10 +36,17 @@ func (f compressionRoundTripFunc) RoundTrip(r *http.Request) (*http.Response, er
 	return f(r)
 }
 
+const testCompressionEndpoint = "test.local:9999"
+
 func compressionTestRouter() *Router {
 	return NewRouter(&ProxyConfig{
 		Routes: []RouteConfig{
-			{Path: "/chat/completions", UpstreamHost: "provider.example.com", Capture: "usage"},
+			{
+				Path:         "/chat/completions",
+				UpstreamHost: "provider.example.com",
+				Capture:      "usage",
+				Compression:  &RouteCompression{Endpoint: testCompressionEndpoint},
+			},
 		},
 	})
 }
@@ -54,7 +61,7 @@ func TestHandlerCompressionReplacesMessagesAndPreservesProviderHeaders(t *testin
 		TokensSaved:      15,
 		CompressionRatio: 0.25,
 	}}
-	h.ConfigureCompression(fake, false)
+	h.compressorCache = map[string]headroom.MessageCompressor{testCompressionEndpoint: fake}
 
 	var providerBody []byte
 	var providerAuth string
@@ -105,7 +112,7 @@ func TestHandlerCompressionReplacesMessagesAndPreservesProviderHeaders(t *testin
 func TestHandlerCompressionFailOpenForwardsOriginalBody(t *testing.T) {
 	h := NewHandlerWithRouter(log.Disabled(), nil, "", nil, compressionTestRouter())
 	fake := &recordingCompressor{err: errors.New("synthetic Headroom outage")}
-	h.ConfigureCompression(fake, false)
+	h.compressorCache = map[string]headroom.MessageCompressor{testCompressionEndpoint: fake}
 	var providerBody []byte
 	h.client = &http.Client{Transport: compressionRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		providerBody, _ = io.ReadAll(req.Body)
@@ -131,9 +138,19 @@ func TestHandlerCompressionFailOpenForwardsOriginalBody(t *testing.T) {
 }
 
 func TestHandlerCompressionRequiredReturns502WithoutProviderCall(t *testing.T) {
-	h := NewHandlerWithRouter(log.Disabled(), nil, "", nil, compressionTestRouter())
+	router := NewRouter(&ProxyConfig{
+		Routes: []RouteConfig{
+			{
+				Path:         "/chat/completions",
+				UpstreamHost: "provider.example.com",
+				Capture:      "usage",
+				Compression:  &RouteCompression{Endpoint: testCompressionEndpoint, Required: true},
+			},
+		},
+	})
+	h := NewHandlerWithRouter(log.Disabled(), nil, "", nil, router)
 	fake := &recordingCompressor{err: errors.New("synthetic Headroom outage")}
-	h.ConfigureCompression(fake, true)
+	h.compressorCache = map[string]headroom.MessageCompressor{testCompressionEndpoint: fake}
 	providerCalls := 0
 	h.client = &http.Client{Transport: compressionRoundTripFunc(func(*http.Request) (*http.Response, error) {
 		providerCalls++
@@ -157,14 +174,24 @@ func TestHandlerCompressionRequiredReturns502WithoutProviderCall(t *testing.T) {
 }
 
 func TestHandlerCompressionUnsupportedEnvelopeBypassesEvenWhenRequired(t *testing.T) {
-	h := NewHandlerWithRouter(log.Disabled(), nil, "", nil, compressionTestRouter())
+	router := NewRouter(&ProxyConfig{
+		Routes: []RouteConfig{
+			{
+				Path:         "/chat/completions",
+				UpstreamHost: "provider.example.com",
+				Capture:      "usage",
+				Compression:  &RouteCompression{Endpoint: testCompressionEndpoint, Required: true},
+			},
+		},
+	})
+	h := NewHandlerWithRouter(log.Disabled(), nil, "", nil, router)
 	fake := &recordingCompressor{result: headroom.CompressionResult{
 		Messages:         json.RawMessage(`[]`),
 		OriginalTokens:   1,
 		CompressedTokens: 1,
 		CompressionRatio: 1,
 	}}
-	h.ConfigureCompression(fake, true)
+	h.compressorCache = map[string]headroom.MessageCompressor{testCompressionEndpoint: fake}
 	var providerBody []byte
 	h.client = &http.Client{Transport: compressionRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		providerBody, _ = io.ReadAll(req.Body)
@@ -202,9 +229,19 @@ func TestHandlerPolicyRunsBeforeCompression(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h := NewHandlerWithRouter(log.Disabled(), st, "", nil, compressionTestRouter())
+	router := NewRouter(&ProxyConfig{
+		Routes: []RouteConfig{
+			{
+				Path:         "/chat/completions",
+				UpstreamHost: "provider.example.com",
+				Capture:      "usage",
+				Compression:  &RouteCompression{Endpoint: testCompressionEndpoint, Required: true},
+			},
+		},
+	})
+	h := NewHandlerWithRouter(log.Disabled(), st, "", nil, router)
 	fake := &recordingCompressor{err: errors.New("compressor must not be called")}
-	h.ConfigureCompression(fake, true)
+	h.compressorCache = map[string]headroom.MessageCompressor{testCompressionEndpoint: fake}
 	h.client = &http.Client{Transport: compressionRoundTripFunc(func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("provider must not be called")
 	})}
@@ -222,10 +259,9 @@ func TestHandlerPolicyRunsBeforeCompression(t *testing.T) {
 }
 
 func TestCompressionEligiblePaths(t *testing.T) {
-	fake := &recordingCompressor{}
 	base := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", nil)
 	base.Header.Set("Content-Type", "application/json; charset=utf-8")
-	route := Route{Endpoint: "chat"}
+	route := Route{Endpoint: "chat", Compression: &RouteCompression{Endpoint: testCompressionEndpoint}}
 	tests := []struct {
 		name string
 		edit func(*http.Request, *Route)
@@ -237,6 +273,8 @@ func TestCompressionEligiblePaths(t *testing.T) {
 		{name: "wrong content type", edit: func(r *http.Request, _ *Route) { r.Header.Set("Content-Type", "text/plain") }, want: false},
 		{name: "other path", edit: func(r *http.Request, _ *Route) { r.URL.Path = "/v1/messages" }, want: false},
 		{name: "local", edit: func(_ *http.Request, route *Route) { route.Local = true }, want: false},
+		{name: "no compression config", edit: func(_ *http.Request, route *Route) { route.Compression = nil }, want: false},
+		{name: "empty endpoint", edit: func(_ *http.Request, route *Route) { route.Compression = &RouteCompression{} }, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -245,7 +283,7 @@ func TestCompressionEligiblePaths(t *testing.T) {
 			if tt.edit != nil {
 				tt.edit(r, &routeCopy)
 			}
-			if got := compressionEligible(r, routeCopy, fake); got != tt.want {
+			if got := compressionEligible(r, routeCopy); got != tt.want {
 				t.Fatalf("compressionEligible = %t, want %t", got, tt.want)
 			}
 		})

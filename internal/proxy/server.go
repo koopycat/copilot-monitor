@@ -23,18 +23,18 @@ import (
 const policyCacheTTL = 5 * time.Second
 
 type Handler struct {
-	log                 *log.Writer
-	client              *http.Client
-	store               *store.Store
-	project             string
-	usageDebug          *UsageDebugLogger
-	rawLogger           *RawLogger
-	router              *Router
-	cat                 catalog.Catalog
-	compressor          headroom.MessageCompressor
-	compressionRequired bool
-	nextID              atomic.Uint64
-	anomalyRecorder     *AnomalyRecorder
+	log             *log.Writer
+	client          *http.Client
+	store           *store.Store
+	project         string
+	usageDebug      *UsageDebugLogger
+	rawLogger       *RawLogger
+	router          *Router
+	cat             catalog.Catalog
+	compressorCache map[string]headroom.MessageCompressor
+	compressorMu    sync.Mutex
+	nextID          atomic.Uint64
+	anomalyRecorder *AnomalyRecorder
 
 	policyMu     sync.RWMutex
 	policyCache  *policy.Policy

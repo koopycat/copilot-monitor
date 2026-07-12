@@ -1,12 +1,4 @@
-<!-- markdownlint-disable MD041 -->
-
-## Purpose
-
-Optionally transform outgoing chat completion requests through a local loopback
-compression processor to reduce token usage, with per-route configuration,
-optional strict mode, and detailed status tracking.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Loopback compression processor
 
@@ -82,42 +74,12 @@ error.
 - **WHEN** the compression endpoint returns a 4xx or 5xx and `required` is false
 - **THEN** the original request body is forwarded unchanged
 
----
+## REMOVED Requirements
 
-### Requirement: Compression status labels
+### Requirement: Timeout configured
 
-Compression SHALL emit stable status labels for every eligible request. Labels
-distinguish: `applied` (tokens reduced), `no_change` (tokens unchanged),
-`bypassed` (unsupported envelope), and `failed_*` with error categories.
+**Reason**: The compression timeout is now hardcoded to 30 seconds. Headroom is
+a local loopback service; there is no practical need to tune the timeout.
 
-#### Scenario: Tokens reduced
-
-- **WHEN** compression reduces token count
-- **THEN** status is `applied`
-
-#### Scenario: No token change
-
-- **WHEN** compression processes the request but no tokens are saved
-- **THEN** status is `no_change`
-
-#### Scenario: Unsupported envelope
-
-- **WHEN** the compression processor does not support the request format
-- **THEN** status is `bypassed`
-
-#### Scenario: Compression fails in fail-open mode
-
-- **WHEN** compression fails with a non-strict timeout and strict mode is off
-- **THEN** status is `failed_fail_open` with a category indicating the error
-  type
-
-#### Scenario: Compression fails in strict mode
-
-- **WHEN** compression fails with strict mode on
-- **THEN** status is `failed_required` and the upstream request is not made
-
-#### Scenario: Error categories
-
-- **WHEN** a compression error occurs
-- **THEN** the error is categorized as one of: canceled, timeout, http_4xx,
-  http_5xx, invalid_response, or transport
+**Migration**: Remove `--headroom-timeout` from your startup command. The
+timeout is now always 30 seconds.

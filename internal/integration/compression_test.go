@@ -126,9 +126,12 @@ type compressionHarness struct {
 	client   *http.Client
 }
 
-const upstreamResponseJSON = `{"usage":{"prompt_tokens":100,"completion_tokens":50,"total_tokens":150}}`
+const (
+	upstreamResponseJSON    = `{"usage":{"prompt_tokens":100,"completion_tokens":50,"total_tokens":150}}`
+	testCompressionEndpoint = "test.headroom.local:9999"
+)
 
-func newCompressionHarness(t *testing.T, required bool) *compressionHarness {
+func newCompressionHarness(t *testing.T, rc *proxy.RouteCompression) *compressionHarness {
 	t.Helper()
 
 	st, err := store.Open(t.TempDir() + "/store.db")
@@ -147,10 +150,17 @@ func newCompressionHarness(t *testing.T, required bool) *compressionHarness {
 
 	u, _ := url.Parse(fakeUpstream.URL)
 
+	chatRoute := proxy.RouteConfig{Path: "/chat/completions", UpstreamHost: u.Host, Capture: "usage"}
+	v1ChatRoute := proxy.RouteConfig{Path: "/v1/chat/completions", UpstreamHost: u.Host, Capture: "usage"}
+	if rc != nil {
+		chatRoute.Compression = rc
+		v1ChatRoute.Compression = rc
+	}
+
 	cfg := &proxy.ProxyConfig{
 		Routes: []proxy.RouteConfig{
-			{Path: "/chat/completions", UpstreamHost: u.Host, Capture: "usage"},
-			{Path: "/v1/chat/completions", UpstreamHost: u.Host, Capture: "usage"},
+			chatRoute,
+			v1ChatRoute,
 			// Non-chat routes to verify bypass
 			{Path: "/v1/embeddings", UpstreamHost: u.Host, Capture: "metadata"},
 		},
@@ -158,20 +168,37 @@ func newCompressionHarness(t *testing.T, required bool) *compressionHarness {
 	router := proxy.NewRouter(cfg)
 	h := proxy.NewHandlerWithRouter(log.Disabled(), st, "", nil, router)
 
-	// Fake Headroom
-	fh := newFakeHeadroom(t)
+	// Fake Headroom — only start it and inject client when compression is configured.
+	if rc != nil && rc.Endpoint != "" {
+		fh := newFakeHeadroom(t)
 
-	// Create real Headroom client pointing at fake
-	client, err := headroom.NewClient(fh.url(), headroom.ClientOptions{
-		HTTPClient:  fh.server.Client(),
-		Compression: headroom.CompressionConfig{},
-	})
-	if err != nil {
-		t.Fatalf("headroom.NewClient: %v", err)
+		// Create real Headroom client pointing at fake server.
+		client, err := headroom.NewClient(fh.url(), headroom.ClientOptions{
+			HTTPClient:  fh.server.Client(),
+			Compression: headroom.CompressionConfig{},
+		})
+		if err != nil {
+			t.Fatalf("headroom.NewClient: %v", err)
+		}
+		h.SetCompressor(rc.Endpoint, client)
+
+		// Replace internal HTTP client to skip TLS verification
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		httpClient := &http.Client{Transport: tr}
+		h.SetTestClient(httpClient)
+
+		return &compressionHarness{
+			store:    st,
+			handler:  h,
+			upstream: fakeUpstream,
+			headroom: fh,
+			client:   httpClient,
+		}
 	}
-	h.ConfigureCompression(client, required)
 
-	// Replace internal HTTP client to skip TLS verification
+	// No compression: still set up TLS client for upstream requests.
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
@@ -182,7 +209,7 @@ func newCompressionHarness(t *testing.T, required bool) *compressionHarness {
 		store:    st,
 		handler:  h,
 		upstream: fakeUpstream,
-		headroom: fh,
+		headroom: nil,
 		client:   httpClient,
 	}
 }
@@ -244,7 +271,7 @@ func (h *compressionHarness) compressionStats(t *testing.T) (compressedRequests,
 // ---------------------------------------------------------------------------
 
 func TestCompression_HappyPath_MessagesReplaced(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 	h.headroom.response = compressedResponse(100, 25)
 
 	rec := h.sendChat(t, `{"model":"gpt-4o","messages":[{"role":"user","content":"original"}],"stream":false,"temperature":0.2,"tools":[{"type":"function"}]}`)
@@ -282,7 +309,7 @@ func TestCompression_HappyPath_MessagesReplaced(t *testing.T) {
 }
 
 func TestCompression_NoChange_StatusPersisted(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 	h.headroom.response = noChangeResponse(50)
 
 	rec := h.sendChat(t, `{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
@@ -301,7 +328,7 @@ func TestCompression_NoChange_StatusPersisted(t *testing.T) {
 }
 
 func TestCompression_V1ChatCompletionsPath(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 	h.headroom.response = compressedResponse(100, 50)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`))
@@ -319,7 +346,7 @@ func TestCompression_V1ChatCompletionsPath(t *testing.T) {
 }
 
 func TestCompression_Bypass_IneligiblePath(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 	h.headroom.response = compressedResponse(100, 50)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/embeddings", strings.NewReader(`{"model":"text-embedding","input":"hello"}`))
@@ -343,7 +370,7 @@ func TestCompression_Bypass_IneligiblePath(t *testing.T) {
 }
 
 func TestCompression_Bypass_WrongMethod(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 	h.headroom.response = compressedResponse(100, 50)
 
 	req := httptest.NewRequest(http.MethodGet, "/chat/completions", nil)
@@ -359,7 +386,7 @@ func TestCompression_Bypass_WrongMethod(t *testing.T) {
 }
 
 func TestCompression_Bypass_NonJSONContentType(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 	h.headroom.response = compressedResponse(100, 50)
 
 	req := httptest.NewRequest(http.MethodPost, "/chat/completions", strings.NewReader(`{}`))
@@ -375,7 +402,7 @@ func TestCompression_Bypass_NonJSONContentType(t *testing.T) {
 }
 
 func TestCompression_FailOpen_ForwardsOriginal(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 	h.headroom.response = nil // nil response → 500 from fake headroom
 
 	rec := h.sendChat(t, `{"model":"gpt-4o","messages":[{"role":"user","content":"original-body"}],"stream":false}`)
@@ -396,8 +423,8 @@ func TestCompression_FailOpen_ForwardsOriginal(t *testing.T) {
 }
 
 func TestCompression_Required_Mode_Returns502(t *testing.T) {
-	h := newCompressionHarness(t, true) // required mode
-	h.headroom.response = nil           // nil response → 500
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint, Required: true}) // required mode
+	h.headroom.response = nil                                                                                 // nil response → 500
 
 	rec := h.sendChat(t, `{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
 
@@ -420,7 +447,7 @@ func TestCompression_Required_Mode_Returns502(t *testing.T) {
 }
 
 func TestCompression_UnsupportedEnvelope_Bypasses(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 	h.headroom.response = compressedResponse(100, 50)
 
 	// messages must be an array, not an object
@@ -440,7 +467,7 @@ func TestCompression_UnsupportedEnvelope_Bypasses(t *testing.T) {
 }
 
 func TestCompression_UnsupportedEnvelope_BypassesInRequired(t *testing.T) {
-	h := newCompressionHarness(t, true) // required mode
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint, Required: true}) // required mode
 	h.headroom.response = compressedResponse(100, 50)
 
 	// Unsupported envelope should bypass even in required mode
@@ -455,7 +482,7 @@ func TestCompression_UnsupportedEnvelope_BypassesInRequired(t *testing.T) {
 }
 
 func TestCompression_PolicyBlocksBeforeCompression(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 	h.headroom.response = compressedResponse(100, 50)
 
 	// Set blocklist for gpt-4o
@@ -477,7 +504,7 @@ func TestCompression_PolicyBlocksBeforeCompression(t *testing.T) {
 }
 
 func TestCompression_ProviderAuthIsolation(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 	h.headroom.response = compressedResponse(100, 50)
 
 	rec := h.sendChat(t, `{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
@@ -499,7 +526,7 @@ func TestCompression_ProviderAuthIsolation(t *testing.T) {
 }
 
 func TestCompression_EnvelopePreservation(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 	h.headroom.response = compressedResponse(100, 50)
 
 	// The upstream receives the final body. We verify non-message fields survive
@@ -521,7 +548,7 @@ func TestCompression_EnvelopePreservation(t *testing.T) {
 }
 
 func TestCompression_StatsAggregation(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 
 	// Request 1: applied, 100 → 25 tokens
 	h.headroom.response = compressedResponse(100, 25)
@@ -565,7 +592,7 @@ func TestCompression_StatsAggregation(t *testing.T) {
 }
 
 func TestCompression_MultipleModels_SeparateStats(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 
 	// gpt-4o: compressed
 	h.headroom.response = compressedResponse(200, 100)
@@ -661,7 +688,7 @@ func TestCompression_NoEndpoint_NoCompression(t *testing.T) {
 // fakeCompressorForBodyTest wraps a MessageCompressor to verify the body bytes
 // sent to it were compressed (messages field replaced).
 func TestCompression_BodyModification(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 	h.headroom.response = compressedResponse(100, 30)
 
 	original := `{"model":"gpt-4o","messages":[{"role":"user","content":"original-text"}],"stream":true,"temperature":0.5,"tools":[{"type":"function","function":{"name":"test"}}]}`
@@ -694,7 +721,7 @@ func TestCompression_BodyModification(t *testing.T) {
 }
 
 func TestCompression_SessionModelStats(t *testing.T) {
-	h := newCompressionHarness(t, false)
+	h := newCompressionHarness(t, &proxy.RouteCompression{Endpoint: testCompressionEndpoint})
 
 	h.headroom.response = compressedResponse(200, 50)
 	h.sendChat(t, `{"model":"gpt-4o","messages":[{"role":"user","content":"a"}]}`)
