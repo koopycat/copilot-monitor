@@ -42,11 +42,11 @@ Alternatives evaluated:
 | **Static embedded string**                         | None                   | Zero                                                  | Manual update when commands change | Simplest; aligns with project's zero-dependency philosophy. 13 commands change infrequently                          |
 
 Why static over posener/complete: posener/complete is the best library fit, but
-for 13 commands that rarely change, the dependency and runtime cost don't
-justify themselves. The static approach has zero dependencies, zero runtime
-overhead, and is trivially testable (golden file test). The maintenance burden
-is updating one string constant when adding/changing commands -- acceptable
-given the CLI's size and change frequency.
+(a) it is not widely adopted (~1k GitHub stars, niche in the Go ecosystem), and
+(b) for 13 commands that rarely change, the dependency and runtime cost don't
+justify themselves. The project's dependency bar requires battle-proven,
+well-maintained, widely-used libraries. posener/complete doesn't clear that bar
+for what amounts to a static string generator.
 
 Why not cobra: Adopting cobra solely for completions would be a massive refactor
 of the entire CLI (all command handlers, flag parsing, help text). The project
