@@ -256,9 +256,9 @@ func (h *compressionHarness) compressionStats(t *testing.T) (compressedRequests,
 	db := h.store.RawDB()
 	row := db.QueryRowContext(context.Background(),
 		`SELECT
-			COUNT(CASE WHEN compression_status IN ('applied','no_change') THEN 1 END),
-			COALESCE(SUM(compression_original_tokens - compression_final_tokens), 0),
-			COALESCE(AVG(NULLIF(compression_final_tokens, 0) * 1.0 / compression_original_tokens), 0)
+			COUNT(CASE WHEN compression_status = 'applied' THEN 1 END),
+			COALESCE(SUM(CASE WHEN compression_status = 'applied' THEN compression_original_tokens - compression_final_tokens END), 0),
+			COALESCE(AVG(CASE WHEN compression_status = 'applied' THEN NULLIF(compression_final_tokens, 0) * 1.0 / NULLIF(compression_original_tokens, 0) END), 0)
 		FROM requests`)
 	if err := row.Scan(&compressedRequests, &removedTokens, &avgRatio); err != nil {
 		t.Fatalf("scan compression stats: %v", err)
@@ -574,18 +574,17 @@ func TestCompression_StatsAggregation(t *testing.T) {
 		t.Fatalf("req 4: status = %d", rec.Code)
 	}
 
-	// Aggregate stats: only applied + no_change count
+	// Aggregate stats: only applied count (no_change excluded)
 	compressedRequests, removedTokens, avgRatio := h.compressionStats(t)
-	if compressedRequests != 2 {
-		t.Fatalf("compressed_requests = %d, want 2 (only applied + no_change)", compressedRequests)
+	if compressedRequests != 1 {
+		t.Fatalf("compressed_requests = %d, want 1 (applied only)", compressedRequests)
 	}
-	// removed: (100-25) + (50-50) = 75
+	// removed: 100-25 = 75 (no_change contributed 0)
 	if removedTokens != 75 {
 		t.Fatalf("compression_removed_tokens = %d, want 75", removedTokens)
 	}
-	// avg ratio: (25/100 + 50/50) / 2 = (0.25 + 1.0) / 2 = 0.625
-	// (final/original, lower = more compression, matches Headroom convention)
-	expectedRatio := 0.625
+	// avg ratio: 25/100 = 0.25 (no_change excluded)
+	expectedRatio := 0.25
 	if avgRatio < expectedRatio-0.01 || avgRatio > expectedRatio+0.01 {
 		t.Fatalf("avg_compression_ratio = %f, want ~%f", avgRatio, expectedRatio)
 	}
