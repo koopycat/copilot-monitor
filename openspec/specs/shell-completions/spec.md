@@ -1,4 +1,11 @@
-## ADDED Requirements
+<!-- markdownlint-disable MD041 -->
+
+## Purpose
+
+Provide zsh shell completions for the copilot-monitor CLI, enabling
+tab-completion of subcommands, flags, and flag values.
+
+## Requirements
 
 ### Requirement: Zsh completion subcommand
 
@@ -14,7 +21,7 @@ top-level subcommands and, where applicable, their flags and flag values.
 
 #### Scenario: Tab-complete top-level commands
 
-- **WHEN** the generated script is sourced and the user types `copilot-monitor `
+- **WHEN** the generated script is sourced and the user types `copilot-monitor`
   followed by TAB
 - **THEN** zsh offers completions for all top-level subcommands: `run`, `serve`,
   `stats`, `cost`, `today`, `sessions`, `live`, `export`, `init`, `validate`,
