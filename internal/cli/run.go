@@ -262,9 +262,26 @@ func combinedDashProxy(proxyHandler http.Handler, router *proxy.Router, apiHandl
 			http.Redirect(w, r, "/api/", http.StatusMovedPermanently)
 			return
 		}
-		dashHandler.ServeHTTP(w, r)
+		// Only serve the dashboard SPA for browser requests (accepts HTML).
+		// API/proxy requests that don't match a route go to the proxy handler
+		// which returns 502 for unknown paths.
+		if acceptsHTML(r) {
+			dashHandler.ServeHTTP(w, r)
+			return
+		}
+		proxyHandler.ServeHTTP(w, r)
 	}))
 	return mux
+}
+
+// acceptsHTML returns true if the request's Accept header prefers text/html.
+func acceptsHTML(r *http.Request) bool {
+	for _, a := range strings.Split(r.Header.Get("Accept"), ",") {
+		if strings.HasPrefix(strings.TrimSpace(a), "text/html") {
+			return true
+		}
+	}
+	return false
 }
 
 // writeLines writes the given text and returns the number of lines it occupied.
