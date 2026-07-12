@@ -64,21 +64,9 @@ a JSON API for your own scripts.
 
 ## What it looks like
 
-```text
-est. AI-credit cost, 30d        Live Session
-$8.42   projected this month    ● active  $0.13   24 reqs   44,602 tok
-974 requests, 30d
-
-USAGE  [Day | Hour]  [Tokens | Requests]
-  ▆▅▆▇█▆▇█▅▆▇█▇█▆▇▆▇█▆▇▇█▆▇▆▇
-  claude-3.5-sonnet  gpt-4.1  o3  gpt-4.1-mini
-
-MODELS
-  claude-3.5-sonnet  113 req   286k tok   2.5s   $2.95
-  gpt-4.1            209 req   372k tok   2.4s   $2.85
-  o3                  102 req   320k tok   2.7s   $2.35
-  gpt-4.1-mini        110 req   147k tok   2.6s   $0.27
-```
+Open the local dashboard at `http://127.0.0.1:7734`. See the
+[project site](https://koopycat.github.io/copilot-monitor/) for a screenshot and
+feature walkthrough.
 
 ## Quickstart
 
@@ -338,9 +326,9 @@ Start the proxy:
 
 While the proxy runs, a live session tail refreshes every 2 seconds in your
 terminal: status, duration, request count, tokens, and estimated cost for the
-current session. When the tail is active, the per-request log is suppressed so
-the two streams do not interleave and corrupt the live display. Pass `--no-live`
-to disable the tail and keep the full request log (also useful when stderr is
+current session. When the tail is active, the per-request log is silenced so the
+two streams do not interleave and corrupt the live display. Pass `--no-live` to
+disable the tail and keep the full request log (also useful when stderr is
 redirected to a log file).
 
 Use Copilot normally. The proxy stores captured metadata and token counts in
