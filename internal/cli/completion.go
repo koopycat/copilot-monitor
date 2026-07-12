@@ -9,6 +9,9 @@ import (
 const completionScript = `#compdef copilot-monitor
 
 _copilot-monitor() {
+  local state state_descr line
+  local -A opt_args
+
   local -a commands
   commands=(
     'run:Start the local HTTP proxy listener'
@@ -30,12 +33,17 @@ _copilot-monitor() {
   _arguments -C \
     '(- *)'{-h,--help}'[Show help]' \
     '(- *)--version[Print version]' \
-    '1: :_values "command" $commands' \
+    '1:command:->cmd' \
     '*::arg:->args'
 
   case $state in
+    cmd)
+      _describe 'command' commands
+      ;;
     args)
-      case $words[2] in
+      # With *:: (two colons), _arguments trims $words to normal
+      # arguments, keeping the subcommand at $words[1].
+      case $words[1] in
         run)
           _arguments \
             '--routes-config[path to routes configuration file]:file:_files' \
