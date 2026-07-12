@@ -11,12 +11,9 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
-	"copilot-monitoring/dashboard"
-	"copilot-monitoring/internal/api"
 	"copilot-monitoring/internal/catalog"
 	"copilot-monitoring/internal/log"
 	"copilot-monitoring/internal/proxy"
@@ -34,7 +31,6 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	routesConfig := fs.String("routes-config", "", "JSON file with route definitions (defaults to built-in routes)")
 	routesConfigDefaults := fs.Bool("routes-config-defaults", false, "print built-in default routes as JSON and exit")
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
-	dashboardFlag := fs.Bool("dashboard", false, "also serve the dashboard API and UI on the same port (no need for a separate serve command)")
 	logFormat := fs.String("log-format", "human", "log output format: human (rich colored output, default) or json (one JSON object per line)")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -143,15 +139,9 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	defer anomalyRecorder.Shutdown()
 	proxyHandler.SetAnomalyRecorder(anomalyRecorder)
 
-	var serverHandler http.Handler = proxyHandler
-	if *dashboardFlag {
-		serverHandler = combinedDashProxy(proxyHandler, router, api.NewHandler(st), dashboard.Handler())
-		fmt.Fprintf(stdout, "dashboard: http://%s (UI)  http://%s/api/ (API)\n", settingsAddr(*addr), settingsAddr(*addr))
-	}
-
 	server := &http.Server{
 		Addr:              *addr,
-		Handler:           serverHandler,
+		Handler:           proxyHandler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -243,45 +233,6 @@ func clearTail(w io.Writer, n int) {
 	// CSI n A: cursor up n lines
 	// CSI 0 J: erase from cursor to end of screen
 	fmt.Fprintf(w, "\x1b[%dA\x1b[0J", n)
-}
-
-// combinedDashProxy returns a handler that serves the dashboard/API and proxied
-// LLM traffic on the same port. LLM paths recognized by the proxy router are
-// forwarded; everything else falls through to the dashboard (static files at /,
-// API at /api/).
-func combinedDashProxy(proxyHandler http.Handler, router *proxy.Router, apiHandler http.Handler, dashHandler http.Handler) http.Handler {
-	mux := http.NewServeMux()
-	mux.Handle("/api/", apiHandler)
-	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := router.Match(r.URL.Path); ok {
-			proxyHandler.ServeHTTP(w, r)
-			return
-		}
-		// Redirect /api (no trailing slash) to /api/ so the API mux picks it up.
-		if strings.TrimRight(r.URL.Path, "/") == "/api" {
-			http.Redirect(w, r, "/api/", http.StatusMovedPermanently)
-			return
-		}
-		// Only serve the dashboard SPA for browser requests (accepts HTML).
-		// API/proxy requests that don't match a route go to the proxy handler
-		// which returns 502 for unknown paths.
-		if acceptsHTML(r) {
-			dashHandler.ServeHTTP(w, r)
-			return
-		}
-		proxyHandler.ServeHTTP(w, r)
-	}))
-	return mux
-}
-
-// acceptsHTML returns true if the request's Accept header prefers text/html.
-func acceptsHTML(r *http.Request) bool {
-	for _, a := range strings.Split(r.Header.Get("Accept"), ",") {
-		if strings.HasPrefix(strings.TrimSpace(a), "text/html") {
-			return true
-		}
-	}
-	return false
 }
 
 // writeLines writes the given text and returns the number of lines it occupied.
