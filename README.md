@@ -390,6 +390,7 @@ Press `Ctrl+C` to stop.
 | `--routes-config-defaults` |                                           | print built-in default routes as JSON and exit |
 | `--raw-log`                | none                                      | optional JSONL path for raw request debugging  |
 | `--no-live`                | false                                     | disable the live session tail                  |
+| `--dashboard`              | false                                     | start dashboard API/UI on separate port 7734   |
 | `--log-format`             | `human`                                   | log output format: `human` or `json`           |
 
 `--usage-debug-log` is for local pricing research only. It should remain
