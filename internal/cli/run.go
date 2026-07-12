@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"copilot-monitoring/dashboard"
+	"copilot-monitoring/internal/api"
 	"copilot-monitoring/internal/catalog"
 	"copilot-monitoring/internal/log"
 	"copilot-monitoring/internal/proxy"
@@ -31,6 +33,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	routesConfig := fs.String("routes-config", "", "JSON file with route definitions (defaults to built-in routes)")
 	routesConfigDefaults := fs.Bool("routes-config-defaults", false, "print built-in default routes as JSON and exit")
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
+	dashboardFlag := fs.Bool("dashboard", false, "start dashboard API and UI on a separate port (7734)")
 	logFormat := fs.String("log-format", "human", "log output format: human (rich colored output, default) or json (one JSON object per line)")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -139,6 +142,26 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	defer anomalyRecorder.Shutdown()
 	proxyHandler.SetAnomalyRecorder(anomalyRecorder)
 
+	// Dashboard sidecar: start on separate port 7734 when --dashboard is set.
+	var dashServer *http.Server
+	if *dashboardFlag {
+		dashAddr := "127.0.0.1:7734"
+		dashMux := http.NewServeMux()
+		dashMux.Handle("/api/", api.NewHandler(st))
+		dashMux.Handle("/", dashboard.Handler())
+		dashServer = &http.Server{
+			Addr:              dashAddr,
+			Handler:           dashMux,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+		go func() {
+			if err := dashServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				fmt.Fprintf(stderr, "dashboard server failed: %v\n", err)
+			}
+		}()
+		fmt.Fprintf(stdout, "dashboard: http://%s (UI)  http://%s/api/ (API)\n", dashAddr, dashAddr)
+	}
+
 	server := &http.Server{
 		Addr:              *addr,
 		Handler:           proxyHandler,
@@ -172,6 +195,9 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)
+		if dashServer != nil {
+			_ = dashServer.Shutdown(shutdownCtx)
+		}
 	}()
 
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, context.Canceled) {
