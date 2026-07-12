@@ -1,12 +1,4 @@
-<!-- markdownlint-disable MD041 -->
-
-## Purpose
-
-Provide built-in GitHub Copilot route defaults so the proxy works out of the box
-with zero configuration. Users can inspect defaults via a dedicated CLI flag and
-override them with a custom routes config file.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Built-in default routes
 
@@ -30,13 +22,13 @@ routes SHALL be used instead.
 - **WHEN** `copilot-monitor run` is started without `--routes-config` and
   `~/.config/copilot-monitor/routes.json` exists and is valid
 - **THEN** routes from the config file are used and the startup banner indicates
-  the config file path
+  "using routes from config file"
 
 #### Scenario: Invalid default config file falls back to built-in
 
 - **WHEN** `copilot-monitor run` is started without `--routes-config` and
   `~/.config/copilot-monitor/routes.json` exists but is invalid
-- **THEN** built-in default routes are used
+- **THEN** a warning is logged and built-in default routes are used
 
 #### Scenario: Explicit --routes-config overrides default file
 
@@ -62,22 +54,3 @@ routes SHALL be used instead.
 - **THEN** chat, agents, models, embeddings, and Anthropic-messages paths route
   to `api.githubcopilot.com`, and legacy completions paths route to
   `copilot-proxy.githubusercontent.com`
-
----
-
-### Requirement: Default routes inspection
-
-The system SHALL provide a `--routes-config-defaults` flag that prints the
-built-in default routes as JSON to stdout and exits.
-
-#### Scenario: Print defaults as JSON
-
-- **WHEN** `copilot-monitor run --routes-config-defaults` is executed
-- **THEN** the built-in default routes are printed as a valid JSON routes
-  configuration to stdout and the process exits with code 0
-
-#### Scenario: Defaults output is valid routes config
-
-- **WHEN** the output of `--routes-config-defaults` is saved to a file and used
-  as `--routes-config`
-- **THEN** the proxy behaves identically to running without `--routes-config`
