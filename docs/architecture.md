@@ -1,16 +1,18 @@
 # Architecture & Onboarding
 
-Copilot Monitor is a small Go CLI built around two local services.
+Copilot Monitor is a small Go CLI built around two local services that can run
+separately or together in one process.
 
 - `copilot-monitor run` starts a loopback reverse proxy that observes LLM API
-  traffic.
+  traffic (default `127.0.0.1:7733`).
 - `copilot-monitor serve` starts the local reporting API with an embedded
-  dashboard over captured SQLite data.
+  dashboard over captured SQLite data (default `127.0.0.1:7734`).
+- `copilot-monitor run --dashboard` starts both proxy and dashboard in a single
+  process, listening on their respective default ports.
 
 The entry point is `cmd/copilot-monitor/main.go`, which delegates to
-`internal/cli.Run`. Normative behavior is defined in
-`specs/product-requirements.md` and `specs/privacy-requirements.md`. This
-document maps those requirements to the current implementation.
+`internal/cli.Run`. Normative behavior is defined by the specs in
+`openspec/specs/`.
 
 ## Request Lifecycle
 
@@ -159,18 +161,3 @@ errors. When changing persisted data:
 
 Run `just test` for ordinary changes and `just all` before submitting broader
 work.
-
-## Requirement Traceability
-
-| Requirement Area                                                       | Primary Implementation                                                                                            | Test Focus                                                                         |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `PROD-002`, `ROUTE-*` supported proxy routing                          | `internal/proxy/router.go`                                                                                        | `internal/proxy/router_test.go`                                                    |
-| `PROD-003`, `QUAL-001` forwarding behavior                             | `internal/proxy/forward.go`, `internal/proxy/server.go`, `internal/proxy/websocket.go`                            | `internal/proxy/*_test.go`                                                         |
-| `PROD-004`, `PRIV-001` through `PRIV-005` capture privacy boundaries   | `internal/proxy/capture.go`, `internal/proxy/sse.go`, `internal/proxy/server.go`, `internal/proxy/usage_debug.go` | `internal/proxy/*_test.go`                                                         |
-| `PROD-006`, `REPORT-*` CLI reports                                     | `internal/cli/`                                                                                                   | `internal/cli/cli_test.go`                                                         |
-| `PROD-007`, `REPORT-004` read-only API and dashboard                   | `internal/api/`, `internal/dashboard/`                                                                            | `internal/api/api_test.go`                                                         |
-| `PROD-008` pricing estimates                                           | `internal/catalog/`, `internal/cost/`                                                                             | `internal/catalog/*_test.go`, `internal/cost/*_test.go`                            |
-| `PROD-010` sessions                                                    | `internal/store/sessions.go`                                                                                      | `internal/store/sessions_test.go`                                                  |
-| `POL-001` policy enforcement                                           | `internal/policy/policy.go`, `internal/proxy/server.go`                                                           | `internal/policy/policy_test.go`, `internal/proxy/server_test.go`                  |
-| `POL-002` policy API and management                                    | `internal/api/policy.go`, `internal/store/store.go`                                                               | `internal/api/api_test.go`, `internal/store/store_test.go`                         |
-| `PRIV-006` through `PRIV-010` locality, export, sensitive derived data | `internal/store/`, `internal/cli/export.go`, `internal/api/export.go`                                             | `internal/store/*_test.go`, `internal/cli/cli_test.go`, `internal/api/api_test.go` |
