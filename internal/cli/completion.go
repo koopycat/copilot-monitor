@@ -35,7 +35,7 @@ _copilot-monitor() {
 
   case $state in
     args)
-      case $words[1] in
+      case $words[2] in
         run)
           _arguments \
             '--routes-config[path to routes configuration file]:file:_files' \
