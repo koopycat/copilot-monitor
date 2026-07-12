@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -553,5 +554,93 @@ func TestInspectCommandInvalidSeverity(t *testing.T) {
 	code := Run([]string{"inspect", "--db", filepath.Join(t.TempDir(), "unused.db"), "--severity", "critical"}, &stdout, &stderr)
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
+	}
+}
+
+func TestRoutesConfigDefaults_PrintsValidJSON(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"run", "--routes-config-defaults"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "\"routes\"") {
+		t.Fatalf("output should contain routes key: %s", out)
+	}
+	if !strings.Contains(out, "api.githubcopilot.com") {
+		t.Fatalf("output should contain githubcopilot upstream: %s", out)
+	}
+	if !strings.Contains(out, "copilot-proxy.githubusercontent.com") {
+		t.Fatalf("output should contain legacy copilot upstream: %s", out)
+	}
+}
+
+func TestRun_NoRoutesConfig_UsesDefaults(t *testing.T) {
+	var stderr bytes.Buffer
+	done := make(chan int, 1)
+	go func() {
+		code := Run([]string{"run", "--addr", "127.0.0.1:0", "--db", filepath.Join(t.TempDir(), "store.db"), "--no-live"}, io.Discard, &stderr)
+		done <- code
+	}()
+
+	// Wait for startup banner
+	deadline := time.After(2000 * time.Millisecond)
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for startup banner")
+		default:
+			if strings.Contains(stderr.String(), "built-in default routes") {
+				goto found
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+found:
+	banner := stderr.String()
+	if !strings.Contains(banner, "built-in default routes") {
+		t.Fatalf("expected 'built-in default routes' in banner: %s", banner)
+	}
+}
+
+func TestRun_WithRoutesConfig_OverridesDefaults(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "routes.json")
+	if err := os.WriteFile(configPath, []byte(`{
+		"routes": [
+			{"path": "/_ping", "capture": "local"},
+			{"path": "/chat", "upstream_host": "custom.example.com", "capture": "usage"}
+		]
+	}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stderr bytes.Buffer
+	done := make(chan int, 1)
+	go func() {
+		code := Run([]string{"run", "--addr", "127.0.0.1:0", "--db", filepath.Join(t.TempDir(), "store.db"), "--routes-config", configPath, "--no-live"}, io.Discard, &stderr)
+		done <- code
+	}()
+
+	// Wait for banner
+	deadline := time.After(2000 * time.Millisecond)
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for startup banner")
+		default:
+			if strings.Contains(stderr.String(), "routes from config") {
+				goto found
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+found:
+	banner := stderr.String()
+	if !strings.Contains(banner, "routes from config") {
+		t.Fatalf("expected 'routes from config' in banner: %s", banner)
+	}
+	if strings.Contains(banner, "built-in default routes") {
+		t.Fatalf("banner should not mention defaults when config is provided: %s", banner)
 	}
 }

@@ -47,6 +47,7 @@ _copilot-monitor() {
         run)
           _arguments \
             '--routes-config[path to routes configuration file]:file:_files' \
+			'--routes-config-defaults[print built-in default routes as JSON and exit]' \
             '--addr[HTTP listen address]:address:' \
             '--db[SQLite database path]:file:_files' \
             '--project[filter by project]:project:' \

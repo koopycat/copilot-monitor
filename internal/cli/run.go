@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -29,12 +30,23 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	project := fs.String("project", "", "optional project label")
 	usageDebugPath := fs.String("usage-debug-log", "", "optional JSONL path for usage-only debug metadata")
 	rawLogPath := fs.String("raw-log", "", "optional JSONL path for raw request debugging (logs truncated bodies, headers; treat output as sensitive)")
-	routesConfig := fs.String("routes-config", "", "JSON file with route definitions (required)")
+	routesConfig := fs.String("routes-config", "", "JSON file with route definitions (defaults to built-in routes)")
+	routesConfigDefaults := fs.Bool("routes-config-defaults", false, "print built-in default routes as JSON and exit")
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
 	dashboardFlag := fs.Bool("dashboard", false, "also serve the dashboard API and UI on the same port (no need for a separate serve command)")
 	logFormat := fs.String("log-format", "human", "log output format: human (rich colored output, default) or json (one JSON object per line)")
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+
+	if *routesConfigDefaults {
+		data, err := json.MarshalIndent(proxy.DefaultRoutes(), "", "  ")
+		if err != nil {
+			fmt.Fprintf(stderr, "failed to marshal default routes: %v\n", err)
+			return 1
+		}
+		fmt.Fprintln(stdout, string(data))
+		return 0
 	}
 
 	st, err := store.Open(*dbPath)
@@ -62,22 +74,28 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "raw debug logging is enabled: request bodies (up to %d bytes) are written to %s. This file may contain source code and prompts. Treat it as sensitive.\n", 1024, *rawLogPath)
 	}
 
+	var proxyCfg *proxy.ProxyConfig
 	if *routesConfig == "" {
-		fmt.Fprintln(stderr, "error: --routes-config is required. See examples/routes/ for sample configs or specify a JSON routes file.")
-		return 1
-	}
-	proxyCfg, err := proxy.LoadConfig(*routesConfig)
-	if err != nil {
-		fmt.Fprintf(stderr, "failed to load routes config %q: %v\n", *routesConfig, err)
-		return 1
-	}
-	if len(proxyCfg.Routes) == 0 {
-		fmt.Fprintf(stderr, "error: routes config %q contains no routes\n", *routesConfig)
-		return 1
+		proxyCfg = proxy.DefaultRoutes()
+	} else {
+		var err error
+		proxyCfg, err = proxy.LoadConfig(*routesConfig)
+		if err != nil {
+			fmt.Fprintf(stderr, "failed to load routes config %q: %v\n", *routesConfig, err)
+			return 1
+		}
+		if len(proxyCfg.Routes) == 0 {
+			fmt.Fprintf(stderr, "error: routes config %q contains no routes\n", *routesConfig)
+			return 1
+		}
 	}
 
 	// First-line startup banner — must appear before any other output.
-	fmt.Fprintf(stderr, "copilot-monitor: listening on %s (%d routes) - curl http://%s/_ping\n", settingsAddr(*addr), len(proxyCfg.Routes), settingsAddr(*addr))
+	if *routesConfig == "" {
+		fmt.Fprintf(stderr, "copilot-monitor: listening on %s (built-in default routes) - curl http://%s/_ping\n", settingsAddr(*addr), settingsAddr(*addr))
+	} else {
+		fmt.Fprintf(stderr, "copilot-monitor: listening on %s (%d routes from config) - curl http://%s/_ping\n", settingsAddr(*addr), len(proxyCfg.Routes), settingsAddr(*addr))
+	}
 
 	router := proxy.NewRouter(proxyCfg)
 
