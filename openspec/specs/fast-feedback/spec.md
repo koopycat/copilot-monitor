@@ -40,7 +40,8 @@ matching the given pattern across all packages. The repo SHALL provide
 Pre-commit hooks SHALL include formatting (gofmt, goimports, prettier), secret
 scanning (gitleaks), whitespace checks, and dashboard svelte-check (only on
 dashboard file changes). Slow Go checks (`go vet`, `go mod tidy`) SHALL be
-enforced in CI instead.
+enforced in CI as the comprehensive safety net. Dashboard svelte-check also runs
+in CI in addition to pre-commit.
 
 #### Scenario: Agent commits a Go change
 
@@ -48,7 +49,8 @@ enforced in CI instead.
 - **THEN** the pre-commit hooks complete in under 3 seconds
 - **AND** go vet and go mod tidy are not executed
 
-#### Scenario: CI enforces Go checks
+#### Scenario: CI enforces Go and dashboard checks
 
-- **WHEN** code is pushed that would fail `go vet` or `go mod tidy`
+- **WHEN** code is pushed that would fail `go vet`, `go mod tidy`, or
+  `svelte-check`
 - **THEN** the CI workflow fails and reports the violation
