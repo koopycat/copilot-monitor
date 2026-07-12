@@ -45,6 +45,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runInit(args[1:], stdout, stderr)
 	case "inspect":
 		return runInspect(args[1:], stdout, stderr)
+	case "completion":
+		return runCompletion(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
@@ -73,6 +75,7 @@ Usage:
   copilot-monitor export [--since 30d] [--db path]
   copilot-monitor init [--force]
   copilot-monitor validate --routes-config path.json
+  copilot-monitor completion zsh
   copilot-monitor version
 
 Commands:
@@ -87,6 +90,7 @@ Commands:
   init              Create a starter routes.json config file.
   validate          Validate a routes config file.
   inspect           Show detected proxy anomalies (unrouted paths, parse errors, auth issues).
+  completion        Generate shell completion scripts (currently zsh only).
   version           Print the version.
 `)+"\n")
 }

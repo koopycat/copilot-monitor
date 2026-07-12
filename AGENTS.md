@@ -39,10 +39,12 @@ For local use, run `./copilot-monitor serve` for the dashboard API or
 
 Follow standard Go style: tabs via `gofmt`, small packages, explicit error
 handling, and table-driven tests where useful. Keep command handlers in
-`internal/cli` named by command, for example `stats.go` and `runStats`. Keep
-HTTP/API handlers grouped by feature in `internal/api` and proxy behavior in
-`internal/proxy`. JavaScript and CSS in `internal/dashboard` should remain
-dependency-light and colocated with `index.html`.
+`internal/cli` named by command, for example `stats.go` and `runStats`. When
+adding a new subcommand or changing a command's flags, update the zsh completion
+script in `internal/cli/completion.go`. Keep HTTP/API handlers grouped by
+feature in `internal/api` and proxy behavior in `internal/proxy`. JavaScript and
+CSS in `internal/dashboard` should remain dependency-light and colocated with
+`index.html`.
 
 ## Agentic Workflows
 
