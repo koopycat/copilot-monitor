@@ -126,7 +126,13 @@ _copilot-monitor() {
   esac
 }
 
-_copilot-monitor "$@"
+# Register for users who source this file directly
+compdef _copilot-monitor copilot-monitor
+
+# Called by compinit when this file is autoloaded from fpath
+if (( $# )); then
+  _copilot-monitor "$@"
+fi
 `
 
 func runCompletion(args []string, stdout, stderr io.Writer) int {
