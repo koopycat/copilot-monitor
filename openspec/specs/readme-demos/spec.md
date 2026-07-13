@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD041 -->
+
 ## ADDED Requirements
 
 ### Requirement: Reproducible demo GIF generation
