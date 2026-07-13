@@ -37,7 +37,7 @@
   <UpstreamFilter />
 </p>
 
-{#if dashboard.loading}
+{#if dashboard.loading && dashboard.stats.length === 0 && !dashboard.error}
   <div class="loading">
     <span class="loading-dot"></span>
     <span class="loading-dot"></span>
@@ -46,7 +46,10 @@
 {:else if dashboard.error && dashboard.stats.length === 0}
   <p class="error-state">{dashboard.error}</p>
 {:else if dashboard.periodIsEmpty && !dashboard.error}
-  <p class="empty-state">No activity captured for this period. Start making LLM requests through the proxy and data will appear here.</p>
+  <p class="empty-state">
+    No activity captured for this period. Start making LLM requests through the proxy and data will
+    appear here.
+  </p>
 {/if}
 
 <div class="row">
@@ -59,25 +62,27 @@
   <LiveSessionCard />
 </div>
 
-<h2>
-  Usage
-  <ToggleGroup
-    options={[
-      { value: 'day', label: 'Day' },
-      { value: 'hour', label: 'Hour' },
-    ]}
-    active={dashboard.gran}
-    onchange={(v) => dashboard.switchGran(v as typeof dashboard.gran)}
-  />
-  <ToggleGroup
-    options={[
-      { value: 'tokens', label: 'Tokens' },
-      { value: 'requests', label: 'Requests' },
-    ]}
-    active={dashboard.metric}
-    onchange={(v) => dashboard.switchMetric(v as typeof dashboard.metric)}
-  />
-</h2>
+<div class="usage-head">
+  <h2>Usage</h2>
+  <div class="usage-toggles">
+    <ToggleGroup
+      options={[
+        { value: 'day', label: 'Day' },
+        { value: 'hour', label: 'Hour' },
+      ]}
+      active={dashboard.gran}
+      onchange={(v) => dashboard.switchGran(v as typeof dashboard.gran)}
+    />
+    <ToggleGroup
+      options={[
+        { value: 'tokens', label: 'Tokens' },
+        { value: 'requests', label: 'Requests' },
+      ]}
+      active={dashboard.metric}
+      onchange={(v) => dashboard.switchMetric(v as typeof dashboard.metric)}
+    />
+  </div>
+</div>
 
 <UsageChart />
 

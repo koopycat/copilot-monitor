@@ -156,14 +156,12 @@ class DashboardStore {
     if (p === this.period) return;
     this.period = p;
     this.gran = periodGran(p);
-    this.loading = true;
     this.runWithViewTransition(() => this.load());
   }
 
   switchGran(g: Granularity): void {
     if (g === this.gran) return;
     this.gran = g;
-    this.loading = true;
     this.runWithViewTransition(() => this.load());
   }
 
@@ -176,7 +174,6 @@ class DashboardStore {
   switchUpstream(value: string): void {
     if (value === this.upstream) return;
     this.upstream = value;
-    this.loading = true;
     this.runWithViewTransition(() => this.load());
   }
 

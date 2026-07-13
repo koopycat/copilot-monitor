@@ -1,4 +1,4 @@
-/* Copilot Monitor — design system */
+/* Copilot Monitor - design system */
 
 *,
 *::before,
@@ -9,21 +9,21 @@
 /* ── OKLCH color palette ─────────────────────────────────── */
 
 :root {
-  /* Core — deep ink-blue, not GitHub-dark */
+  /* Core - deep ink-blue, not GitHub-dark */
   --bg: oklch(0.14 0.012 255);
   --surface: oklch(0.18 0.01 255);
-  --surface-hover: oklch(0.22 0.01 255);
   --border: oklch(0.24 0.008 255);
   --border-hover: oklch(0.35 0.01 255);
 
-  /* Text — full AA contrast verified on --bg */
+  /* Text - full AA contrast verified on --bg */
   --ink: oklch(0.87 0.005 255);
   --muted: oklch(0.68 0.006 255);
-  --faint: oklch(0.55 0.005 255);
+  --faint: oklch(0.62 0.005 255);
 
   /* Semantic */
-  --accent: oklch(0.67 0.18 250);
-  --accent-hover: oklch(0.75 0.16 250);
+  --accent: oklch(0.7 0.17 250);
+  --accent-fill: oklch(0.55 0.19 250);
+  --accent-hover: oklch(0.5 0.18 250);
   --accent-subtle: oklch(0.26 0.06 250);
   --success: oklch(0.72 0.2 145);
   --success-subtle: oklch(0.24 0.05 145);
@@ -56,14 +56,12 @@
 
   /* Timing */
   --fast: 120ms;
-  --normal: 180ms;
   --slow: 250ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --fast: 0ms;
-    --normal: 0ms;
     --slow: 0ms;
   }
 }
@@ -82,9 +80,7 @@ body {
     'Segoe UI',
     Roboto,
     sans-serif;
-  margin: var(--s8) auto;
-  max-width: 960px;
-  padding: 0 var(--s4);
+  margin: var(--s8) max(2rem, 6vw);
   background: var(--bg);
   color: var(--ink);
   font-size: 0.8125rem;
@@ -120,6 +116,25 @@ h2 {
   gap: var(--s3);
   flex-wrap: wrap;
   text-wrap: balance;
+}
+
+.usage-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  margin: var(--s8) 0 var(--s2);
+}
+
+.usage-head h2 {
+  margin: 0;
+}
+
+.usage-toggles {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
 }
 
 a {
@@ -197,9 +212,9 @@ a:hover {
 }
 
 .period-btn.active {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #fff;
-  border-color: var(--accent);
+  border-color: var(--accent-fill);
 }
 
 .period-btn:hover:not(.active) {
@@ -234,7 +249,7 @@ a:hover {
 }
 
 .toggle-btn.active {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #fff;
 }
 
@@ -823,7 +838,7 @@ tbody tr:hover {
 
 .model-listbox-option:hover,
 .model-listbox-option.active {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #fff;
 }
 
@@ -880,9 +895,9 @@ tbody tr:hover {
 }
 
 .btn-save {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #fff;
-  border-color: var(--accent);
+  border-color: var(--accent-fill);
 }
 
 .btn-save:hover {
@@ -935,8 +950,7 @@ tbody tr:hover {
 
 @media (max-width: 600px) {
   body {
-    margin: var(--s4) auto;
-    padding: 0 var(--s3);
+    margin: var(--s4) max(1rem, 4vw);
   }
   .row {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
