@@ -9,9 +9,19 @@ permissions:
   contents: write
 
 jobs:
+  create-release:
+    name: create release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create release
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+
   build:
     name: build-${{ matrix.target }}
     runs-on: ubuntu-latest
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -80,7 +90,6 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: dist/copilot-monitor-${{ matrix.target }}.${{ matrix.archive }}
-          generate_release_notes: true
           fail_on_unmatched_files: true
 
   homebrew:
