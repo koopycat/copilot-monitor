@@ -27,12 +27,26 @@
 />
 
 <p class="subtitle">
-  {#if dashboard.lastUpdated}Updated {dashboard.lastUpdated}{:else}Loading…{/if}
+  {#if dashboard.error}
+    <span class="subtitle-error">Error &mdash; {dashboard.error}</span>
+  {:else if dashboard.lastUpdated}
+    Updated {dashboard.lastUpdated}
+  {:else}
+    &nbsp;
+  {/if}
   <UpstreamFilter />
 </p>
 
-{#if dashboard.periodIsEmpty}
-  <p class="empty-state">No data for this period</p>
+{#if dashboard.loading}
+  <div class="loading">
+    <span class="loading-dot"></span>
+    <span class="loading-dot"></span>
+    <span class="loading-dot"></span>
+  </div>
+{:else if dashboard.error && dashboard.stats.length === 0}
+  <p class="error-state">{dashboard.error}</p>
+{:else if dashboard.periodIsEmpty && !dashboard.error}
+  <p class="empty-state">No activity captured for this period. Start making LLM requests through the proxy and data will appear here.</p>
 {/if}
 
 <div class="row">
