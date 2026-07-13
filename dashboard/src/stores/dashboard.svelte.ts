@@ -44,6 +44,8 @@ class DashboardStore {
 
   cost = $state<number | null>(null);
   lastUpdated: string | null = $state(null);
+  loading = $state(true);
+  error: string | null = $state(null);
 
   stats: ModelStats[] = $state([]);
   costRows: CostRow[] = $state([]);
@@ -154,12 +156,14 @@ class DashboardStore {
     if (p === this.period) return;
     this.period = p;
     this.gran = periodGran(p);
+    this.loading = true;
     this.runWithViewTransition(() => this.load());
   }
 
   switchGran(g: Granularity): void {
     if (g === this.gran) return;
     this.gran = g;
+    this.loading = true;
     this.runWithViewTransition(() => this.load());
   }
 
@@ -172,6 +176,7 @@ class DashboardStore {
   switchUpstream(value: string): void {
     if (value === this.upstream) return;
     this.upstream = value;
+    this.loading = true;
     this.runWithViewTransition(() => this.load());
   }
 
@@ -235,6 +240,8 @@ class DashboardStore {
       this.updateCurrentSession(data.current);
       this.redrawChart();
       this.lastUpdated = new Date().toLocaleTimeString();
+      this.loading = false;
+      this.error = null;
 
       if (this.upstreams.length === 0) {
         fetchUpstreams(signal)
@@ -262,6 +269,8 @@ class DashboardStore {
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return;
       this.lastUpdated = null;
+      this.loading = false;
+      this.error = 'Could not load data — the dashboard may be unavailable.';
       console.error(e);
     }
   }
