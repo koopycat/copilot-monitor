@@ -46,6 +46,13 @@ devenv shell
 just build
 ```
 
+Or install via Homebrew:
+
+```sh
+brew tap koopycat/copilot-monitor
+brew install copilot-monitor
+```
+
 ## Commands
 
 ```sh
