@@ -16,7 +16,7 @@ Works with GitHub Copilot out of the box, plus pi-agent, Claude Code, aider, and
 any OpenAI- or Anthropic-compatible API.
 
 ```sh
-./copilot-monitor run --dashboard &
+./copilot-monitor run --dashboard
 # → proxy on http://127.0.0.1:7733, dashboard on http://127.0.0.1:7734
 ```
 
