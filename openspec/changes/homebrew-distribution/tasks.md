@@ -7,11 +7,9 @@
 
 ## 2. Tap repo setup
 
-- [ ] 2.1 Create `homebrew-copilot-monitor` repository under koopycat org
-      (requires GitHub UI)
-- [ ] 2.2 Add initial formula file from `docs/homebrew.md` to the tap repo
-- [ ] 2.3 Configure a GitHub token or deploy key for automated formula pushes
-      from the release workflow
+- [x] 2.1 Create `homebrew-copilot-monitor` repository under koopycat org
+- [x] 2.2 Add initial formula file with real SHA256s from v0.1.0 release
+- [x] 2.3 Configure `HOMEBREW_TAP_TOKEN` secret for automated formula pushes
 
 ## 3. Release workflow update
 
@@ -22,5 +20,5 @@
 ## 4. README
 
 - [x] 4.1 Add `brew install` section to README next to existing download table
-- [ ] 4.2 Verify install works end-to-end on a clean macOS machine after first
-      release with the tap
+- [x] 4.2 End-to-end install verified on macOS: `brew tap`, `brew trust`,
+      `brew install`, `copilot-monitor version` all succeed
