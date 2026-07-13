@@ -76,7 +76,7 @@ fmt-go:
 
 # Format all code: Go (gofmt + goimports) + JS/CSS/Svelte/HTML/MD/JSON/YAML (prettier)
 format: fmt-go
-    go run golang.org/x/tools/cmd/goimports@latest -w .
+    git ls-files --cached --others --exclude-standard -z -- '*.go' | xargs -0 go run golang.org/x/tools/cmd/goimports@latest -w
     cd dashboard && pnpm exec prettier --plugin prettier-plugin-svelte --write '../**/*.{js,ts,svelte,css,html,json,md,yaml,yml}' '!../node_modules/**' '!../.devenv/**' '!../dashboard/dist/**' '!../go.sum' '!../pnpm-lock.yaml'
 
 # ── Dev ──────────────────────────────────────────────────────────────────────

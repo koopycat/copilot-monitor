@@ -67,11 +67,25 @@
 
 <UsageChart />
 
-<h2>Models</h2>
-<ModelsTable />
+<details class="table-section models-section" open>
+  <summary>
+    <span class="table-section-title">Models</span>
+    <span class="table-section-state" aria-hidden="true"></span>
+  </summary>
+  <div class="table-section-content">
+    <ModelsTable />
+  </div>
+</details>
 
-<h2>Recent Sessions</h2>
-<SessionsTable />
+<details class="table-section sessions-section" open>
+  <summary>
+    <span class="table-section-title">Recent Sessions</span>
+    <span class="table-section-state" aria-hidden="true"></span>
+  </summary>
+  <div class="table-section-content">
+    <SessionsTable />
+  </div>
+</details>
 
 <RoutesPanel />
 <PolicyPanel />

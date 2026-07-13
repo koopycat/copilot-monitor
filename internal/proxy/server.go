@@ -1,12 +1,15 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -52,6 +55,38 @@ func (h *Handler) Uptime() time.Duration {
 		return 0
 	}
 	return time.Since(h.startTime)
+}
+
+// activePolicy returns the latest cached policy or loads and caches it. A
+// failed load without a cached policy reports unavailable so callers can keep
+// the documented fail-open behaviour.
+func (h *Handler) activePolicy(ctx context.Context, requestID uint64) (*policy.Policy, bool) {
+	if h.store == nil {
+		return nil, false
+	}
+
+	h.policyMu.RLock()
+	fresh := time.Now().Before(h.policyUntil)
+	cached := h.policyCache
+	h.policyMu.RUnlock()
+	if fresh && cached != nil {
+		return cached, true
+	}
+
+	p, err := h.store.GetPolicy(ctx)
+	if err != nil {
+		h.log.Warn("id=%d policy_load_error=%q\n", requestID, err.Error())
+		if cached != nil {
+			return cached, true
+		}
+		return nil, false
+	}
+
+	h.policyMu.Lock()
+	h.policyCache = p
+	h.policyUntil = time.Now().Add(policyCacheTTL)
+	h.policyMu.Unlock()
+	return p, true
 }
 
 func NewHandler(log *log.Writer) *Handler {
@@ -185,48 +220,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Policy enforcement.
-	{
-		allowed := true
-		if h.store != nil {
-			h.policyMu.RLock()
-			fresh := time.Now().Before(h.policyUntil)
-			cached := h.policyCache
-			h.policyMu.RUnlock()
-
-			if !fresh {
-				p, err := h.store.GetPolicy(r.Context())
-				if err != nil {
-					h.log.Warn("id=%d policy_load_error=%q\n", id, err.Error())
-					if cached != nil {
-						allowed = cached.Allowed(meta.Model)
-					}
-				} else {
-					h.policyMu.Lock()
-					if time.Now().After(h.policyUntil) {
-						h.policyCache = p
-						h.policyUntil = time.Now().Add(policyCacheTTL)
-					}
-					h.policyMu.Unlock()
-					allowed = p.Allowed(meta.Model)
-				}
-			} else if cached != nil {
-				allowed = cached.Allowed(meta.Model)
-			}
-		}
-
-		if !allowed {
-			h.log.Warn("id=%d policy_blocked model=%q\n", id, meta.Model)
-			h.persistBlockedRequest(r.Context(), started, route, r, meta)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			h.writeRawLog(started, id, route, r, meta, body, nil, provider, compressionMeta{}, true)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error":   "model_blocked",
-				"model":   meta.Model,
-				"message": "Model is blocked by policy",
-			})
-			return
-		}
+	activePolicy, policyAvailable := h.activePolicy(r.Context(), id)
+	if policyAvailable && !activePolicy.Allowed(meta.Model) {
+		h.log.Warn("id=%d policy_blocked model=%q\n", id, meta.Model)
+		h.persistBlockedRequest(r.Context(), started, route, r, meta)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		h.writeRawLog(started, id, route, r, meta, body, nil, provider, compressionMeta{}, true)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":   "model_blocked",
+			"model":   meta.Model,
+			"message": "Model is blocked by policy",
+		})
+		return
 	}
 
 	h.log.Request("id=%d method=%s path=%q endpoint=%s upstream=%s capture=%s provider=%q model=%q stream=%s\n",
@@ -279,9 +285,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	copyHeaders(w.Header(), StripHopByHopHeaders(resp.Header))
-	w.WriteHeader(resp.StatusCode)
-
 	// Detect unknown Content-Type on captured routes
 	contentType := resp.Header.Get("Content-Type")
 	if route.Capture != CaptureNone && route.Capture != CaptureTunnel {
@@ -300,8 +303,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	responseBody := io.Reader(resp.Body)
+	if policyAvailable && isModelDiscoveryResponse(r, resp.StatusCode, contentType, resp.Header.Get("Content-Encoding")) {
+		var filtered bool
+		responseBody, filtered = filterModelDiscoveryResponse(resp.Body, activePolicy)
+		if filtered {
+			resp.Header.Del("Transfer-Encoding")
+			if buffered, ok := responseBody.(*bytes.Reader); ok {
+				resp.Header.Set("Content-Length", strconv.FormatInt(buffered.Size(), 10))
+			}
+		}
+	}
+
+	copyHeaders(w.Header(), StripHopByHopHeaders(resp.Header))
+	w.WriteHeader(resp.StatusCode)
+
 	observer := newResponseObserver(route, contentType)
-	bytesWritten, err := streamResponse(w, resp.Body, observer)
+	bytesWritten, err := streamResponse(w, responseBody, observer)
 	if err != nil {
 		if r.Context().Err() != nil {
 			h.log.Info("id=%d client_disconnected=true bytes=%d\n", id, bytesWritten)
