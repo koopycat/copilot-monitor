@@ -91,3 +91,16 @@ watch:
 
 clean:
     rm -rf bin tmp build-errors.log dashboard/dist
+
+# ── Demo ────────────────────────────────────────────────────────────────────
+
+# Regenerate README demo GIFs from synthetic seed data.
+# Requires: vhs, ttyd, ffmpeg, gifsicle (install once: brew install vhs ttyd ffmpeg gifsicle)
+demo-gifs: build-go
+    go run ./demo/seed/
+    vhs demo/copilot-monitor.tape
+    vhs demo/copilot-monitor-nolive.tape
+    gifsicle -O3 --colors 32 -o demo/copilot-monitor.gif demo/copilot-monitor.gif
+    gifsicle -O3 --colors 32 -o demo/copilot-monitor-nolive.gif demo/copilot-monitor-nolive.gif
+    @echo "Demos regenerated:"
+    @ls -lh demo/copilot-monitor.gif demo/copilot-monitor-nolive.gif

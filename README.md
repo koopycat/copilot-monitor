@@ -64,9 +64,12 @@ a JSON API for your own scripts.
 
 ## What it looks like
 
-Open the local dashboard at `http://127.0.0.1:7734`. See the
-[project site](https://koopycat.github.io/copilot-monitor/) for a screenshot and
-feature walkthrough.
+![CLI overview demo](demo/copilot-monitor.gif)
+
+_Reporting commands against 30 days of captured data (synthetic)._
+
+Open the dashboard at `http://127.0.0.1:7734` for the full UI with period
+selector, usage charts, and per-model cost breakdown.
 
 ## Quickstart
 
@@ -330,6 +333,11 @@ current session. When the tail is active, the per-request log is silenced so the
 two streams do not interleave and corrupt the live display. Pass `--no-live` to
 disable the tail and keep the full request log (also useful when stderr is
 redirected to a log file).
+
+![Verbose proxy output with --no-live](demo/copilot-monitor-nolive.gif)
+
+_Proxy running with `--no-live`: each request gets its own log line instead of
+the live session tail._
 
 Use Copilot normally. The proxy stores captured metadata and token counts in
 SQLite for routes configured for persistence; it does not store prompts,
