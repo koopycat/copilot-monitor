@@ -50,6 +50,7 @@ Or install via Homebrew:
 
 ```sh
 brew tap koopycat/copilot-monitor
+brew trust koopycat/copilot-monitor
 brew install copilot-monitor
 ```
 
