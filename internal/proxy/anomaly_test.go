@@ -125,8 +125,8 @@ func TestAnomalyRecorderConcurrentDedup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(anomalies) > 5 {
-		t.Fatalf("len(anomalies) = %d, want <= 5 (best-effort dedup under concurrency - TOCTOU ok)", len(anomalies))
+	if len(anomalies) != 1 {
+		t.Fatalf("len(anomalies) = %d, want 1", len(anomalies))
 	}
 }
 

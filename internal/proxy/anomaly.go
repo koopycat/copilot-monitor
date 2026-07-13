@@ -84,16 +84,17 @@ func (r *AnomalyRecorder) Record(rec store.AnomalyRecord) {
 		hash:     hashDetail(rec.Detail),
 	}
 
-	// Deduplication: suppress identical records within the cooldown window.
-	if v, ok := r.dedup.Load(key); ok {
-		if time.Since(v.(time.Time)) < dedupWindow {
-			return
-		}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.shutdown {
+		return
 	}
 
-	r.mu.Lock()
-	if r.shutdown {
-		r.mu.Unlock()
+	// Keep the cooldown check and enqueue operation under one lock so
+	// concurrent callers cannot enqueue the same anomaly before its dedup
+	// timestamp is stored.
+	if v, ok := r.dedup.Load(key); ok && time.Since(v.(time.Time)) < dedupWindow {
 		return
 	}
 
@@ -103,7 +104,6 @@ func (r *AnomalyRecorder) Record(rec store.AnomalyRecord) {
 	default:
 		r.dropped.Add(1)
 	}
-	r.mu.Unlock()
 }
 
 // Shutdown stops the background goroutine and drains remaining records from
