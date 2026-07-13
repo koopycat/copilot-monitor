@@ -29,4 +29,4 @@
 
 - [x] 4.1 Verify `just demo-gifs` completes without errors from clean state
 - [x] 4.2 Verify both GIFs are under 600KB each (reasonable for GitHub README)
-- [ ] 4.3 Open README on GitHub and confirm GIFs render inline with legible text
+- [x] 4.3 Open README on GitHub and confirm GIFs render inline with legible text

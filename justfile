@@ -99,8 +99,7 @@ clean:
 demo-gifs: build-go
     go run ./demo/seed/
     vhs demo/copilot-monitor.tape
-    vhs demo/copilot-monitor-nolive.tape
     gifsicle -O3 --colors 32 -o demo/copilot-monitor.gif demo/copilot-monitor.gif
-    gifsicle -O3 --colors 32 -o demo/copilot-monitor-nolive.gif demo/copilot-monitor-nolive.gif
+    sh demo/record-nolive.sh
     @echo "Demos regenerated:"
     @ls -lh demo/copilot-monitor.gif demo/copilot-monitor-nolive.gif

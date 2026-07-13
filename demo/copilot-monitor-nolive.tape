@@ -1,12 +1,9 @@
 # copilot-monitor no-live demo
-# Shows per-request log output when running with --no-live. Each request that
-# hits the proxy produces a log line with method, path, model, status, latency,
-# and token counts.
+# The proxy runs inside this terminal. Real HTTP requests are sent from
+# outside (by demo/record-nolive.sh), so log lines appear live without any
+# visible API-call commands.
 #
-# Prerequisite: go run ./demo/seed/ (creates /tmp/demo.db)
-# Prerequisite: just build-go (creates ./bin/copilot-monitor)
-#
-# Usage: vhs demo/copilot-monitor-nolive.tape
+# Usage: sh demo/record-nolive.sh
 
 Output demo/copilot-monitor-nolive.gif
 
@@ -18,52 +15,24 @@ Set Padding 20
 Set Framerate 12
 Set PlaybackSpeed 1
 
+
+# Start the proxy in background — banner + log output will appear here.
+# The wrapper script will send real requests to port 7733.
+Type "# Start proxy with --no-live"
+Enter
+Sleep 500ms
+Type "./bin/copilot-monitor run --no-live --db /tmp/demo.db &"
+Enter
+Sleep 2.5s
+
 Hide
-Type "clear"
+Type '(KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi -p "hello" &> /dev/null &)'
 Enter
-Sleep 200ms
-Show
-
-# Start proxy in background with --no-live.
-Type "# Start proxy with --no-live (per-request log)"
-Enter
-Sleep 500ms
-Type "./bin/copilot-monitor run --no-live --addr 127.0.0.1:7733 --db /tmp/demo.db &"
-Enter
-Sleep 3s
-
-# After the banner, log output appears when requests arrive.
-Enter
-Sleep 500ms
-
-# Send a chat request via a helper script so the JSON doesn't break vhs parsing.
-Type "# Agent sends a chat request"
-Enter
-Sleep 500ms
-Type `sh demo/send-request.sh gpt-4.1 hello`
-Enter
-Sleep 3s
-
-# Second request with a different model.
-Type "# Another model — log shows model switch"
-Enter
-Sleep 500ms
-Type `sh demo/send-request.sh claude-3.5-sonnet "refactor this"`
-Enter
-Sleep 3s
-
-# Check captured data with live.
-Type "# Check what was captured"
-Enter
-Sleep 500ms
-Type "./bin/copilot-monitor live --db /tmp/demo.db"
-Enter
-Sleep 3s
-
-# Shut down.
-Type "# Shut down proxy"
-Enter
-Sleep 500ms
-Type "kill %1 2>/dev/null; wait"
+Type '(KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi -p "hello" &> /dev/null &)'
 Enter
 Sleep 2s
+Type "clear"
+Enter
+Show
+
+Sleep 10s
