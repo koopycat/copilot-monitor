@@ -673,6 +673,45 @@ func TestHandlerRoutesByModel(t *testing.T) {
 	}
 }
 
+func TestHandlerStripsAnthropicProviderPrefix(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	router := NewRouter(&ProxyConfig{Routes: []RouteConfig{
+		{
+			Path:         "/v1/messages",
+			UpstreamHost: "api.anthropic.com",
+			Capture:      "metadata",
+			Provider:     "anthropic",
+		},
+	}})
+	h := NewHandlerWithRouter(log.NewWriter(io.Discard), st, "", nil, router)
+
+	var capturedHost string
+	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		capturedHost = req.URL.Host
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{}`)),
+		}, nil
+	})}
+
+	req := httptest.NewRequest(http.MethodPost, "/anthropic/v1/messages", strings.NewReader(`{}`))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	if capturedHost != "api.anthropic.com" {
+		t.Fatalf("host = %q, want api.anthropic.com", capturedHost)
+	}
+}
+
 func TestPolicyBlocklistBlocksModel(t *testing.T) {
 	// 1. Open store
 	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))

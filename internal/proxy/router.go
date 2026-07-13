@@ -8,9 +8,10 @@ import (
 
 // KnownProviders lists the recognized URL path prefixes for provider routing.
 var KnownProviders = map[string]bool{
-	"copilot": true,
-	"openai":  true,
-	"kilo":    true,
+	"anthropic": true,
+	"copilot":   true,
+	"openai":    true,
+	"kilo":      true,
 }
 
 // StripProviderPrefix extracts a known provider prefix from the first path segment
