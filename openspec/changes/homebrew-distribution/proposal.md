@@ -6,8 +6,8 @@ one-command install (`brew install copilot-monitor`) and automatic updates via
 `brew upgrade`. This is the standard distribution channel for macOS CLI tools
 and signals maturity.
 
-This change is an analysis — research the options, pick the best approach, and
-document the plan. Implementation follows in a separate change.
+This change researches and implements Homebrew distribution: custom tap, formula
+template, release workflow auto-update, README instructions, and documentation.
 
 ## What Changes
 

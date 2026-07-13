@@ -11,7 +11,7 @@ release workflow on each tagged release.
 #### Scenario: User installs via Homebrew
 
 - **WHEN** a macOS user runs
-  `brew tap koopycat/copilot-monitor && brew install copilot-monitor`
+  `brew tap koopycat/copilot-monitor && brew trust koopycat/copilot-monitor && brew install copilot-monitor`
 - **THEN** the latest release binary is downloaded and installed to
   `/opt/homebrew/bin/copilot-monitor` (Apple Silicon)
 
@@ -44,5 +44,5 @@ download table.
 
 - **WHEN** a visitor reads the README
 - **THEN** they see
-  `brew tap koopycat/copilot-monitor && brew install copilot-monitor` as an
-  install method
+  `brew tap koopycat/copilot-monitor && brew trust koopycat/copilot-monitor && brew install copilot-monitor`
+  as an install method

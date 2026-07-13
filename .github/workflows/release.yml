@@ -111,7 +111,8 @@ jobs:
           # Ensure tap directory exists
           mkdir -p tap/Formula
 
-          # Generate formula
+          # Generate formula. Single-quoted heredoc ('RUBY') disables shell
+          # expansion — $VERSION and #{bin} survive verbatim into the Ruby file.
           cat > tap/Formula/copilot-monitor.rb << 'RUBY'
           class CopilotMonitor < Formula
             desc "Local proxy for LLM API usage monitoring"
@@ -152,12 +153,17 @@ jobs:
           sed -i "s/DARWIN_ARM64_SHA256/$(sha256sum darwin-arm64.tar.gz | cut -d' ' -f1)/" tap/Formula/copilot-monitor.rb
           sed -i "s/LINUX_ARM64_SHA256/$(sha256sum linux-arm64.tar.gz | cut -d' ' -f1)/" tap/Formula/copilot-monitor.rb
           sed -i "s/LINUX_AMD64_SHA256/$(sha256sum linux-amd64.tar.gz | cut -d' ' -f1)/" tap/Formula/copilot-monitor.rb
-      - name: Validate formula syntax
+      - name: Validate formula
         run: |
           ruby -c tap/Formula/copilot-monitor.rb || {
             echo "Formula has Ruby syntax errors"
             exit 1
           }
+          if grep -nE 'VERSION|DARWIN_ARM64_SHA256|LINUX_ARM64_SHA256|LINUX_AMD64_SHA256' \
+            tap/Formula/copilot-monitor.rb; then
+            echo "Unreplaced placeholder found in formula"
+            exit 1
+          fi
       - name: Commit and push formula
         working-directory: tap
         run: |
