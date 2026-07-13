@@ -73,6 +73,7 @@ KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi
 OPENAI_BASE_URL=http://127.0.0.1:7733/openai/v1
 
 # Copilot in VS Code — auto-detected, no config needed
+# Manual: http://127.0.0.1:7733/copilot
 ```
 
 A live session tail refreshes every 2 seconds. Pass `--no-live` for per-request
