@@ -84,8 +84,13 @@ upstream forwarding. The policy is stored in a single-row `policies` table.
 - **Patterns**: model names support `*` suffix for prefix matching (`gpt-*`
   blocks all GPT models)
 - **Cache**: in-memory cache with 5-second TTL, refreshed from SQLite on expiry
-- **Fail-open**: nil policy, empty model, unknown mode, or store errors all
-  default to allowing the request
+- **Model discovery**: successful OpenAI-compatible `GET /models` responses are
+  filtered before return - an allowlist exposes only matching model IDs and a
+  blocklist omits matching IDs. Client-side model configuration cannot expand
+  this set.
+- **Fail-open**: nil policy, empty model, unknown mode, store errors, and model
+  discovery payloads that cannot safely be filtered all preserve the existing
+  permissive behaviour
 - **Persistence**: blocked attempts are stored in the `requests` table with
   status 403 and zero token counts
 

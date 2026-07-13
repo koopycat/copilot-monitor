@@ -340,6 +340,53 @@ canvas {
   flex-shrink: 0;
 }
 
+.table-section {
+  margin: 2rem 0 0.5rem;
+}
+
+.table-section summary {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.table-section summary::-webkit-details-marker {
+  color: var(--faint);
+}
+
+.table-section summary:hover {
+  color: var(--ink);
+}
+
+.table-section summary:focus-visible {
+  border-radius: 2px;
+}
+
+.table-section-state::after {
+  content: 'collapsed';
+  color: var(--faint);
+  font-size: 0.65rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.table-section[open] .table-section-state::after {
+  content: 'expanded';
+}
+
+.table-section-content {
+  margin-top: 0.5rem;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

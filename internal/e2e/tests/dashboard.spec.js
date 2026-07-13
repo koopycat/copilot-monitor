@@ -93,8 +93,50 @@ test.describe('Auto Granularity', () => {
   });
 });
 
-test.describe('Sessions Table', () => {
-  test('renders sessions section', async ({ loadedPage: page }) => {
-    await expect(page.locator('h2:has-text("Recent Sessions")')).toBeVisible();
+test.describe('Table Sections', () => {
+  test('models and sessions sections are expanded initially', async ({ loadedPage: page }) => {
+    await expect(page.locator('.models-section')).toHaveAttribute('open', '');
+    await expect(page.locator('.sessions-section')).toHaveAttribute('open', '');
+    await expect(page.locator('.models-section summary')).toContainText('Models');
+    await expect(page.locator('.sessions-section summary')).toContainText('Recent Sessions');
+    await expect(page.locator('.models-section table')).toBeVisible();
+    await expect(page.locator('.sessions-section table')).toBeVisible();
+  });
+
+  test('collapsed state survives a data refresh', async ({ loadedPage: page }) => {
+    const models = page.locator('.models-section');
+    await models.locator('summary').click();
+    await expect(models.locator('table')).toBeHidden();
+
+    const statsResponse = page.waitForResponse(
+      (response) => response.url().includes('/api/stats?') && response.request().method() === 'GET',
+    );
+    await page.locator('.refresh-btn').click();
+    await statsResponse;
+    await expect(models.locator('table')).toBeHidden();
+  });
+
+  test('sections collapse independently with the keyboard', async ({ loadedPage: page }) => {
+    const models = page.locator('.models-section');
+    const sessions = page.locator('.sessions-section');
+
+    await models.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(models).not.toHaveAttribute('open', '');
+    await expect(models.locator('summary')).toContainText('Models');
+    await expect(models.locator('table')).toBeHidden();
+    await expect(sessions.locator('table')).toBeVisible();
+
+    await sessions.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(sessions).not.toHaveAttribute('open', '');
+    await expect(sessions.locator('summary')).toContainText('Recent Sessions');
+    await expect(sessions.locator('table')).toBeHidden();
+    await expect(models.locator('table')).toBeHidden();
+
+    await models.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(models.locator('table')).toBeVisible();
+    await expect(sessions.locator('table')).toBeHidden();
   });
 });

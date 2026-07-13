@@ -29,6 +29,7 @@ func testRouter() *Router {
 			{Label: "ping", Path: "/_ping", UpstreamHost: "", Capture: "local"},
 			{Label: "chat", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
 			{Label: "agent", Path: "/agents", UpstreamHost: "api.githubcopilot.com", Capture: "usage", PrefixMatch: true},
+			{Path: "/models", UpstreamHost: "api.githubcopilot.com", Capture: "none"},
 			{Path: "/models/session", UpstreamHost: "api.githubcopilot.com", Capture: "none"},
 			{Path: "/responses", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
 			{Path: "/embeddings", UpstreamHost: "api.githubcopilot.com", Capture: "metadata"},
