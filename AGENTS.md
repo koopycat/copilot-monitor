@@ -2,32 +2,37 @@
 
 ## Quick Reference
 
-Use `just` for all development commands. The environment auto-activates via
-direnv.
+Use `just` for all development commands and run it from the repository root. Run
+`just --list` to discover available recipes; the `justfile` is the authoritative
+list of supported commands. The environment auto-activates via direnv.
 
-**Prerequisites:** direnv, devenv, pre-commit. Run `just setup` on first clone.
+**Prerequisites:** direnv, devenv, pre-commit. Run `just setup` on the first
+clone.
 
 **Build:**
 
-- `just build-go` -- fast Go-only build (skips dashboard, ~2s)
-- `just build` -- full build including dashboard
+- `just build-go` -- fast Go-only build with the dashboard skipped
+- `just build` -- full build including dashboard assets
 
 **Test:**
 
-- `just test` -- fast unit tests (excludes integration)
-- `just test-one TestName` -- run a single test by name pattern
+- `just test` -- fast unit tests, excluding integration tests
+- `just test-one TestName` -- run tests matching a name pattern
 - `just test-pkg ./internal/store` -- run all tests in a package
-- `just test-all` -- run all tests across every package
-- `just all` -- vet + test + build (run before pushing)
+- `just test-all` -- run all Go tests across every package
+- `just integration` -- run HTTP-level integration tests
+- `just e2e` -- run browser end-to-end tests
+- `just all` -- run vet, secret scanning, fast unit tests, and the full build;
+  excludes integration and end-to-end tests
 
 **Check:**
 
-- `just vet` -- go vet + staticcheck + govulncheck
-- `just secrets` -- fast secret scan
+- `just vet` -- run go vet, staticcheck, and govulncheck
+- `just secrets` -- run the fast secret scan
 
 **Format:**
 
-- `just format` -- format all code (Go, JS, Svelte, MD, JSON, YAML)
+- `just format` -- format Go, JavaScript, Svelte, Markdown, JSON, and YAML
 - `just fmt-go` -- format Go code only
 
 Pre-commit runs formatting, secrets, and dashboard svelte-check. Slow Go checks
@@ -55,23 +60,9 @@ output. Dashboard assets live in `dashboard/`; the schema is
 The development environment is managed by **devenv** (`devenv.nix`). It provides
 Go 1.26, Node.js 24, and pnpm 11.
 
-Use the `justfile` as the main task runner:
-
-- `just build` builds `./cmd/copilot-monitor` into `./copilot-monitor`.
-- `just test` runs `go test ./...`.
-- `just vet` runs `go vet`, `staticcheck`, and `govulncheck`.
-- `just all` runs vet, tests, and build; use this before submitting changes.
-- `just fmt` formats Go code with `go fmt ./...`.
-- `just watch` starts hot reload with `air` for Go, HTML, and JavaScript
-  changes.
-
-Pre-commit hooks (configured in `.pre-commit-config.yaml`) run automatically on
-`git commit` and enforce formatting (`gofmt`, `goimports`, `prettier`), secret
-scanning (`gitleaks`), and whitespace consistency. Slow Go checks (`go vet`,
-`go mod tidy`) and `svelte-check` run in CI as the comprehensive safety net;
-`svelte-check` also runs in pre-commit on dashboard file changes for fast
-feedback. Install once with `pre-commit install`; bypass only with a strong
-reason and `git commit --no-verify`.
+Use the `justfile` as the canonical task runner rather than invoking the
+underlying Go, Node.js, or pnpm commands directly. Run `just --list` when a
+recipe is not listed in this document.
 
 For local use, run `./copilot-monitor serve` for the dashboard API or
 `./copilot-monitor run` for the proxy.
@@ -92,10 +83,10 @@ CSS in `internal/dashboard` should remain dependency-light and colocated with
 - `README.md` is for user-facing setup, smoke tests, and common commands.
 - `SPEC.md` is an index. Requirements live in
   `openspec/specs/<capability>/spec.md`.
-- `openspec/specs/` contains the single source of truth for system behavior.
-  Each capability has its own `spec.md` with requirements (SHALL/MUST) and
-  WHEN/THEN scenarios. Do not include code paths, file paths, package names, or
-  implementation plans there.
+- `openspec/specs/` is the authoritative single source of truth for system
+  behavior. Each capability has its own `spec.md` with requirements (SHALL/MUST)
+  and WHEN/THEN scenarios. Do not include code paths, file paths, package names,
+  or implementation plans there.
 - `docs/` contains durable documentation for the current implementation, such as
   architecture, API behavior, operations, and troubleshooting. `docs/api.md` and
   `docs/architecture.md` are the technical reference pages served by GitHub
@@ -103,8 +94,13 @@ CSS in `internal/dashboard` should remain dependency-light and colocated with
 - `docs/index.html` is the GitHub Pages marketing landing page; it links to the
   technical docs and the GitHub repo.
 - `openspec/changes/` is used for planning artifacts via the OpenSpec workflow.
-  Use `/opsx:propose`, `/opsx:apply`, `/opsx:archive`. The legacy `plans/`
-  directory may still exist but new planning goes through OpenSpec.
+  Its lifecycle is explore, propose, update, apply, sync, and archive; use the
+  corresponding OpenSpec skill for the detailed instructions. Sync affected
+  delta specs into `openspec/specs/` before archiving, and archive selected
+  changes under `openspec/changes/archive/YYYY-MM-DD-<change-name>/`. Never
+  auto-select a change for archiving, and do not archive incomplete work without
+  explicit user authorization. The legacy `plans/` directory may still exist,
+  but new planning goes through OpenSpec.
 - `openspec/config.yaml` contains project context and non-behavioral design
   constraints (quality attributes, naming conventions, DX principles).
 
