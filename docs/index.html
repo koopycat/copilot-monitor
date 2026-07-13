@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Copilot Monitor - Every Copilot request, on the record</title>
+    <title>Copilot Monitor — Every LLM request, on the record</title>
     <meta
       name="description"
-      content="A local reverse proxy that records every GitHub Copilot request - per-model token counts, latency, and estimated cost. Local SQLite. No cloud, no telemetry, no prompts stored."
+      content="A local reverse proxy that records every LLM API request — per-model token counts, latency, and estimated cost. Local SQLite. No cloud, no telemetry, no prompts stored. Works with Copilot, pi-agent, Claude Code, and more."
     />
     <script>
       document.documentElement.classList.add('js');
@@ -1266,12 +1266,13 @@
         <div class="hero-grid">
           <div>
             <span class="kicker">On the record</span>
-            <h1>Know exactly what <span class="accent">GitHub Copilot</span> is doing.</h1>
+            <h1>Know exactly what your <span class="accent">AI tools</span> are costing you.</h1>
             <p class="lede">
-              A local reverse proxy that intercepts every Copilot request and records the metadata
-              that matters: per-model token counts, latency, cache hits, and an estimated AI-credit
-              cost. SQLite on your machine. No cloud. No telemetry. No prompts, completions, or auth
-              material ever written to disk.
+              A local reverse proxy that intercepts LLM API requests and records the metadata that
+              matters: per-model token counts, latency, cache hits, and estimated cost. SQLite on
+              your machine. No cloud. No telemetry. No prompts, completions, or auth material ever
+              written to disk. Works with GitHub Copilot, pi-agent, Claude Code, and any OpenAI- or
+              Anthropic-compatible API.
             </p>
 
             <div class="downloads">
@@ -1381,7 +1382,7 @@
                 </thead>
                 <tbody>
                   <tr>
-                    <td class="model">gemini-3.5-flash</td>
+                    <td class="model">claude-sonnet-4.6</td>
                     <td>3</td>
                     <td>84,791</td>
                     <td>27,376</td>
@@ -1390,7 +1391,7 @@
                     <td class="cost">$0.09</td>
                   </tr>
                   <tr>
-                    <td class="model">claude-sonnet-4.6</td>
+                    <td class="model">claude-opus-4.8</td>
                     <td>1</td>
                     <td>2</td>
                     <td>0</td>
@@ -1399,7 +1400,7 @@
                     <td class="cost">$0.08</td>
                   </tr>
                   <tr>
-                    <td class="model">gpt-4o-mini-2024-07-18</td>
+                    <td class="model">gpt-5.4-mini</td>
                     <td>6</td>
                     <td>5,052</td>
                     <td>3,072</td>
@@ -1439,7 +1440,7 @@
           <a href="./assets/dashboard.png" target="_blank" rel="noopener">
             <img
               src="./assets/dashboard.png"
-              alt="Screenshot of the Copilot Monitor dashboard showing $8.42 estimated AI-credit cost over 30 days, 974 requests, a live session panel, a stacked usage chart, and a per-model breakdown with claude-3.5-sonnet leading at 286,303 tokens."
+              alt="Screenshot of the Copilot Monitor dashboard showing estimated AI-credit cost over 30 days, a live session panel, a stacked usage chart, and a per-model breakdown."
               width="1280"
               height="1100"
               loading="lazy"
@@ -1456,10 +1457,9 @@
         <h2 data-reveal>Why it exists</h2>
 
         <p data-reveal>
-          GitHub Copilot picks models automatically, charges AI credits invisibly, and exposes usage
-          summaries only on <code>github.com</code> with a 24-hour delay. You don't know which model
-          handled your last prompt, whether you got a cache hit, or what that refactor session
-          actually cost you.
+          AI coding tools burn through credits and tokens without showing you the bill. GitHub
+          Copilot has zero local cost observability — you can't see what you're spending, on which
+          models, until the monthly invoice arrives.
         </p>
         <p data-reveal>
           Copilot Monitor gives you the raw numbers from your own machine: per-model token counts,
@@ -1472,13 +1472,13 @@
         <h2 data-reveal>How it works</h2>
 
         <p data-reveal>
-          A reverse proxy sits between VSCode and the Copilot API, capturing metadata on the way
+          A reverse proxy sits between your tools and LLM APIs, capturing metadata on the way
           through. Output goes to a local SQLite file and a dashboard on loopback.
         </p>
         <div
           class="flow"
           data-reveal
-          aria-label="Data flow diagram: VSCode requests go through the local copilot-monitor proxy, which forwards them to the Copilot API and persists metadata to a local SQLite database. The dashboard reads from that database."
+          aria-label="Data flow diagram: Agent requests go through the local copilot-monitor proxy, which forwards them to the LLM API and persists metadata to a local SQLite database. The dashboard reads from that database."
         >
           <svg viewBox="0 0 720 190" xmlns="http://www.w3.org/2000/svg" role="presentation">
             <defs>
@@ -1497,7 +1497,7 @@
 
             <!-- Row 1: client -> proxy -> upstream -->
             <rect class="box" x="20" y="22" width="100" height="40" rx="6" />
-            <text x="70" y="47" text-anchor="middle" font-size="12">VSCode</text>
+            <text x="70" y="47" text-anchor="middle" font-size="12">Agent</text>
 
             <rect class="box proxy" x="260" y="12" width="160" height="60" rx="6" />
             <text
