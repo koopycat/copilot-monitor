@@ -33,6 +33,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runToday(args[1:], stdout, stderr)
 	case "sessions":
 		return runSessions(args[1:], stdout, stderr)
+	case "rebuild-sessions":
+		return runRebuildSessions(args[1:], stdout, stderr)
 	case "live":
 		return runLive(args[1:], stdout, stderr)
 	case "serve":
@@ -65,13 +67,14 @@ func printUsage(w io.Writer) {
 	fmt.Fprint(w, strings.TrimSpace(`copilot-monitor monitors LLM API usage through a local HTTP reverse proxy.
 
 Usage:
-  copilot-monitor run --routes-config <file> [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path] [--no-live] [--dashboard]
+  copilot-monitor run --routes-config <file> [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path] [--no-live] [--dashboard] [--retention-days 365] [--anomaly-retention-days 30] [--dry-run]
   copilot-monitor stats [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor today [--db path] [--project name] [--endpoint chat]
   copilot-monitor sessions [--db path] [--since 30d] [--project name] [--limit 50]
+  copilot-monitor rebuild-sessions [--db path] [--gap 30m] [--vacuum]
   copilot-monitor live [--db path] [--json] [--watch]
-  copilot-monitor serve [--addr 127.0.0.1:7734] [--db path]
+  copilot-monitor serve [--addr 127.0.0.1:7734] [--db path] [--retention-days 365] [--anomaly-retention-days 30] [--dry-run]
   copilot-monitor export [--since 30d] [--db path]
   copilot-monitor init [--force]
   copilot-monitor validate --routes-config path.json
@@ -84,7 +87,8 @@ Commands:
   stats             Print captured usage grouped by model and endpoint.
   cost              Print estimated equivalent provider list-price cost.
   today             Print today's captured usage.
-  sessions          Print captured sessions using a 30-minute inactivity gap.
+  sessions          Print captured sessions.
+  rebuild-sessions  Rebuild sessions from all requests (offline maintenance).
   live              Print the current active session (--watch to auto-refresh).
   export            Export captured request metadata to CSV.
   init              Create a starter routes.json config file.

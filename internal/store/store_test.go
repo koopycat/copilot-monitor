@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -11,6 +12,29 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCatalogCaching(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	first, err := s.Catalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.Catalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Models == nil || second.Models == nil {
+		t.Fatal("catalog models are nil")
+	}
+	if reflect.ValueOf(first.Models).Pointer() != reflect.ValueOf(second.Models).Pointer() {
+		t.Fatal("Catalog returned different cached catalog instances")
+	}
+}
 
 func TestInsertAndStats(t *testing.T) {
 	s, err := Open(filepath.Join(t.TempDir(), "store.db"))

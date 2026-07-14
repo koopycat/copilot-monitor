@@ -21,6 +21,9 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	addr := fs.String("addr", "127.0.0.1:7734", "HTTP listen address")
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
 	routesConfig := fs.String("routes-config", "", "optional JSON file with additional route definitions")
+	retentionDays := fs.Int("retention-days", 365, "days of requests and sessions to retain (0 disables)")
+	anomalyRetentionDays := fs.Int("anomaly-retention-days", 30, "days of anomalies to retain (0 disables)")
+	dryRun := fs.Bool("dry-run", false, "report retention deletions without executing them")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -31,6 +34,20 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	defer st.Close()
+
+	stopRetention, retentionDryRun, err := startRetention(st, retentionConfig{
+		requestDays: *retentionDays,
+		anomalyDays: *anomalyRetentionDays,
+		dryRun:      *dryRun,
+	}, stdout, stderr)
+	if err != nil {
+		fmt.Fprintf(stderr, "retention setup failed: %v\n", err)
+		return 1
+	}
+	defer stopRetention()
+	if retentionDryRun {
+		return 0
+	}
 
 	proxyCfg, err := proxy.LoadConfig(*routesConfig)
 	if err != nil {

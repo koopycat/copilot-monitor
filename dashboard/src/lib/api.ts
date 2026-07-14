@@ -1,6 +1,7 @@
 // API client with AbortController for race conditions
 
 import type {
+  Anomaly,
   CostResponse,
   CurrentSession,
   ModelStats,
@@ -27,9 +28,9 @@ async function safeFetch<T>(url: string, signal: AbortSignal): Promise<T | null>
 export interface DashboardData {
   stats: ModelStats[];
   cost: CostResponse;
-  sessions: Session[];
   timeline: TimelineEntry[];
   current: CurrentSession;
+  anomalies: Anomaly[];
 }
 
 export async function loadDashboard(
@@ -55,21 +56,67 @@ export async function loadDashboard(
     ...extra,
   });
 
-  const [stats, cost, sessions, timeline, current] = await Promise.all([
+  const [stats, cost, timeline, current, anomalies] = await Promise.all([
     safeFetch<ModelStats[]>(`/api/stats?${sinceParams}`, signal),
     safeFetch<CostResponse>(`/api/cost?${sinceParams}`, signal),
-    safeFetch<Session[]>(`/api/sessions?${sinceParams}&limit=20`, signal),
     safeFetch<TimelineEntry[]>(`/api/stats/timeline?${timelineParams}`, signal),
     safeFetch<CurrentSession>(`/api/session/current`, signal),
+    fetchAnomalies(signal),
   ]);
 
   return {
     stats: stats ?? [],
     cost: cost ?? { total_usd: 0, rows: [] },
-    sessions: sessions ?? [],
     timeline: timeline ?? [],
     current: current ?? { session: null, models: [] },
+    anomalies: anomalies ?? [],
   };
+}
+
+export interface SessionFilters {
+  since?: string;
+  until?: string;
+  project?: string;
+}
+
+const SESSION_PAGE_SIZE = 20;
+
+function sessionQuery(filters: SessionFilters, cursor?: Session): string {
+  return buildParams({
+    ...(filters.since ? { since: filters.since } : {}),
+    ...(filters.until ? { until: filters.until } : {}),
+    ...(filters.project ? { project: filters.project } : {}),
+    ...(cursor ? { cursor: cursor.started_at, cursor_id: cursor.id } : {}),
+    limit: SESSION_PAGE_SIZE,
+  }).toString();
+}
+
+// fetchSessions returns exactly one cursor-based page. Callers append the page
+// and pass its final session as the cursor to retrieve older rows.
+export async function fetchSessions(
+  filters: SessionFilters,
+  signal: AbortSignal,
+  cursor?: Session,
+): Promise<Session[]> {
+  return (await safeFetch<Session[]>(`/api/sessions?${sessionQuery(filters, cursor)}`, signal)) ?? [];
+}
+
+export async function fetchSessionCount(filters: SessionFilters, signal: AbortSignal): Promise<number> {
+  const params = buildParams({
+    ...(filters.since ? { since: filters.since } : {}),
+    ...(filters.until ? { until: filters.until } : {}),
+    ...(filters.project ? { project: filters.project } : {}),
+  });
+  const result = await safeFetch<{ count: number }>(`/api/sessions/count?${params}`, signal);
+  return result?.count ?? 0;
+}
+
+export async function fetchSessionProjects(signal: AbortSignal): Promise<string[]> {
+  return (await safeFetch<string[]>('/api/sessions/distinct-projects', signal)) ?? [];
+}
+
+export async function fetchAnomalies(signal: AbortSignal): Promise<Anomaly[]> {
+  return (await safeFetch<Anomaly[]>('/api/anomalies', signal)) ?? [];
 }
 
 export function exportHrefFor(period: PeriodKey, upstream?: string): string {

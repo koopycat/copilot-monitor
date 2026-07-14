@@ -13,4 +13,7 @@
       <option value={u}>{u}</option>
     {/each}
   </select>
+  {#if dashboard.upstream}
+    <span class="filter-active" title={`Filtering by ${dashboard.upstream}`}>Filtered</span>
+  {/if}
 {/if}

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"copilot-monitoring/internal/catalog"
 	"copilot-monitoring/internal/policy"
 
 	_ "modernc.org/sqlite"
@@ -21,10 +22,16 @@ import (
 var schemaFS embed.FS
 
 type Store struct {
-	db          *sql.DB
-	path        string
-	rebuildMu   sync.Mutex
-	lastRebuild time.Time
+	db        *sql.DB
+	path      string
+	rebuildMu sync.Mutex
+
+	retentionMu sync.RWMutex
+	retention   RetentionStatus
+
+	catalogOnce sync.Once
+	catalog     catalog.Catalog
+	catalogErr  error
 }
 
 type RequestRecord struct {
@@ -142,6 +149,10 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	// SQLite permits only one writer. A single connection serializes writes and
+	// avoids lock contention between concurrent request handlers.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	store := &Store{db: db, path: path}
 	if err := store.init(context.Background()); err != nil {
 		_ = db.Close()
@@ -167,6 +178,15 @@ func (s *Store) init(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, "PRAGMA busy_timeout=5000"); err != nil {
 		return err
 	}
+	for _, pragma := range []string{
+		"PRAGMA synchronous=NORMAL",
+		"PRAGMA mmap_size=268435456",
+		"PRAGMA temp_store=MEMORY",
+	} {
+		if _, err := s.db.ExecContext(ctx, pragma); err != nil {
+			return err
+		}
+	}
 	schema, err := schemaFS.ReadFile("schema.sql")
 	if err != nil {
 		return err
@@ -190,7 +210,28 @@ func (s *Store) init(ctx context.Context) error {
 			_, _ = s.db.ExecContext(ctx, fmt.Sprintf("ALTER TABLE requests ADD COLUMN %s %s", m.name, m.def))
 		}
 	}
+	// Remove schema objects that are no longer used. These migrations also apply
+	// to databases created before the schema was updated.
+	for _, statement := range []string{
+		"DROP TABLE IF EXISTS bodies",
+		"DROP INDEX IF EXISTS idx_requests_ts",
+	} {
+		if _, err := s.db.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// Catalog returns the immutable embedded pricing catalog, loading it once per Store.
+func (s *Store) Catalog() (catalog.Catalog, error) {
+	if s == nil {
+		return catalog.Catalog{}, errors.New("nil store")
+	}
+	s.catalogOnce.Do(func() {
+		s.catalog, s.catalogErr = catalog.LoadDefault()
+	})
+	return s.catalog, s.catalogErr
 }
 
 func (s *Store) InsertRequest(ctx context.Context, rec RequestRecord) error {
@@ -200,14 +241,24 @@ func (s *Store) InsertRequest(ctx context.Context, rec RequestRecord) error {
 	if rec.Timestamp.IsZero() {
 		rec.Timestamp = time.Now().UTC()
 	}
-	_, err := s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	sessionID, err := s.assignSession(ctx, tx, rec)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
 INSERT INTO requests (
   ts, endpoint, method, path, upstream_host, model, stream, status, error,
   latency_ms, prompt_tokens, cached_input_tokens, cache_write_tokens,
-  completion_tokens, total_tokens, project, not_billed, provider, usage_missing,
+  completion_tokens, total_tokens, project, not_billed, provider, session_id, usage_missing,
   compression_status, compression_original_tokens, compression_final_tokens,
   compression_latency_ms
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		rec.Timestamp.UTC().Format(time.RFC3339Nano),
 		rec.Endpoint,
 		rec.Method,
@@ -226,13 +277,17 @@ INSERT INTO requests (
 		nullString(rec.Project),
 		boolInt(rec.NotBilled),
 		rec.Provider,
+		sessionID,
 		boolInt(rec.UsageMissing),
 		nullString(rec.CompressionStatus),
 		nullInt(rec.CompressionOriginalTokens),
 		nullInt(rec.CompressionFinalTokens),
 		nullInt64(rec.CompressionLatencyMS),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) Stats(ctx context.Context, filter StatsFilter) ([]ModelStats, error) {
@@ -402,6 +457,17 @@ ORDER BY ts DESC`, sinceStr, sinceStr, untilStr, untilStr, upstreamHost, upstrea
 	return out, rows.Err()
 }
 
+// RequestCount returns the total number of captured requests using SQLite's
+// efficient COUNT(*) path, for lightweight health checks.
+func (s *Store) RequestCount(ctx context.Context) (int64, error) {
+	if s == nil || s.db == nil {
+		return 0, errors.New("nil store")
+	}
+	var count int64
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM requests").Scan(&count)
+	return count, err
+}
+
 func (s *Store) DistinctUpstreamHosts(ctx context.Context) ([]string, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("nil store")
@@ -527,6 +593,7 @@ type AnomalyFilter struct {
 	Since    time.Time
 	Category string
 	Severity string
+	Limit    int
 }
 
 func (s *Store) WriteAnomaly(ctx context.Context, rec AnomalyRecord) error {
@@ -593,6 +660,10 @@ func (s *Store) QueryAnomalies(ctx context.Context, filter AnomalyFilter) ([]Ano
 		args = append(args, filter.Severity)
 	}
 	query += " ORDER BY ts DESC"
+	if filter.Limit > 0 {
+		query += " LIMIT ?"
+		args = append(args, filter.Limit)
+	}
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {

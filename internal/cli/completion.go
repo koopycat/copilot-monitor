@@ -20,6 +20,7 @@ _copilot-monitor() {
     'cost:Print estimated equivalent provider list-price cost'
     'today:Print today'\''s captured usage'
     'sessions:Print captured sessions'
+    'rebuild-sessions:Rebuild sessions from all requests'
     'live:Print the current active session'
     'export:Export captured request metadata to CSV'
     'init:Create a starter routes.json config file'
@@ -55,13 +56,19 @@ _copilot-monitor() {
             '--raw-log[optional JSONL path for raw request debugging]:file:_files' \
             '--no-live[disable live session tail]' \
 			'--dashboard[start dashboard API/UI on separate port 7734]' \
+            '--retention-days[days of requests and sessions to retain (0 disables)]:days:' \
+            '--anomaly-retention-days[days of anomalies to retain (0 disables)]:days:' \
+            '--dry-run[report retention deletions without executing them]' \
             '--log-format[log output format]:format:(human json)'
           ;;
         serve)
           _arguments \
             '--addr[HTTP listen address]:address:' \
             '--db[SQLite database path]:file:_files' \
-            '--routes-config[optional JSON file with additional route definitions]:file:_files'
+            '--routes-config[optional JSON file with additional route definitions]:file:_files' \
+            '--retention-days[days of requests and sessions to retain (0 disables)]:days:' \
+            '--anomaly-retention-days[days of anomalies to retain (0 disables)]:days:' \
+            '--dry-run[report retention deletions without executing them]'
           ;;
         stats)
           _arguments \
@@ -93,6 +100,12 @@ _copilot-monitor() {
             '--project[filter by project]:project:' \
             '--limit[maximum sessions to print]:limit:' \
             '--json[emit machine-readable JSON]'
+          ;;
+        rebuild-sessions)
+          _arguments \
+            '--db[SQLite database path]:file:_files' \
+            '--gap[inactivity gap used to split sessions]:duration:' \
+            '--vacuum[compact the database after rebuilding sessions]'
           ;;
         live)
           _arguments \

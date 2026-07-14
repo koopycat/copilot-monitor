@@ -185,6 +185,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		h.log.Error("id=%d path=%q provider=%q route=unknown status=502\n", id, originalURI, provider)
 		h.writeRawLog(started, id, Route{}, r, meta, body, nil, provider, compressionMeta{}, false)
+		detail := fmt.Sprintf("no route matched: %s %s", r.Method, r.URL.Path)
+		if meta.Model != "" || provider != "" {
+			extra := make([]string, 0, 2)
+			if meta.Model != "" {
+				extra = append(extra, fmt.Sprintf("model %s", meta.Model))
+			}
+			if provider != "" {
+				extra = append(extra, fmt.Sprintf("provider %s", provider))
+			}
+			detail = fmt.Sprintf("%s (%s)", detail, strings.Join(extra, ", "))
+		}
 		h.recordAnomaly(store.AnomalyRecord{
 			Timestamp: started,
 			Category:  "unrouted_path",
@@ -192,7 +203,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			RequestID: id,
 			Path:      r.URL.Path,
 			Method:    r.Method,
-			Detail:    "no route matched for path",
+			Model:     meta.Model,
+			Detail:    detail,
 		})
 		http.Error(w, "unknown Copilot path", http.StatusBadGateway)
 		return
@@ -208,6 +220,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Path:      r.URL.Path,
 			Method:    r.Method,
 			Endpoint:  string(route.Endpoint),
+			Model:     meta.Model,
+			Upstream:  route.Upstream,
 			Detail:    "no Authorization header on proxied request",
 		})
 	}

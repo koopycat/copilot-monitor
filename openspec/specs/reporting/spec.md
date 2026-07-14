@@ -11,8 +11,10 @@ export, and configuration tooling.
 ### Requirement: CLI commands
 
 The system SHALL provide read-only CLI subcommands: `stats`, `cost`, `today`,
-`sessions`, `live`, `export`. Commands MAY rebuild derived session summaries
-before reporting but SHALL NOT alter captured request rows.
+`sessions`, `live`, `export`. The system SHALL also provide a `rebuild-sessions`
+subcommand for offline session reconstruction. Commands SHALL NOT rebuild
+sessions during read operations; session data SHALL be read from the
+incrementally-maintained `sessions` table.
 
 #### Scenario: Stats command
 
@@ -52,6 +54,11 @@ before reporting but SHALL NOT alter captured request rows.
 
 - **WHEN** user runs `copilot-monitor export`
 - **THEN** CSV output with metadata columns is written to stdout
+
+#### Scenario: Rebuild sessions command
+
+- **WHEN** user runs `copilot-monitor rebuild-sessions`
+- **THEN** the sessions table is rebuilt from all requests ordered by timestamp
 
 ---
 
@@ -102,13 +109,61 @@ usage error (bad flags/args), 130 for SIGINT.
 The system SHALL provide a read-only dashboard API with endpoints:
 `/api/health`, `/api/stats`, `/api/cost`, `/api/today`, `/api/sessions`,
 `/api/session/current`, `/api/stats/timeline`, `/api/export`, `/api/upstreams`,
-`/api/config`, `/api/policy`, `/api/policy/models`.
+`/api/config`, `/api/policy`, `/api/policy/models`, `/api/anomalies`.
 
 #### Scenario: All API endpoints respond
 
 - **WHEN** the dashboard API is started
 - **THEN** all listed endpoints return JSON responses with
   `Access-Control-Allow-Origin: *`
+
+---
+
+### Requirement: Anomaly API endpoint
+
+The system SHALL provide a `/api/anomalies` endpoint returning anomalies ordered
+by timestamp descending, supporting optional category and severity filters.
+
+#### Scenario: Anomalies endpoint
+
+- **WHEN** a GET request is made to `/api/anomalies`
+- **THEN** a JSON array of the most recent 50 anomalies is returned
+
+#### Scenario: Anomalies with category filter
+
+- **WHEN** a GET request is made to `/api/anomalies?category=unrouted_path`
+- **THEN** only anomalies matching that category are returned
+
+#### Scenario: Anomalies with severity filter
+
+- **WHEN** a GET request is made to `/api/anomalies?severity=error`
+- **THEN** only anomalies with severity "error" are returned
+
+---
+
+### Requirement: Sanitized error responses
+
+API error responses SHALL return a generic error message to the client. The full
+error details SHALL be logged server-side only.
+
+#### Scenario: Database error
+
+- **WHEN** an API handler encounters a database error
+- **THEN** the HTTP response has status 500 with body
+  `{"error":"internal server error"}` and the full error is logged to stderr
+
+---
+
+### Requirement: Batched session model queries
+
+The sessions API SHALL retrieve per-session model stats using a single batched
+query rather than one query per session.
+
+#### Scenario: Sessions list with model stats
+
+- **WHEN** `/api/sessions` returns 20 sessions
+- **THEN** model stats for all 20 sessions are retrieved in a single SQL query
+  with `WHERE session_id IN (...)`.
 
 ---
 

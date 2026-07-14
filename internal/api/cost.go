@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"copilot-monitoring/internal/catalog"
 	costcalc "copilot-monitoring/internal/cost"
 	"copilot-monitoring/internal/store"
 )
@@ -19,12 +18,12 @@ func (h *Handler) handleCost(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.db.Stats(r.Context(), filter)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
-	cat, err := catalog.LoadDefault()
+	cat, err := h.catalogDefault()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
 	total := costcalc.Calculate(rows, cat)

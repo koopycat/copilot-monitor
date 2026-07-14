@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"os"
 	"time"
-
-	"copilot-monitoring/internal/store"
 )
 
 var serverStartTime = time.Now()
@@ -16,44 +14,27 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	// Check store reachability
 	if h.db == nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]any{
-			"status": "error",
-			"error":  "store is not configured",
-		})
+		writeJSONError(w, http.StatusServiceUnavailable, "service unavailable")
 		return
 	}
 
-	// Verify store is reachable
-	if _, err := h.db.DistinctModels(r.Context()); err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]any{
-			"status": "error",
-			"error":  "store unreachable: " + err.Error(),
-		})
-		return
-	}
-
-	// Total requests from stats
-	stats, err := h.db.Stats(r.Context(), store.StatsFilter{})
+	// COUNT(*) is substantially cheaper than building unfiltered model stats and
+	// also serves as a reachability check for the database.
+	requestsTotal, err := h.db.RequestCount(r.Context())
 	if err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]any{
-			"status": "error",
-			"error":  "store unreachable: " + err.Error(),
-		})
+		writeUnavailableError(w, err)
 		return
-	}
-
-	requestsTotal := int64(0)
-	for _, s := range stats {
-		requestsTotal += int64(s.Requests)
 	}
 
 	// DB file size (best effort)
 	dbSize := int64(0)
-	if fi, err := os.Stat(store.DefaultPath()); err == nil {
+	if fi, err := os.Stat(h.db.DBPath()); err == nil {
 		dbSize = fi.Size()
+	}
+	retention := h.db.RetentionStatus()
+	var lastPruneAt any
+	if !retention.LastPruneAt.IsZero() {
+		lastPruneAt = retention.LastPruneAt.Format(time.RFC3339Nano)
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -62,5 +43,8 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"uptime_seconds": int64(time.Since(serverStartTime).Seconds()),
 		"requests_total": requestsTotal,
 		"db_size_bytes":  dbSize,
+		"retention_days": retention.RetentionDays,
+		"last_prune_at":  lastPruneAt,
+		"pruned_count":   retention.PrunedCount,
 	})
 }

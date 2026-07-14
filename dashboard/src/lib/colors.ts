@@ -1,15 +1,10 @@
-// Stable color assignment for models
+// Evenly spaced HSL colors scale to any number of models without recycling a
+// small fixed palette. The caller supplies position and total after sorting.
 
 import type { ModelId } from './types';
 
-const COLORS = ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#79c0ff', '#56d364'];
-
-const colorMap = new Map<ModelId, string>();
-
-export function modelColor(model: ModelId, i?: number): string {
-  if (!colorMap.has(model)) {
-    const idx = i ?? colorMap.size;
-    colorMap.set(model, COLORS[idx % COLORS.length]);
-  }
-  return colorMap.get(model)!;
+export function modelColor(_model: ModelId, index = 0, total = 1): string {
+  const count = Math.max(1, total);
+  const hue = Math.round((index / count) * 360);
+  return `hsl(${hue} 68% 62%)`;
 }

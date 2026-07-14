@@ -22,7 +22,7 @@ func (h *Handler) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	}
 	buckets, err := h.db.Timeline(r.Context(), filter, granularity)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
 	json.NewEncoder(w).Encode(buckets)

@@ -10,21 +10,31 @@ API:     copilot-monitor serve  (port 7734, read-only)
 
 ## Endpoints
 
-The reporting endpoints are read-only, but the session endpoints rebuild derived
-session state before returning results. All support `?since=30d` and `?project=`
-filters unless noted.
+The reporting endpoints are read-only. Session state is maintained when requests
+are captured, so reporting endpoints do not rebuild it. All support `?since=30d`
+and `?project=` filters unless noted. Server failures use the structured
+response `{"error":"internal server error"}`; details are logged only on the
+server.
 
-| Method | Path                   | Parameters                   | Returns                                                        |
-| ------ | ---------------------- | ---------------------------- | -------------------------------------------------------------- | ------------------ |
-| `GET`  | `/api/health`          | none                         | `{"ok":true}`                                                  |
-| `GET`  | `/api/stats`           | `?since=&project=&endpoint=` | `[]ModelStats` with `avg_latency_ms` and compression fields    |
-| `GET`  | `/api/cost`            | `?since=&project=&endpoint=` | `Total` with rows, aggregate, and `compression_removed_tokens` |
-| `GET`  | `/api/today`           | `?project=&endpoint=`        | `[]ModelStats` since local midnight                            |
-| `GET`  | `/api/sessions`        | `?since=&project=&limit=50`  | `[]SessionStats`                                               |
-| `GET`  | `/api/stats/timeline`  | `?since=&granularity=day     | hour`                                                          | `[]TimelineBucket` |
-| `GET`  | `/api/export`          | `?since=`                    | CSV with compression columns                                   |
-| `GET`  | `/api/session/current` | none                         | Current session with per-model `compression_removed_tokens`    |
-| `GET`  | `/`                    | none                         | HTML dashboard                                                 |
+| Method | Path                              | Parameters                                   | Returns                                            |
+| ------ | --------------------------------- | -------------------------------------------- | -------------------------------------------------- |
+| `GET`  | `/api/health`                     | none                                         | Health, including retention status                 |
+| `GET`  | `/api/stats`                      | `?since=&project=&endpoint=`                 | `[]ModelStats` with latency and compression fields |
+| `GET`  | `/api/cost`                       | `?since=&project=&endpoint=`                 | Total cost and rows                                |
+| `GET`  | `/api/today`                      | `?project=&endpoint=`                        | `[]ModelStats` since local midnight                |
+| `GET`  | `/api/sessions`                   | `?since=&project=&limit=&cursor=&cursor_id=` | `[]SessionStats`, newest first                     |
+| `GET`  | `/api/sessions/count`             | `?since=&until=&project=`                    | `{"count": N}` for the matching session filter     |
+| `GET`  | `/api/sessions/distinct-projects` | none                                         | Sorted `[]string` project names                    |
+| `GET`  | `/api/anomalies`                  | `?category=&severity=`                       | Up to 50 recent anomalies                          |
+| `GET`  | `/api/stats/timeline`             | `?since=&granularity=day\|hour`              | `[]TimelineBucket`                                 |
+| `GET`  | `/api/export`                     | `?since=`                                    | CSV with compression columns                       |
+| `GET`  | `/api/session/current`            | none                                         | Current session with per-model compression metrics |
+| `GET`  | `/`                               | none                                         | HTML dashboard                                     |
+
+`/api/health` includes `retention_days`, `last_prune_at` (or `null` before the
+first run), and `pruned_count` from the latest retention pass. For session
+pagination, pass the final row's `started_at` and `id` as `cursor` and
+`cursor_id` to retrieve the next older page.
 
 ### Compression fields
 
