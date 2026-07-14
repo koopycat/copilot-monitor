@@ -237,5 +237,4 @@ column width.
 #### Scenario: Narrow viewport
 
 - **WHEN** the viewport is narrower than 600px
-- **THEN** tables may use horizontal scrolling and lower-priority columns (Cache
-  %, Token Reduction) are hidden
+- **THEN** tables may use horizontal scrolling and the Cache % column is hidden
