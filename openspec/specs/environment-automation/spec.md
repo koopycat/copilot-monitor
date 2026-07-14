@@ -1,6 +1,11 @@
-<!-- markdownlint-disable MD041 -->
+# environment-automation Specification
 
-## ADDED Requirements
+## Purpose
+
+Define automatic activation and clean deactivation of the repository's managed
+development environment.
+
+## Requirements
 
 ### Requirement: Automatic environment activation via direnv
 

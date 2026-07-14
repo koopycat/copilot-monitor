@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 const DB_PATH = path.join(ROOT, 'testdata.db');
+const API_PORT = 7739;
+const WEB_PORT = 5180;
 
 export default defineConfig({
   testDir: './tests',
@@ -14,7 +16,7 @@ export default defineConfig({
   reporter: 'list',
   globalSetup: './setup/global-setup.js',
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL: `http://127.0.0.1:${WEB_PORT}`,
     viewport: { width: 1440, height: 900 },
     screenshot: 'only-on-failure',
   },
@@ -22,8 +24,8 @@ export default defineConfig({
   webServer: [
     {
       // Go API server (backend)
-      command: `go run ../../cmd/copilot-monitor serve --db ${DB_PATH} --addr 127.0.0.1:7739`,
-      url: 'http://127.0.0.1:7739/api/health',
+      command: `go run ../../cmd/copilot-monitor serve --db ${DB_PATH} --addr 127.0.0.1:${API_PORT}`,
+      url: `http://127.0.0.1:${API_PORT}/api/health`,
       timeout: 30_000,
       reuseExistingServer: false,
       stdout: 'pipe',
@@ -31,8 +33,8 @@ export default defineConfig({
     },
     {
       // Vite dev server (dashboard with API proxy)
-      command: 'pnpm --dir ../../dashboard dev',
-      url: 'http://127.0.0.1:5173',
+      command: `DASHBOARD_DEV_PORT=${WEB_PORT} DASHBOARD_API_TARGET=http://127.0.0.1:${API_PORT} pnpm --dir ../../dashboard dev`,
+      url: `http://127.0.0.1:${WEB_PORT}`,
       timeout: 30_000,
       reuseExistingServer: false,
       stdout: 'pipe',

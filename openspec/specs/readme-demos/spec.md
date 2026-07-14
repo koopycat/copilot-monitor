@@ -1,6 +1,11 @@
-<!-- markdownlint-disable MD041 -->
+# readme-demos Specification
 
-## ADDED Requirements
+## Purpose
+
+Define reproducible, synthetic demonstrations that show the product's primary
+CLI and proxy workflows in the README.
+
+## Requirements
 
 ### Requirement: Reproducible demo GIF generation
 

@@ -1,6 +1,11 @@
-<!-- markdownlint-disable MD041 -->
+# agent-documentation Specification
 
-## ADDED Requirements
+## Purpose
+
+Define the repository guidance and command structure that let coding agents set
+up and work in the project predictably.
+
+## Requirements
 
 ### Requirement: Quick-reference section in AGENTS.md
 
