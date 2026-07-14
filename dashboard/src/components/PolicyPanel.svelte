@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Combobox } from 'bits-ui';
   import { dashboard } from '../stores/dashboard.svelte';
 
   let editing = $state(false);
@@ -12,8 +13,8 @@
   let inputText = $state('');
   let activeIndex = $state(-1);
   let listOpen = $state(false);
-  let inputEl: HTMLInputElement | undefined = $state();
-  let listboxEl: HTMLUListElement | undefined = $state();
+  let inputFocused = $state(false);
+  let inputEl: HTMLInputElement | null = $state(null);
 
   // Filtered suggestions: prefix match, suppress on wildcard or empty input
   const suggestions = $derived.by(() => {
@@ -24,22 +25,14 @@
       .slice(0, 8);
   });
 
-  // Re-sync activeIndex when suggestions change
+  // Bits UI owns highlighting and scrolling. Keep the menu synchronized with
+  // the same suggestion rules as the previous creatable input.
   $effect(() => {
-    if (suggestions.length > 0) {
-      activeIndex = 0;
-      listOpen = true;
-    } else {
-      activeIndex = -1;
+    if (suggestions.length === 0) {
       listOpen = false;
-    }
-  });
-
-  // Scroll active option into view
-  $effect(() => {
-    if (listboxEl && activeIndex >= 0 && listOpen) {
-      const opt = listboxEl.children[activeIndex] as HTMLElement | undefined;
-      opt?.scrollIntoView({ block: 'nearest' });
+      activeIndex = -1;
+    } else if (inputFocused) {
+      listOpen = true;
     }
   });
 
@@ -51,6 +44,7 @@
     error = '';
     activeIndex = -1;
     listOpen = false;
+    inputFocused = false;
     editing = true;
     // Focus input after DOM update
     setTimeout(() => inputEl?.focus(), 0);
@@ -72,35 +66,34 @@
     inputEl?.focus();
   }
 
-  function acceptSuggestion(index: number) {
-    if (suggestions[index]) {
-      addModel(suggestions[index]);
-    }
+  function onComboboxValueChange(value: string[]) {
+    models = value;
+    inputText = '';
+    activeIndex = -1;
+  }
+
+  function onComboboxOpenChange(open: boolean) {
+    listOpen = open;
+    if (!open) activeIndex = -1;
+  }
+
+  function onSuggestionHighlight(index: number) {
+    activeIndex = index;
   }
 
   function onInputKeydown(e: KeyboardEvent) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (listOpen) {
-        activeIndex = Math.min(activeIndex + 1, suggestions.length - 1);
-      } else if (suggestions.length > 0) {
-        listOpen = true;
-        activeIndex = 0;
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (listOpen) {
-        activeIndex = Math.max(activeIndex - 1, 0);
-      }
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (listOpen && activeIndex >= 0) {
-        acceptSuggestion(activeIndex);
-      } else if (inputText.trim()) {
+    // Bits UI handles listbox navigation and selection. Enter remains
+    // creatable when it has not highlighted an option.
+    if (e.key === 'Enter') {
+      const hasActiveSuggestion =
+        listOpen && Boolean(inputEl?.getAttribute('aria-activedescendant'));
+      if (!hasActiveSuggestion && inputText.trim()) {
+        e.preventDefault();
         addModel(inputText);
       }
     } else if (e.key === 'Escape') {
       if (listOpen) {
+        e.preventDefault();
         listOpen = false;
         activeIndex = -1;
       } else {
@@ -115,10 +108,12 @@
   }
 
   function onInputBlur() {
+    inputFocused = false;
     // Delay to allow click on suggestion to fire first
     setTimeout(() => {
       if (inputText.trim()) addModel(inputText);
       listOpen = false;
+      activeIndex = -1;
     }, 150);
   }
 
@@ -173,66 +168,74 @@
 
     {#if editMode !== 'allow_all'}
       <div class="token-input-wrap">
-        <div
-          class="token-input"
-          class:token-input-focus={listOpen || document.activeElement === inputEl}
+        <Combobox.Root
+          type="multiple"
+          value={models}
+          open={listOpen}
+          inputValue={inputText}
+          loop={false}
+          scrollAlignment="nearest"
+          onValueChange={onComboboxValueChange}
+          onOpenChange={onComboboxOpenChange}
         >
-          {#each models as model, i (model)}
-            <span class="token-chip">
-              {model}
-              <button
-                class="token-remove"
-                onclick={() => removeModel(i)}
-                aria-label="Remove {model}">&times;</button
-              >
-            </span>
-          {/each}
-          <input
-            bind:this={inputEl}
-            type="text"
-            class="token-input-field"
-            bind:value={inputText}
-            onkeydown={onInputKeydown}
-            onblur={onInputBlur}
-            onfocus={() => {
-              if (suggestions.length > 0) listOpen = true;
-            }}
-            placeholder={models.length === 0 ? 'Type a model name or pattern…' : 'Add model…'}
-            role="combobox"
-            aria-autocomplete="list"
-            aria-expanded={listOpen}
-            aria-controls="policy-listbox"
-            aria-activedescendant={listOpen && activeIndex >= 0
-              ? `policy-opt-${activeIndex}`
-              : undefined}
-            autocomplete="off"
-          />
-        </div>
-        {#if listOpen && suggestions.length > 0}
-          <ul
-            bind:this={listboxEl}
-            id="policy-listbox"
-            class="model-listbox"
-            role="listbox"
-            aria-label="Model suggestions"
-          >
-            {#each suggestions as suggestion, i}
-              <li
-                id="policy-opt-{i}"
-                role="option"
-                aria-selected={i === activeIndex}
-                class="model-listbox-option"
-                class:active={i === activeIndex}
-                onmousedown={(e) => {
-                  e.preventDefault();
-                  acceptSuggestion(i);
-                }}
-              >
-                {suggestion}
-              </li>
+          <div class="token-input" class:token-input-focus={listOpen || inputFocused}>
+            {#each models as model, i (model)}
+              <span class="token-chip">
+                {model}
+                <button
+                  class="token-remove"
+                  onclick={() => removeModel(i)}
+                  aria-label="Remove {model}">&times;</button
+                >
+              </span>
             {/each}
-          </ul>
-        {/if}
+            <Combobox.Input
+              bind:ref={inputEl}
+              type="text"
+              class="token-input-field"
+              oninput={(e) => (inputText = e.currentTarget.value)}
+              onkeydown={onInputKeydown}
+              onblur={onInputBlur}
+              onfocus={() => {
+                inputFocused = true;
+                if (suggestions.length > 0) listOpen = true;
+              }}
+              placeholder={models.length === 0 ? 'Type a model name or pattern…' : 'Add model…'}
+              aria-label="Model patterns"
+              aria-controls="policy-listbox"
+              autocomplete="off"
+            />
+          </div>
+
+          {#if suggestions.length > 0}
+            <Combobox.Portal>
+              <Combobox.Content
+                id="policy-listbox"
+                class="model-listbox"
+                aria-label="Model suggestions"
+                sideOffset={4}
+              >
+                <Combobox.Viewport>
+                  {#each suggestions as suggestion, i (suggestion)}
+                    <Combobox.Item
+                      value={suggestion}
+                      label={suggestion}
+                      class={activeIndex === i
+                        ? 'model-listbox-option active'
+                        : 'model-listbox-option'}
+                      onHighlight={() => onSuggestionHighlight(i)}
+                      onUnhighlight={() => {
+                        if (activeIndex === i) activeIndex = -1;
+                      }}
+                    >
+                      {suggestion}
+                    </Combobox.Item>
+                  {/each}
+                </Combobox.Viewport>
+              </Combobox.Content>
+            </Combobox.Portal>
+          {/if}
+        </Combobox.Root>
       </div>
       <p class="token-hint">
         Type to search known models, or enter any pattern. Use <code>*</code> for prefix matching
@@ -255,3 +258,15 @@
     <div class="policy-saved">&#10003; Policy updated</div>
   {/if}
 </section>
+
+<style>
+  /* Bits UI positions the content and owns the viewport scrolling. */
+  :global(.model-listbox) {
+    max-height: 180px;
+  }
+
+  :global(.model-listbox .model-listbox-option[data-highlighted]) {
+    background: var(--accent-fill);
+    color: var(--on-accent);
+  }
+</style>

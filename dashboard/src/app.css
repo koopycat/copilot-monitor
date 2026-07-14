@@ -25,6 +25,7 @@
   --accent-fill: oklch(0.55 0.19 250);
   --accent-hover: oklch(0.5 0.18 250);
   --accent-subtle: oklch(0.26 0.06 250);
+  --on-accent: oklch(0.98 0.02 250);
   --success: oklch(0.72 0.2 145);
   --success-subtle: oklch(0.24 0.05 145);
   --warning: oklch(0.72 0.15 85);
@@ -213,7 +214,7 @@ a:hover {
 
 .period-btn.active {
   background: var(--accent-fill);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--accent-fill);
 }
 
@@ -250,7 +251,7 @@ a:hover {
 
 .toggle-btn.active {
   background: var(--accent-fill);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .toggle-btn:hover:not(.active) {
@@ -808,13 +809,10 @@ tbody tr:hover {
 }
 
 .model-listbox {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 4px);
+  /* Positioning owned by Bits UI (Portal + Floating UI); only visuals here. */
+  min-width: 240px;
   margin: 0;
   padding: 4px 0;
-  list-style: none;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -839,7 +837,7 @@ tbody tr:hover {
 .model-listbox-option:hover,
 .model-listbox-option.active {
   background: var(--accent-fill);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .token-hint {
@@ -896,7 +894,7 @@ tbody tr:hover {
 
 .btn-save {
   background: var(--accent-fill);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--accent-fill);
 }
 
