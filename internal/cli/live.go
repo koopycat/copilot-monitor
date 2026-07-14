@@ -13,7 +13,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"copilot-monitoring/internal/catalog"
 	costcalc "copilot-monitoring/internal/cost"
 	"copilot-monitoring/internal/store"
 )
@@ -86,12 +85,9 @@ func runLive(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// loadLiveSession rebuilds sessions, fetches the current one, and calculates its cost.
+// loadLiveSession fetches the incrementally-maintained current session and calculates its cost.
 // Returns nil current when no sessions have been captured yet.
 func loadLiveSession(ctx context.Context, st *store.Store) (*store.CurrentSession, costcalc.Total, error) {
-	if err := st.RebuildSessions(ctx, 30*time.Minute); err != nil {
-		return nil, costcalc.Total{}, err
-	}
 	current, err := st.CurrentSession(ctx)
 	if err != nil {
 		return nil, costcalc.Total{}, err
@@ -99,7 +95,7 @@ func loadLiveSession(ctx context.Context, st *store.Store) (*store.CurrentSessio
 	if current == nil {
 		return nil, costcalc.Total{}, nil
 	}
-	cat, err := catalog.LoadDefault()
+	cat, err := st.Catalog()
 	if err != nil {
 		return nil, costcalc.Total{}, err
 	}

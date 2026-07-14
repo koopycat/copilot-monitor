@@ -2,11 +2,14 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"copilot-monitoring/internal/catalog"
 	"copilot-monitoring/internal/proxy"
 	"copilot-monitoring/internal/store"
 )
@@ -14,6 +17,10 @@ import (
 type Handler struct {
 	db           *store.Store
 	routesConfig *proxy.ProxyConfig
+
+	catalogOnce sync.Once
+	catalog     catalog.Catalog
+	catalogErr  error
 }
 
 func NewHandler(db *store.Store) *Handler {
@@ -28,6 +35,7 @@ func NewHandlerWithConfig(db *store.Store, cfg *proxy.ProxyConfig) *Handler {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
 	switch r.URL.Path {
 	case "/api/health":
 		h.handleHealth(w, r)
@@ -39,6 +47,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleToday(w, r)
 	case "/api/sessions":
 		h.handleSessions(w, r)
+	case "/api/sessions/count":
+		h.handleSessionsCount(w, r)
+	case "/api/sessions/distinct-projects":
+		h.handleDistinctProjects(w, r)
 	case "/api/session/current":
 		h.handleCurrentSession(w, r)
 	case "/api/stats/timeline":
@@ -53,14 +65,41 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handlePolicy(w, r)
 	case "/api/policy/models":
 		h.handlePolicyModels(w, r)
+	case "/api/anomalies":
+		h.handleAnomalies(w, r)
 	default:
-		http.NotFound(w, r)
+		writeJSONError(w, http.StatusNotFound, "not found")
 	}
 }
 
 func jsonHeader(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
+}
+
+func writeJSONError(w http.ResponseWriter, status int, message string) {
+	jsonHeader(w)
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+func writeInternalError(w http.ResponseWriter, err error) {
+	log.Printf("api request failed: %v", err)
+	writeJSONError(w, http.StatusInternalServerError, "internal server error")
+}
+
+func writeUnavailableError(w http.ResponseWriter, err error) {
+	log.Printf("api health check failed: %v", err)
+	writeJSONError(w, http.StatusServiceUnavailable, "service unavailable")
+}
+
+// catalogDefault keeps the pricing catalog in the handler rather than loading
+// and parsing the embedded file for each cost-bearing API request.
+func (h *Handler) catalogDefault() (catalog.Catalog, error) {
+	h.catalogOnce.Do(func() {
+		h.catalog, h.catalogErr = h.db.Catalog()
+	})
+	return h.catalog, h.catalogErr
 }
 
 func parseTimeParam(r *http.Request, key string) time.Time {
@@ -102,7 +141,7 @@ func (h *Handler) handleUpstreams(w http.ResponseWriter, r *http.Request) {
 	jsonHeader(w)
 	hosts, err := h.db.DistinctUpstreamHosts(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
 	json.NewEncoder(w).Encode(hosts)

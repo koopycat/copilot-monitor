@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AnomalyFeed from './components/AnomalyFeed.svelte';
   import LiveSessionCard from './components/LiveSessionCard.svelte';
   import MetricCard from './components/MetricCard.svelte';
   import ModelsTable from './components/ModelsTable.svelte';
@@ -17,7 +18,15 @@
 
 <h1>
   Copilot Monitor
-  <button class="refresh-btn" onclick={() => dashboard.load()} title="Refresh now">↻</button>
+  <button
+    class="refresh-btn"
+    class:loading={dashboard.loading}
+    aria-label="Refresh now"
+    aria-busy={dashboard.loading}
+    disabled={dashboard.loading}
+    onclick={() => dashboard.load()}
+    title="Refresh now"
+  >↻</button>
 </h1>
 
 <PeriodBar
@@ -30,7 +39,7 @@
   {#if dashboard.error}
     <span class="subtitle-error">Error &mdash; {dashboard.error}</span>
   {:else if dashboard.lastUpdated}
-    Updated {dashboard.lastUpdated}
+    <span class:updated-flash={dashboard.updatedFlash}>Updated {dashboard.lastUpdated}</span>
   {:else}
     &nbsp;
   {/if}
@@ -54,7 +63,7 @@
 
 <div class="row">
   <MetricCard value={costText} label={`est. AI-credit cost, ${dashboard.periodLabel}`} />
-  <MetricCard value={dashboard.projectedText} label="projected this month" />
+  <MetricCard value={dashboard.projectedText} label={dashboard.projectedLabel} />
   <MetricCard
     value={dashboard.totalRequests.toLocaleString()}
     label={`requests, ${dashboard.periodLabel}`}
@@ -95,6 +104,8 @@
     <ModelsTable />
   </div>
 </details>
+
+<AnomalyFeed />
 
 <details class="table-section sessions-section" open>
   <summary>

@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"copilot-monitoring/internal/catalog"
 	costcalc "copilot-monitoring/internal/cost"
 )
 
@@ -36,20 +35,16 @@ type currentSessionModel struct {
 }
 
 func (h *Handler) handleCurrentSession(w http.ResponseWriter, r *http.Request) {
-	if err := h.db.RebuildSessions(r.Context(), 30*time.Minute); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	current, err := h.db.CurrentSession(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
 	response := currentSessionResponse{Models: []currentSessionModel{}}
 	if current != nil {
-		cat, err := catalog.LoadDefault()
+		cat, err := h.catalogDefault()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeInternalError(w, err)
 			return
 		}
 		cost := costcalc.Calculate(current.Models, cat)

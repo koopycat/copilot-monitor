@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -192,6 +194,206 @@ func TestPutPolicyInvalidModels(t *testing.T) {
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestSessionsCursorPagination(t *testing.T) {
+	st, server := newAPITestServer(t)
+	base := time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC)
+	for i := 0; i < 5; i++ {
+		insertAPISession(t, st, base.Add(time.Duration(i)*time.Hour), "project")
+	}
+
+	var firstPage []store.SessionStats
+	response, err := server.Client().Get(server.URL + "/api/sessions?limit=2")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&firstPage))
+	response.Body.Close()
+	require.Len(t, firstPage, 2)
+
+	cursor := firstPage[len(firstPage)-1]
+	query := url.Values{"limit": {"2"}, "cursor": {cursor.StartedAt.Format(time.RFC3339Nano)}, "cursor_id": {strconv.FormatInt(cursor.ID, 10)}}
+	var secondPage []store.SessionStats
+	response, err = server.Client().Get(server.URL + "/api/sessions?" + query.Encode())
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&secondPage))
+	response.Body.Close()
+	require.Len(t, secondPage, 2)
+
+	seen := make(map[int64]bool)
+	for _, session := range append(firstPage, secondPage...) {
+		assert.False(t, seen[session.ID], "session %d appeared on more than one page", session.ID)
+		seen[session.ID] = true
+	}
+
+	// A third page is needed because two pages of two items cannot contain all five sessions.
+	cursor = secondPage[len(secondPage)-1]
+	query.Set("cursor", cursor.StartedAt.Format(time.RFC3339Nano))
+	query.Set("cursor_id", strconv.FormatInt(cursor.ID, 10))
+	var thirdPage []store.SessionStats
+	response, err = server.Client().Get(server.URL + "/api/sessions?" + query.Encode())
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&thirdPage))
+	response.Body.Close()
+	require.Len(t, thirdPage, 1)
+	for _, session := range thirdPage {
+		assert.False(t, seen[session.ID], "session %d appeared on more than one page", session.ID)
+		seen[session.ID] = true
+	}
+	assert.Len(t, seen, 5)
+}
+
+func TestSessionsCursorInvalidParams(t *testing.T) {
+	_, server := newAPITestServer(t)
+	for _, path := range []string{
+		"/api/sessions?cursor=2026-07-01T10:00:00Z",
+		"/api/sessions?cursor_id=1",
+		"/api/sessions?cursor=not-a-time&cursor_id=1",
+		"/api/sessions?cursor=2026-07-01T10:00:00Z&cursor_id=not-a-number",
+	} {
+		t.Run(path, func(t *testing.T) {
+			response, err := server.Client().Get(server.URL + path)
+			require.NoError(t, err)
+			defer response.Body.Close()
+			assert.Equal(t, http.StatusBadRequest, response.StatusCode)
+
+			var body map[string]string
+			require.NoError(t, json.NewDecoder(response.Body).Decode(&body))
+			assert.NotEmpty(t, body["error"])
+		})
+	}
+}
+
+func TestSessionsCount(t *testing.T) {
+	st, server := newAPITestServer(t)
+	base := time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC)
+	for i := 0; i < 3; i++ {
+		insertAPISession(t, st, base.Add(time.Duration(i)*time.Hour), "project")
+	}
+
+	for _, test := range []struct {
+		path  string
+		count int
+	}{
+		{"/api/sessions/count", 3},
+		{"/api/sessions/count?project=nonexistent", 0},
+	} {
+		t.Run(test.path, func(t *testing.T) {
+			response, err := server.Client().Get(server.URL + test.path)
+			require.NoError(t, err)
+			defer response.Body.Close()
+			require.Equal(t, http.StatusOK, response.StatusCode)
+
+			var body struct {
+				Count int `json:"count"`
+			}
+			require.NoError(t, json.NewDecoder(response.Body).Decode(&body))
+			assert.Equal(t, test.count, body.Count)
+		})
+	}
+}
+
+func TestDistinctProjects(t *testing.T) {
+	st, server := newAPITestServer(t)
+	base := time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC)
+	for i, project := range []string{"alpha", "beta", "alpha"} {
+		insertAPISession(t, st, base.Add(time.Duration(i)*time.Hour), project)
+	}
+
+	response, err := server.Client().Get(server.URL + "/api/sessions/distinct-projects")
+	require.NoError(t, err)
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	var projects []string
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&projects))
+	assert.Equal(t, []string{"alpha", "beta"}, projects)
+}
+
+func TestAnomaliesEndpoint(t *testing.T) {
+	st, server := newAPITestServer(t)
+	base := time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC)
+	for i, anomaly := range []store.AnomalyRecord{
+		{Category: "unrouted_path", Severity: "warn"},
+		{Category: "parse_error", Severity: "info"},
+		{Category: "auth_missing", Severity: "error"},
+	} {
+		require.NoError(t, st.WriteAnomaly(context.Background(), store.AnomalyRecord{
+			Timestamp: base.Add(time.Duration(i) * time.Minute),
+			Category:  anomaly.Category,
+			Severity:  anomaly.Severity,
+		}))
+	}
+
+	for _, test := range []struct {
+		path       string
+		categories []string
+	}{
+		{"/api/anomalies", []string{"auth_missing", "parse_error", "unrouted_path"}},
+		{"/api/anomalies?category=parse_error", []string{"parse_error"}},
+		{"/api/anomalies?severity=error", []string{"auth_missing"}},
+		{"/api/anomalies?category=nonexistent", []string{}},
+	} {
+		t.Run(test.path, func(t *testing.T) {
+			response, err := server.Client().Get(server.URL + test.path)
+			require.NoError(t, err)
+			defer response.Body.Close()
+			require.Equal(t, http.StatusOK, response.StatusCode)
+
+			var anomalies []store.Anomaly
+			require.NoError(t, json.NewDecoder(response.Body).Decode(&anomalies))
+			categories := make([]string, len(anomalies))
+			for i, anomaly := range anomalies {
+				categories[i] = anomaly.Category
+			}
+			assert.Equal(t, test.categories, categories)
+		})
+	}
+
+	_, emptyServer := newAPITestServer(t)
+	response, err := emptyServer.Client().Get(emptyServer.URL + "/api/anomalies")
+	require.NoError(t, err)
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	var anomalies []store.Anomaly
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&anomalies))
+	assert.Empty(t, anomalies)
+}
+
+func TestSanitizedErrorResponses(t *testing.T) {
+	st, server := newAPITestServer(t)
+	require.NoError(t, st.Close())
+
+	response, err := server.Client().Get(server.URL + "/api/sessions")
+	require.NoError(t, err)
+	defer response.Body.Close()
+	assert.Equal(t, http.StatusInternalServerError, response.StatusCode)
+
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&body))
+	assert.Equal(t, "internal server error", body["error"])
+	assert.NotContains(t, body["error"], "database is closed")
+	assert.NotContains(t, body["error"], "sqlite")
+}
+
+func newAPITestServer(t *testing.T) (*store.Store, *httptest.Server) {
+	t.Helper()
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, st.Close()) })
+
+	server := httptest.NewServer(NewHandler(st))
+	t.Cleanup(server.Close)
+	return st, server
+}
+
+func insertAPISession(t *testing.T, st *store.Store, timestamp time.Time, project string) {
+	t.Helper()
+	require.NoError(t, st.InsertRequest(context.Background(), store.RequestRecord{
+		Timestamp: timestamp, Endpoint: "chat", Method: http.MethodPost, Path: "/chat/completions",
+		UpstreamHost: "api.githubcopilot.com", Model: "gpt-4o", Status: http.StatusOK, Project: project,
+	}))
 }
 
 func TestGetPolicyModels(t *testing.T) {

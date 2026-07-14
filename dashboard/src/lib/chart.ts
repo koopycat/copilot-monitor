@@ -19,7 +19,7 @@ export function drawChart(
   canvas: HTMLCanvasElement,
   data: TimelineEntry[],
   granularity: Granularity,
-  modelColor: (model: ModelId, i?: number) => string,
+  modelColor: (model: ModelId, i?: number, total?: number) => string,
   metric: 'tokens' | 'requests' = 'tokens',
 ): void {
   const ctx = canvas.getContext('2d');
@@ -53,12 +53,25 @@ export function drawChart(
   const dateKey = (d: TimelineEntry): string =>
     granularity === 'hour' ? `${d.date}|${String(d.hour ?? 0).padStart(2, '0')}` : d.date;
 
-  const dates = [...new Set(data.map(dateKey))].sort();
-  const models = [...new Set(data.map((d) => d.model))].sort();
+  // Keep the legend readable for installations with many models: models that
+  // account for less than 5% of the selected metric are stacked as Other.
+  const modelTotals = new Map<string, number>();
+  let totalValue = 0;
+  for (const d of data) {
+    const amount = value(d);
+    modelTotals.set(d.model, (modelTotals.get(d.model) ?? 0) + amount);
+    totalValue += amount;
+  }
+  const smallModels = new Set(
+    [...modelTotals].filter(([, amount]) => totalValue > 0 && amount / totalValue < 0.05).map(([model]) => model),
+  );
+  const groupedData = data.map((d) => (smallModels.has(d.model) ? { ...d, model: 'Other' } : d));
+  const dates = [...new Set(groupedData.map(dateKey))].sort();
+  const models = [...new Set(groupedData.map((d) => d.model))].sort();
 
   const buckets = new Map<string, number>();
   let maxValue = 0;
-  for (const d of data) {
+  for (const d of groupedData) {
     const key = `${dateKey(d)}|${d.model}`;
     const sum = (buckets.get(key) ?? 0) + value(d);
     buckets.set(key, sum);
@@ -79,7 +92,7 @@ export function drawChart(
   const stacked = new Map<string, number>(dates.map((d) => [d, 0]));
 
   for (let i = 0; i < models.length; i++) {
-    ctx.fillStyle = modelColor(models[i], i);
+    ctx.fillStyle = modelColor(models[i], i, models.length);
     for (let j = 0; j < dates.length; j++) {
       const val = buckets.get(`${dates[j]}|${models[i]}`) ?? 0;
       if (val === 0) continue;
@@ -135,7 +148,7 @@ export function drawChart(
     legendEl.innerHTML = models
       .map(
         (m, i) =>
-          `<span class="legend-item"><span class="legend-swatch" style="background:${modelColor(m, i)}"></span>${m}</span>`,
+          `<span class="legend-item"><span class="legend-swatch" style="background:${modelColor(m, i, models.length)}"></span>${m}</span>`,
       )
       .join('');
   }

@@ -16,7 +16,6 @@ import (
 
 	"copilot-monitoring/dashboard"
 	"copilot-monitoring/internal/api"
-	"copilot-monitoring/internal/catalog"
 	"copilot-monitoring/internal/log"
 	"copilot-monitoring/internal/proxy"
 	"copilot-monitoring/internal/store"
@@ -34,6 +33,9 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	routesConfigDefaults := fs.Bool("routes-config-defaults", false, "print built-in default routes as JSON and exit")
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
 	dashboardFlag := fs.Bool("dashboard", false, "start dashboard API and UI on a separate port (7734)")
+	retentionDays := fs.Int("retention-days", 365, "days of requests and sessions to retain (0 disables)")
+	anomalyRetentionDays := fs.Int("anomaly-retention-days", 30, "days of anomalies to retain (0 disables)")
+	dryRun := fs.Bool("dry-run", false, "report retention deletions without executing them")
 	logFormat := fs.String("log-format", "human", "log output format: human (rich colored output, default) or json (one JSON object per line)")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -55,6 +57,20 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	defer st.Close()
+
+	stopRetention, retentionDryRun, err := startRetention(st, retentionConfig{
+		requestDays: *retentionDays,
+		anomalyDays: *anomalyRetentionDays,
+		dryRun:      *dryRun,
+	}, stdout, stderr)
+	if err != nil {
+		fmt.Fprintf(stderr, "retention setup failed: %v\n", err)
+		return 1
+	}
+	defer stopRetention()
+	if retentionDryRun {
+		return 0
+	}
 
 	usageDebug, err := proxy.OpenUsageDebugLogger(*usageDebugPath)
 	if err != nil {
@@ -131,7 +147,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}
 
 	proxyHandler := proxy.NewHandlerWithRouter(logWriter, st, *project, usageDebug, router)
-	cat, err := catalog.LoadDefault()
+	cat, err := st.Catalog()
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to load pricing catalog: %v\n", err)
 		return 1

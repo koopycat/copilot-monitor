@@ -9,7 +9,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"copilot-monitoring/internal/catalog"
 	costcalc "copilot-monitoring/internal/cost"
 	"copilot-monitoring/internal/store"
 )
@@ -48,7 +47,7 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "failed to query usage missing count: %v\n", err)
 		return 1
 	}
-	cat, err := catalog.LoadDefault()
+	cat, err := st.Catalog()
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to load model catalog: %v\n", err)
 		return 1

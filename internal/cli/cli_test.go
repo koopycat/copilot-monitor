@@ -148,6 +148,46 @@ func TestSessionsCommand(t *testing.T) {
 	}
 }
 
+func TestRebuildSessionsCommand(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "store.db")
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC)
+	for _, rec := range []store.RequestRecord{
+		{Timestamp: base, Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-4o", Status: 200},
+		{Timestamp: base.Add(45 * time.Minute), Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-4o", Status: 200},
+	} {
+		if err := st.InsertRequest(context.Background(), rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = st.Close()
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"rebuild-sessions", "--db", dbPath, "--gap", "1h", "--vacuum"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "sessions rebuilt") {
+		t.Fatalf("unexpected output: %q", stdout.String())
+	}
+
+	st, err = store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	sessions, err := st.Sessions(context.Background(), store.SessionFilter{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 || sessions[0].RequestCount != 2 {
+		t.Fatalf("sessions = %#v", sessions)
+	}
+}
+
 func TestLiveCommand(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "store.db")
 	st, err := store.Open(dbPath)

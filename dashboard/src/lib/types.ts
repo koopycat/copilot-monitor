@@ -58,6 +58,20 @@ export interface Session {
   cost: number;
 }
 
+export interface Anomaly {
+  id: number;
+  ts: string;
+  category: string;
+  severity: 'info' | 'warn' | 'error' | string;
+  path?: string;
+  method?: string;
+  endpoint?: string;
+  model?: string;
+  upstream?: string;
+  status?: number;
+  detail?: string;
+}
+
 export interface CurrentSession {
   session: {
     id: number;
