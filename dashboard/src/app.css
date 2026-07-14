@@ -478,7 +478,7 @@ canvas {
 
 .table-section-content {
   margin-top: var(--s2);
-  overflow-x: auto;
+  /* overflow-x moved to @media (max-width: 600px) */
 }
 
 table {
@@ -493,7 +493,7 @@ td {
   padding: 0.4rem 0.6rem;
   text-align: right;
   border-bottom: 1px solid var(--border);
-  white-space: nowrap;
+  /* nowrap moved to .num and .nowrap-cell for selective control */
 }
 
 th:first-child,
@@ -520,6 +520,17 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   gap: var(--s2);
+  max-width: min(320px, 40vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-cell {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bar-inline {
@@ -550,6 +561,7 @@ tbody tr:hover {
 
 .num {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* ── Loading & empty states ──────────────────────────────── */
@@ -962,8 +974,14 @@ tbody tr:hover {
   table {
     font-size: 0.6875rem;
   }
+  .table-section-content {
+    overflow-x: auto;
+  }
   th,
   td {
     padding: 0.3rem 0.35rem;
+  }
+  .col-optional {
+    display: none;
   }
 }

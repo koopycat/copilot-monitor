@@ -26,7 +26,7 @@
         <td class="num"
           >{dur((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000)}</td
         >
-        <td>{s.project || '-'}</td>
+        <td class="text-cell">{s.project || '-'}</td>
         <td class="num">{intl(s.request_count)}</td>
         <td class="num">{intl(s.token_count)}</td>
         <td class="num">{usd(s.cost)}</td>
