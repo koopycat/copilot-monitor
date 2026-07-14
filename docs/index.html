@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Copilot Monitor — Every LLM request, on the record</title>
+    <title>Copilot Monitor - Every LLM request, on the record</title>
     <meta
       name="description"
-      content="A local reverse proxy that records every LLM API request — per-model token counts, latency, and estimated cost. Local SQLite. No cloud, no telemetry, no prompts stored. Works with Copilot, pi-agent, Claude Code, and more."
+      content="A local reverse proxy that records every LLM API request: per-model token counts, latency, and estimated cost. Local SQLite. No cloud, no telemetry, no prompts stored. Works with Copilot, pi-agent, Claude Code, and more."
     />
     <script>
       document.documentElement.classList.add('js');
@@ -23,7 +23,7 @@
     />
     <style>
       /* ===========================================================
-       COPILOT MONITOR — "The Case File"
+       COPILOT MONITOR - "The Case File"
        Detective / forensic-surveillance register. Dark, committed.
        =========================================================== */
 
@@ -41,11 +41,11 @@
       }
 
       /* ===========================================================
-       THEME — single source of truth for color palette
+       THEME - single source of truth for color palette
        =========================================================== */
       @layer theme {
         :root {
-          /* surfaces — deep cool ink, amber pools light out of it */
+          /* surfaces - deep cool ink, amber pools light out of it */
           --bg: oklch(0.17 0.012 258);
           --bg-2: oklch(0.135 0.012 258);
           --surface: oklch(0.21 0.013 258);
@@ -53,22 +53,22 @@
           --border: oklch(0.31 0.014 258);
           --border-strong: oklch(0.4 0.016 258);
 
-          /* ink — warm paper text, lit by the desk lamp */
+          /* ink - warm paper text, lit by the desk lamp */
           --ink: oklch(0.9 0.012 85);
           --ink-strong: oklch(0.96 0.01 85);
           --muted: oklch(0.68 0.014 258);
           --faint: oklch(0.6 0.014 258);
 
-          /* spotlight accent — warm amber, the single light source */
+          /* spotlight accent - warm amber, the single light source */
           --amber: oklch(0.82 0.135 80);
           --amber-strong: oklch(0.78 0.15 72);
           --amber-soft: color-mix(in oklch, var(--amber) 14%, transparent);
 
-          /* evidence red — stamps, redaction, alerts */
+          /* evidence red - stamps, redaction, alerts */
           --red: oklch(0.64 0.19 27);
           --red-soft: color-mix(in oklch, var(--red) 14%, transparent);
 
-          /* response green — the ← response log line (ANSI 92) */
+          /* response green - the ← response log line (ANSI 92) */
           --green: oklch(0.8 0.165 145);
 
           --radius: 6px;
@@ -80,7 +80,7 @@
       }
 
       /* ===========================================================
-       BASE — document, typography, global chrome
+       BASE - document, typography, global chrome
        =========================================================== */
       @layer base {
         html {
@@ -584,6 +584,221 @@
           margin-bottom: 0.9rem;
         }
 
+        /* ---------- first-capture onboarding ---------- */
+        .quickstart-intro {
+          max-width: 62ch;
+          margin-top: 0.8rem;
+        }
+
+        .setup-shell {
+          min-width: 0;
+          margin-top: 1.5rem;
+          overflow: hidden;
+          background: var(--bg-2);
+          border: 1px solid var(--border-strong);
+          border-radius: var(--radius-lg);
+        }
+
+        .setup-tabs {
+          display: none;
+        }
+
+        .js .setup-tabs {
+          display: flex;
+          border-bottom: 1px solid var(--border);
+          background: oklch(0 0 0 / 0.25);
+        }
+
+        .setup-tab {
+          flex: 1;
+          appearance: none;
+          min-width: 0;
+          padding: 0.85rem 1rem 0.78rem;
+          border: 0;
+          border-right: 1px solid var(--border);
+          border-radius: 0;
+          background: transparent;
+          color: var(--muted);
+          font:
+            600 0.9rem/1.2 'Oswald',
+            sans-serif;
+          letter-spacing: 0.03em;
+          text-transform: uppercase;
+          cursor: pointer;
+          transition:
+            color 150ms,
+            background 150ms,
+            box-shadow 150ms;
+
+          &:last-child {
+            border-right: 0;
+          }
+
+          &:hover {
+            color: var(--ink-strong);
+            background: var(--surface);
+          }
+
+          &[aria-selected='true'] {
+            color: var(--amber);
+            background: var(--surface-2);
+            box-shadow: inset 0 -2px var(--amber);
+
+            .setup-tab-detail {
+              color: var(--muted);
+            }
+          }
+
+          .setup-tab-detail {
+            display: block;
+            margin-top: 0.2rem;
+            color: var(--faint);
+            font:
+              500 0.67rem/1.2 'JetBrains Mono',
+              monospace;
+            letter-spacing: 0;
+            text-transform: none;
+          }
+        }
+
+        .setup-panel {
+          padding: 1.35rem 1.5rem 1.5rem;
+
+          & + & {
+            border-top: 1px solid var(--border);
+          }
+        }
+
+        .js .setup-panel {
+          display: none;
+          border-top: 0;
+
+          &.is-active {
+            display: block;
+          }
+        }
+
+        .setup-panel-head {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 1rem;
+          padding-bottom: 0.9rem;
+
+          h3 {
+            margin: 0;
+            color: var(--ink-strong);
+            font-family: 'Oswald', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-wrap: balance;
+          }
+
+          p {
+            max-width: 62ch;
+            margin: 0.25rem 0 0;
+            font-size: 0.86rem;
+          }
+        }
+
+        .setup-time {
+          flex: 0 0 auto;
+          color: var(--amber);
+          font:
+            500 0.68rem/1.2 'JetBrains Mono',
+            monospace;
+        }
+
+        .setup-steps {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+        }
+
+        .setup-step {
+          display: grid;
+          grid-template-columns: 1.7rem minmax(0, 1fr);
+          gap: 0.85rem;
+          padding: 1rem 0;
+          border-top: 1px dashed var(--border);
+
+          &:last-child {
+            padding-bottom: 0;
+          }
+
+          h4 {
+            margin: 0;
+            color: var(--ink-strong);
+            font-family: 'Oswald', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+          }
+
+          p {
+            margin: 0.25rem 0 0;
+            font-size: 0.86rem;
+          }
+        }
+
+        .setup-step-number {
+          width: 1.7rem;
+          height: 1.7rem;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid oklch(0.82 0.135 80 / 0.45);
+          border-radius: 50%;
+          color: var(--amber);
+          font:
+            600 0.68rem/1 'JetBrains Mono',
+            monospace;
+        }
+
+        .setup-step-body {
+          min-width: 0;
+        }
+
+        .setup-code {
+          max-width: 100%;
+          margin: 0.65rem 0 0;
+          padding: 0.75rem 0.85rem;
+          overflow-x: auto;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          color: var(--ink);
+          font:
+            500 0.76rem/1.7 'JetBrains Mono',
+            monospace;
+          scrollbar-color: var(--border-strong) transparent;
+
+          code {
+            display: block;
+            width: max-content;
+            min-width: 100%;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+          }
+
+          .comment {
+            color: var(--muted);
+          }
+        }
+
+        .setup-success {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          margin-top: 0.55rem;
+          color: var(--green);
+          font:
+            500 0.76rem/1.4 'JetBrains Mono',
+            monospace;
+        }
+
         /* ---------- evidence-framed screenshot ---------- */
         .evidence-frame {
           position: relative;
@@ -1084,6 +1299,17 @@
           .personas {
             grid-template-columns: 1fr;
           }
+          .setup-panel {
+            padding: 1.1rem 1rem 1.2rem;
+          }
+          .setup-panel-head {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 0.35rem;
+          }
+          .setup-tab {
+            padding-inline: 0.65rem;
+          }
         }
 
         @media (max-width: 560px) {
@@ -1106,7 +1332,7 @@
       }
 
       /* ===========================================================
-       MOTION — reveals, keyframes, scroll-driven (progressive)
+       MOTION - reveals, keyframes, scroll-driven (progressive)
        =========================================================== */
       @layer motion {
         /* base: content visible without JS */
@@ -1144,8 +1370,8 @@
             scale: 1;
             transition:
               opacity 0.35s var(--ease),
-              rotate 0.35s cubic-bezier(0.4, 1.4, 0.5, 1),
-              scale 0.35s cubic-bezier(0.4, 1.4, 0.5, 1);
+              rotate 0.35s var(--ease),
+              scale 0.35s var(--ease);
           }
         }
 
@@ -1350,11 +1576,7 @@
                 >All releases →</a
               >
               <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor">GitHub</a>
-              <a
-                class="btn ghost"
-                href="https://github.com/koopycat/copilot-monitor/blob/main/README.md#quickstart"
-                >Quickstart</a
-              >
+              <a class="btn ghost" href="#quickstart">Quickstart</a>
               <a class="btn ghost" href="./architecture">Architecture</a>
               <a class="btn ghost" href="./api">API reference</a>
             </div>
@@ -1429,6 +1651,147 @@
     </header>
 
     <div class="wrap">
+      <section class="quickstart" id="quickstart" aria-labelledby="quickstart-title">
+        <h2 id="quickstart-title">Get your first capture</h2>
+        <p class="quickstart-intro">
+          With <code>copilot-monitor</code> on your PATH, choose your agent and send one real
+          request through the local proxy. Your dashboard will have data in about two minutes.
+        </p>
+
+        <div class="setup-shell" data-setup-tabs>
+          <div class="setup-tabs" role="tablist" aria-label="Choose an agent setup">
+            <button
+              class="setup-tab"
+              id="setup-tab-vscode"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="setup-panel-vscode"
+              tabindex="0"
+            >
+              VS Code
+              <span class="setup-tab-detail">GitHub Copilot</span>
+            </button>
+            <button
+              class="setup-tab"
+              id="setup-tab-pi"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="setup-panel-pi"
+              tabindex="-1"
+            >
+              pi
+              <span class="setup-tab-detail">Kilo gateway</span>
+            </button>
+          </div>
+
+          <article
+            class="setup-panel is-active"
+            id="setup-panel-vscode"
+            role="tabpanel"
+            aria-labelledby="setup-tab-vscode"
+            tabindex="0"
+          >
+            <div class="setup-panel-head">
+              <div>
+                <h3>VS Code + GitHub Copilot</h3>
+                <p>Uses Copilot Monitor's built-in routes. No route file is needed.</p>
+              </div>
+              <span class="setup-time">~2 minutes</span>
+            </div>
+            <ol class="setup-steps">
+              <li class="setup-step">
+                <span class="setup-step-number" aria-hidden="true">1</span>
+                <div class="setup-step-body">
+                  <h4>Start the proxy and dashboard</h4>
+                  <pre class="setup-code"><code>copilot-monitor run --dashboard</code></pre>
+                </div>
+              </li>
+              <li class="setup-step">
+                <span class="setup-step-number" aria-hidden="true">2</span>
+                <div class="setup-step-body">
+                  <h4>Point Copilot at the proxy</h4>
+                  <p>Open <strong>Preferences: Open User Settings (JSON)</strong> and add:</p>
+                  <pre class="setup-code"><code>{
+  &quot;github.copilot.advanced&quot;: {
+    &quot;debug.overrideCapiUrl&quot;: &quot;http://127.0.0.1:7733/copilot&quot;
+  }
+}</code></pre>
+                </div>
+              </li>
+              <li class="setup-step">
+                <span class="setup-step-number" aria-hidden="true">3</span>
+                <div class="setup-step-body">
+                  <h4>Reload and send one Copilot chat</h4>
+                  <p>
+                    Run <strong>Developer: Reload Window</strong>, use Copilot normally, then open
+                    <a href="http://127.0.0.1:7734">127.0.0.1:7734</a>.
+                  </p>
+                  <span class="setup-success">✓ First request captured</span>
+                </div>
+              </li>
+            </ol>
+          </article>
+
+          <article
+            class="setup-panel"
+            id="setup-panel-pi"
+            role="tabpanel"
+            aria-labelledby="setup-tab-pi"
+            tabindex="0"
+          >
+            <div class="setup-panel-head">
+              <div>
+                <h3>pi + Kilo gateway</h3>
+                <p>
+                  Requires an installed pi client already authenticated with Kilo.
+                  <a
+                    href="https://github.com/koopycat/copilot-monitor/blob/main/README.md#first-capture-with-pikilo"
+                    >Detailed guide</a
+                  >
+                </p>
+              </div>
+              <span class="setup-time">~3 minutes</span>
+            </div>
+            <ol class="setup-steps">
+              <li class="setup-step">
+                <span class="setup-step-number" aria-hidden="true">1</span>
+                <div class="setup-step-body">
+                  <h4>Install the Kilo route</h4>
+                  <pre class="setup-code"><code><span class="comment"># macOS / Linux</span>
+mkdir -p ~/.config/copilot-monitor
+curl -fsSL https://raw.githubusercontent.com/koopycat/copilot-monitor/main/examples/routes-kilo.json \
+  -o ~/.config/copilot-monitor/routes.json
+copilot-monitor validate --routes-config ~/.config/copilot-monitor/routes.json</code></pre>
+                </div>
+              </li>
+              <li class="setup-step">
+                <span class="setup-step-number" aria-hidden="true">2</span>
+                <div class="setup-step-body">
+                  <h4>Start the proxy and dashboard</h4>
+                  <pre class="setup-code"><code>copilot-monitor run --dashboard</code></pre>
+                </div>
+              </li>
+              <li class="setup-step">
+                <span class="setup-step-number" aria-hidden="true">3</span>
+                <div class="setup-step-body">
+                  <h4>Send one pi request</h4>
+                  <p>In a second terminal:</p>
+                  <pre
+                    class="setup-code"
+                  ><code>KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi -p 'Reply OK'</code></pre>
+                  <p>
+                    Open <a href="http://127.0.0.1:7734">127.0.0.1:7734</a> to inspect the capture.
+                  </p>
+                  <span class="setup-success">✓ First request captured</span>
+                </div>
+              </li>
+            </ol>
+          </article>
+        </div>
+      </section>
+
       <section>
         <h2 data-reveal>What it looks like</h2>
 
@@ -1458,7 +1821,7 @@
 
         <p data-reveal>
           AI coding tools burn through credits and tokens without showing you the bill. GitHub
-          Copilot has zero local cost observability — you can't see what you're spending, on which
+          Copilot has zero local cost observability: you can't see what you're spending, on which
           models, until the monthly invoice arrives.
         </p>
         <p data-reveal>
@@ -1721,7 +2084,7 @@
       <section>
         <h2 data-reveal>Build from source</h2>
 
-        <p data-reveal>Clone, build, run. The devenv shell provides the Go toolchain.</p>
+        <p data-reveal>Clone and build. The devenv shell provides the complete toolchain.</p>
         <div class="manual" data-reveal>
           <div class="manual-head">
             <span class="tag">PROCEDURE</span> <span>·</span> <span>terminal · zsh/bash</span>
@@ -1731,21 +2094,13 @@
 <span class="cmd">cd copilot-monitor</span>
 <span class="cmd">devenv shell</span>
 
-<span class="comment"># build, then run the proxy + dashboard</span>
+<span class="comment"># build and verify the binary</span>
 <span class="cmd">just build</span>
-<span class="cmd">./copilot-monitor run --dashboard</span>
-
-<span class="comment"># point VSCode at the proxy — add to settings.json:</span>
-<span>{</span>
-<span>  &quot;github.copilot.advanced&quot;: {</span>
-<span>    &quot;debug.overrideCapiUrl&quot;: &quot;http://127.0.0.1:7733/copilot&quot;</span>
-<span>  }</span>
-<span>}</span>
-
-<span class="comment"># reload VSCode, then use Copilot normally</span></pre>
+<span class="cmd">./bin/copilot-monitor version</span></pre>
         </div>
         <p data-reveal style="margin-top: 1.1rem">
-          Open <a href="http://127.0.0.1:7734">http://127.0.0.1:7734</a> for the dashboard.
+          Put <code>./bin/copilot-monitor</code> on your PATH, then follow
+          <a href="#quickstart">Get your first capture</a> above.
         </p>
       </section>
 
@@ -1768,8 +2123,50 @@
     </div>
 
     <script>
-      // Progressive enhancement: reveals + feed population. Content is visible without JS.
+      // Progressive enhancement: tabs, reveals, and feed population.
       (function () {
+        document.querySelectorAll('[data-setup-tabs]').forEach(function (root) {
+          var tabs = Array.prototype.slice.call(root.querySelectorAll('[role="tab"]'));
+
+          function activateTab(nextTab, moveFocus) {
+            tabs.forEach(function (tab) {
+              var selected = tab === nextTab;
+              var panel = document.getElementById(tab.getAttribute('aria-controls'));
+
+              tab.setAttribute('aria-selected', String(selected));
+              tab.setAttribute('tabindex', selected ? '0' : '-1');
+              if (panel) {
+                panel.classList.toggle('is-active', selected);
+                panel.setAttribute('aria-hidden', String(!selected));
+              }
+            });
+
+            if (moveFocus) nextTab.focus();
+          }
+
+          tabs.forEach(function (tab, index) {
+            tab.addEventListener('click', function () {
+              activateTab(tab, false);
+            });
+
+            tab.addEventListener('keydown', function (event) {
+              var nextIndex;
+
+              if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+              else if (event.key === 'ArrowLeft')
+                nextIndex = (index - 1 + tabs.length) % tabs.length;
+              else if (event.key === 'Home') nextIndex = 0;
+              else if (event.key === 'End') nextIndex = tabs.length - 1;
+              else return;
+
+              event.preventDefault();
+              activateTab(tabs[nextIndex], true);
+            });
+          });
+
+          if (tabs.length > 0) activateTab(tabs[0], false);
+        });
+
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
           document.querySelectorAll('[data-reveal], [data-stamp]').forEach(function (el) {
             el.classList.add('in');

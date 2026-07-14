@@ -1,6 +1,11 @@
-<!-- markdownlint-disable MD041 -->
+# fast-feedback Specification
 
-## ADDED Requirements
+## Purpose
+
+Define fast, targeted build and test workflows plus balanced local and CI
+quality gates for repository development.
+
+## Requirements
 
 ### Requirement: Go-only fast build target
 
