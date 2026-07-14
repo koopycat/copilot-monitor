@@ -36,10 +36,6 @@ func runSessions(args []string, stdout, stderr io.Writer) int {
 	}
 	defer st.Close()
 
-	if err := st.RebuildSessions(context.Background(), 30*time.Minute); err != nil {
-		fmt.Fprintf(stderr, "failed to rebuild sessions: %v\n", err)
-		return 1
-	}
 	rows, err := st.Sessions(context.Background(), store.SessionFilter{Since: since, Project: *project, Limit: *limit})
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to query sessions: %v\n", err)

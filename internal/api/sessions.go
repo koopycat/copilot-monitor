@@ -1,22 +1,16 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
-	"copilot-monitoring/internal/catalog"
 	costcalc "copilot-monitoring/internal/cost"
 	"copilot-monitoring/internal/store"
 )
 
 func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
-	if err := h.db.RebuildSessions(context.Background(), 30*time.Minute); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	limit := 50
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil && n > 0 && n <= 200 {
@@ -29,22 +23,84 @@ func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
 		Project: r.URL.Query().Get("project"),
 		Limit:   limit,
 	}
+	cursor, cursorID := r.URL.Query().Get("cursor"), r.URL.Query().Get("cursor_id")
+	if cursor != "" || cursorID != "" {
+		if cursor == "" || cursorID == "" {
+			writeJSONError(w, http.StatusBadRequest, "cursor and cursor_id must be provided together")
+			return
+		}
+		startedAt, err := time.Parse(time.RFC3339Nano, cursor)
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, "invalid cursor")
+			return
+		}
+		id, err := strconv.ParseInt(cursorID, 10, 64)
+		if err != nil || id <= 0 {
+			writeJSONError(w, http.StatusBadRequest, "invalid cursor_id")
+			return
+		}
+		filter.CursorStartedAt = startedAt
+		filter.CursorID = id
+	}
 	rows, err := h.db.Sessions(r.Context(), filter)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
-	cat, err := catalog.LoadDefault()
+	ids := make([]int64, len(rows))
+	for i := range rows {
+		ids[i] = rows[i].ID
+	}
+	modelsBySession, err := h.db.SessionModelsBatch(r.Context(), ids)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
+		return
+	}
+	cat, err := h.catalogDefault()
+	if err != nil {
+		writeInternalError(w, err)
 		return
 	}
 	for i := range rows {
-		models, err := h.db.SessionModels(r.Context(), rows[i].ID)
-		if err != nil {
-			continue
-		}
-		rows[i].Cost = costcalc.Calculate(models, cat).TotalUSD
+		rows[i].Cost = costcalc.Calculate(modelsBySession[rows[i].ID], cat).TotalUSD
 	}
-	json.NewEncoder(w).Encode(rows)
+	_ = json.NewEncoder(w).Encode(rows)
+}
+
+func (h *Handler) handleSessionsCount(w http.ResponseWriter, r *http.Request) {
+	count, err := h.db.CountSessions(r.Context(), store.SessionFilter{
+		Since:   parseSinceParam(r),
+		Until:   parseUntilParam(r),
+		Project: r.URL.Query().Get("project"),
+	})
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]int{"count": count})
+}
+
+func (h *Handler) handleDistinctProjects(w http.ResponseWriter, r *http.Request) {
+	projects, err := h.db.DistinctProjects(r.Context())
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(projects)
+}
+
+func (h *Handler) handleAnomalies(w http.ResponseWriter, r *http.Request) {
+	anomalies, err := h.db.QueryAnomalies(r.Context(), store.AnomalyFilter{
+		Category: r.URL.Query().Get("category"),
+		Severity: r.URL.Query().Get("severity"),
+		Limit:    50,
+	})
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	if anomalies == nil {
+		anomalies = []store.Anomaly{}
+	}
+	_ = json.NewEncoder(w).Encode(anomalies)
 }

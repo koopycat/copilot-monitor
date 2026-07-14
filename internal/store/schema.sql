@@ -31,13 +31,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   token_count   INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS bodies (
-  request_id    INTEGER PRIMARY KEY REFERENCES requests(id),
-  prompt        TEXT,
-  completion    TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_requests_ts       ON requests(ts);
+CREATE INDEX IF NOT EXISTS idx_requests_stats    ON requests(ts, project);
 CREATE INDEX IF NOT EXISTS idx_requests_model    ON requests(model);
 CREATE INDEX IF NOT EXISTS idx_requests_project  ON requests(project);
 CREATE INDEX IF NOT EXISTS idx_requests_session  ON requests(session_id);

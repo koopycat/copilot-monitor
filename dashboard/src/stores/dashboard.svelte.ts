@@ -5,6 +5,9 @@
 import {
   exportHrefFor,
   fetchConfig,
+  fetchSessionCount,
+  fetchSessionProjects,
+  fetchSessions,
   fetchPolicy,
   fetchPolicyModels,
   fetchUpstreams,
@@ -14,8 +17,9 @@ import {
 import { drawChart } from '../lib/chart';
 import { modelColor } from '../lib/colors';
 import { dur, intl, usd } from '../lib/format';
-import { PERIODS, periodDays, periodGran } from '../lib/periods';
+import { PERIODS, periodDays, periodGran, periodQuery } from '../lib/periods';
 import type {
+  Anomaly,
   CostRow,
   CurrentSession,
   Granularity,
@@ -44,14 +48,22 @@ class DashboardStore {
 
   cost = $state<number | null>(null);
   lastUpdated: string | null = $state(null);
+  updatedFlash = $state(false);
   loading = $state(true);
   error: string | null = $state(null);
 
   stats: ModelStats[] = $state([]);
   costRows: CostRow[] = $state([]);
   sessions: Session[] = $state([]);
+  sessionCount = $state(0);
+  sessionLoading = $state(false);
+  sessionHasMore = $state(false);
+  sessionProject = $state('');
+  sessionPeriod: PeriodKey | 'all' = $state('30d');
+  sessionProjects: string[] = $state([]);
   timeline: TimelineEntry[] = $state([]);
   current: CurrentSession = $state({ session: null, models: [] });
+  anomalies: Anomaly[] = $state([]);
 
   upstream: string = $state('');
   upstreams: string[] = $state([]);
@@ -65,7 +77,10 @@ class DashboardStore {
 
   private _timer: ReturnType<typeof setInterval> | null = null;
   private _pulseTimer: ReturnType<typeof setTimeout> | null = null;
+  private _updatedTimer: ReturnType<typeof setTimeout> | null = null;
   private _abort: AbortController | null = null;
+  private _sessionsAbort: AbortController | null = null;
+  private _inFlight = false;
   private _ro: ResizeObserver | null = null;
   private _lastSessionID: number | null = null;
   private _lastSessionCount: number | null = null;
@@ -119,6 +134,12 @@ class DashboardStore {
     return `~${usd((this.cost / days) * 30)}`;
   }
 
+  get projectedLabel(): string {
+    if (this.period === 'today') return 'today so far';
+    if (this.period === 'yesterday') return 'yesterday';
+    return 'projected this month';
+  }
+
   get liveSessionActive(): boolean {
     return !!(this.current.session && this.current.session.active);
   }
@@ -157,6 +178,18 @@ class DashboardStore {
     this.period = p;
     this.gran = periodGran(p);
     this.runWithViewTransition(() => this.load());
+  }
+
+  switchSessionProject(project: string): void {
+    if (project === this.sessionProject) return;
+    this.sessionProject = project;
+    this.loadSessions(true).catch(() => {});
+  }
+
+  switchSessionPeriod(period: PeriodKey | 'all'): void {
+    if (period === this.sessionPeriod) return;
+    this.sessionPeriod = period;
+    this.loadSessions(true).catch(() => {});
   }
 
   switchGran(g: Granularity): void {
@@ -215,6 +248,8 @@ class DashboardStore {
     this._ro = null;
     this._abort?.abort();
     this._abort = null;
+    this._sessionsAbort?.abort();
+    this._sessionsAbort = null;
     if (this._keyHandler) {
       window.removeEventListener('keydown', this._keyHandler);
       this._keyHandler = null;
@@ -222,7 +257,10 @@ class DashboardStore {
   }
 
   async load(): Promise<void> {
-    this._abort?.abort();
+    // A timer tick must never overlap a slow previous refresh.
+    if (this._inFlight) return;
+    this._inFlight = true;
+    this.loading = true;
     this._abort = new AbortController();
     const { signal } = this._abort;
     try {
@@ -231,14 +269,16 @@ class DashboardStore {
       this.stats = data.stats;
       this.cost = data.cost.total_usd;
       this.costRows = data.cost.rows;
-      this.sessions = data.sessions;
       this.timeline = data.timeline;
+      this.anomalies = data.anomalies;
       this.periodIsEmpty = data.stats.length === 0;
       this.updateCurrentSession(data.current);
       this.redrawChart();
       this.lastUpdated = new Date().toLocaleTimeString();
-      this.loading = false;
+      this.triggerUpdatedFlash();
       this.error = null;
+
+      this.loadSessions(true).catch(() => {});
 
       if (this.upstreams.length === 0) {
         fetchUpstreams(signal)
@@ -264,12 +304,59 @@ class DashboardStore {
           .catch(() => {});
       }
     } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError') return;
-      this.lastUpdated = null;
-      this.loading = false;
-      this.error = 'Could not load data — the dashboard may be unavailable.';
-      console.error(e);
+      if (!(e instanceof Error && e.name === 'AbortError')) {
+        this.lastUpdated = null;
+        this.error = 'Could not load data — the dashboard may be unavailable.';
+        console.error(e);
+      }
+    } finally {
+      if (!signal.aborted) this.loading = false;
+      this._inFlight = false;
     }
+  }
+
+  private sessionFilters(): { since?: string; until?: string; project?: string } {
+    const period = this.sessionPeriod === 'all' ? null : periodQuery(this.sessionPeriod);
+    return {
+      ...(period?.since ? { since: period.since } : {}),
+      ...(period?.until ? { until: period.until } : {}),
+      ...(this.sessionProject ? { project: this.sessionProject } : {}),
+    };
+  }
+
+  async loadSessions(reset: boolean): Promise<void> {
+    if (this.sessionLoading && !reset) return;
+    this._sessionsAbort?.abort();
+    this._sessionsAbort = new AbortController();
+    const { signal } = this._sessionsAbort;
+    const cursor = reset ? undefined : this.sessions.at(-1);
+    this.sessionLoading = true;
+    try {
+      const filters = this.sessionFilters();
+      const [page, count] = await Promise.all([
+        fetchSessions(filters, signal, cursor),
+        reset ? fetchSessionCount(filters, signal) : Promise.resolve(this.sessionCount),
+      ]);
+      if (signal.aborted) return;
+      this.sessions = reset ? page : [...this.sessions, ...page];
+      this.sessionCount = count;
+      this.sessionHasMore = this.sessions.length < count;
+      if (this.sessionProjects.length === 0) this.sessionProjects = await fetchSessionProjects(signal);
+    } finally {
+      if (!signal.aborted) this.sessionLoading = false;
+    }
+  }
+
+  private triggerUpdatedFlash(): void {
+    this.updatedFlash = false;
+    if (this._updatedTimer) clearTimeout(this._updatedTimer);
+    requestAnimationFrame(() => {
+      this.updatedFlash = true;
+      this._updatedTimer = setTimeout(() => {
+        this.updatedFlash = false;
+        this._updatedTimer = null;
+      }, 1200);
+    });
   }
 
   private updateCurrentSession(current: CurrentSession): void {
@@ -301,7 +388,9 @@ class DashboardStore {
 
   private startTimer(): void {
     this.stopTimer();
-    this._timer = setInterval(() => this.load(), REFRESH_MS);
+    this._timer = setInterval(() => {
+      if (!this.loading) this.load();
+    }, REFRESH_MS);
   }
 
   private stopTimer(): void {
@@ -312,6 +401,10 @@ class DashboardStore {
     if (this._pulseTimer) {
       clearTimeout(this._pulseTimer);
       this._pulseTimer = null;
+    }
+    if (this._updatedTimer) {
+      clearTimeout(this._updatedTimer);
+      this._updatedTimer = null;
     }
   }
 

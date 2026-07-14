@@ -106,15 +106,14 @@ discovery via `GET /api/policy/models`.
 The core invariant is: do not store prompts, completions, source code, auth
 material, cookies, or API keys. The `requests` table stores timestamps, endpoint
 and path, upstream host, model, stream flag, HTTP status, latency, token counts,
-project label, and an optional session link. The `sessions` table is derived
-from request timestamps using a 30-minute inactivity gap. `schema.sql` currently
-contains a `bodies` table, but production code does not write to it; do not
-start using it without explicit privacy review. Request bodies are parsed for
-metadata and then forwarded. Response bodies are streamed to the client while
-observers look only for usage fields. Debug usage logs are opt-in via
-`--usage-debug-log` and must stay metadata-only; `SafeHeaders` redacts sensitive
-response headers. Keep listeners loopback-only by default (`127.0.0.1`) unless
-there is a clear security reason to expose them.
+project label, and an optional session link. The `sessions` table is maintained
+at request insertion time using a 30-minute inactivity gap and can be rebuilt
+with the offline `rebuild-sessions` command. Request bodies are parsed for
+metadata and then forwarded, but are never persisted. Response bodies are
+streamed to the client while observers look only for usage fields. Debug usage
+logs are opt-in via `--usage-debug-log` and must stay metadata-only;
+`SafeHeaders` redacts sensitive response headers. Keep listeners loopback-only
+by default (`127.0.0.1`) unless there is a clear security reason to expose them.
 
 Headroom is a separate local process and may retain original content according
 to its own configuration. Copilot Monitor persists estimated compression token
@@ -123,6 +122,16 @@ metrics (`compression_status`, `compression_original_tokens`,
 `requests` table. Provider response usage remains authoritative for cost
 reporting; compression savings are labeled as estimates and are not mixed into
 billed usage.
+
+### Retention
+
+`run` and `serve` prune captured requests and sessions older than 365 days on
+startup and every 24 hours by default. `--retention-days 0` disables request
+pruning; anomalies use their independent 30-day default, configurable (or
+disabled) with `--anomaly-retention-days`. Deletions are committed in small
+batches and sessions crossing a cutoff remain intact. Use `--dry-run` to report
+eligible rows before deleting them. Retention never runs `VACUUM`; use
+`rebuild-sessions --vacuum` for explicit compaction.
 
 ## Schema Changes
 

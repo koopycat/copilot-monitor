@@ -17,7 +17,7 @@ func (h *Handler) handleStats(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.db.Stats(r.Context(), filter)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
 	json.NewEncoder(w).Encode(rows)
