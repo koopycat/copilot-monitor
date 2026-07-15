@@ -1,0 +1,60 @@
+/* ── OKLCH color palette ─────────────────────────────────── */
+
+:root {
+  /* Core - deep ink-blue, not GitHub-dark */
+  --bg: oklch(0.14 0.012 255);
+  --surface: oklch(0.18 0.01 255);
+  --border: oklch(0.24 0.008 255);
+  --border-hover: oklch(0.35 0.01 255);
+
+  /* Text - full AA contrast verified on --bg */
+  --ink: oklch(0.87 0.005 255);
+  --muted: oklch(0.68 0.006 255);
+  --faint: oklch(0.62 0.005 255);
+
+  /* Semantic */
+  --accent: oklch(0.7 0.17 250);
+  --accent-fill: oklch(0.55 0.19 250);
+  --accent-hover: oklch(0.5 0.18 250);
+  --accent-subtle: oklch(0.26 0.06 250);
+  --on-accent: oklch(0.98 0.02 250);
+  --success: oklch(0.72 0.2 145);
+  --success-subtle: oklch(0.24 0.05 145);
+  --warning: oklch(0.72 0.15 85);
+  --danger: oklch(0.62 0.22 22);
+
+  /* Spacing scale (0.25rem steps) */
+  --s1: 0.25rem;
+  --s2: 0.5rem;
+  --s3: 0.75rem;
+  --s4: 1rem;
+  --s5: 1.25rem;
+  --s6: 1.5rem;
+  --s8: 2rem;
+  --s10: 2.5rem;
+  --s12: 3rem;
+
+  /* Semantic z-index scale */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal-backdrop: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Timing */
+  --fast: 120ms;
+  --slow: 250ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 0ms;
+    --slow: 0ms;
+  }
+}
