@@ -410,10 +410,8 @@ canvas {
   background: var(--surface);
 }
 
-.table-section summary {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
+:is(.table-section, .anomaly-feed, .routes-panel) > summary {
+  display: list-item;
   width: fit-content;
   cursor: pointer;
   color: var(--muted);
@@ -422,15 +420,19 @@ canvas {
   user-select: none;
 }
 
-.table-section summary::-webkit-details-marker {
+:is(.table-section, .anomaly-feed, .routes-panel) > summary::marker {
   color: var(--faint);
 }
 
-.table-section summary:hover {
+:is(.table-section, .anomaly-feed, .routes-panel) > summary::-webkit-details-marker {
+  color: var(--faint);
+}
+
+:is(.table-section, .anomaly-feed, .routes-panel) > summary:hover {
   color: var(--ink);
 }
 
-.table-section summary:focus-visible {
+:is(.table-section, .anomaly-feed, .routes-panel) > summary:focus-visible {
   border-radius: 2px;
 }
 
@@ -670,12 +672,6 @@ tbody tr:hover {
   background: var(--surface);
 }
 
-.anomaly-feed summary {
-  cursor: pointer;
-  color: var(--muted);
-  font-weight: 600;
-}
-
 .anomaly-feed ul {
   list-style: none;
   margin: var(--s3) 0 0;
@@ -736,22 +732,6 @@ tbody tr:hover {
   border-radius: var(--radius-lg);
   padding: var(--s3) var(--s4);
   font-size: 0.75rem;
-}
-
-.routes-panel summary {
-  cursor: pointer;
-  color: var(--muted);
-  font-weight: 600;
-  padding: var(--s1) 0;
-  user-select: none;
-}
-
-.routes-panel summary:hover {
-  color: var(--ink);
-}
-
-.routes-panel summary:focus-visible {
-  border-radius: 2px;
 }
 
 .routes-panel table {
