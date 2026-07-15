@@ -1,0 +1,55 @@
+name: Feature request
+description: Suggest a new feature or enhancement for copilot-monitor
+title: '[Feature] '
+labels: ['enhancement']
+assignees:
+  - koopycat
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the feature suggestion! Please describe the problem you're facing and how copilot-monitor could help solve it.
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: Problem statement
+      description: |
+        What problem are you trying to solve? Describe the use case or pain point that motivates this request.
+
+        If this is related to a known limitation (e.g., WebSocket /responses endpoint not covered by model policy), please mention that.
+      placeholder: 'e.g., I need to filter API traffic by model name across sessions, but the stats command only aggregates everything together.'
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: |
+        Describe how you'd like copilot-monitor to address this. Be as specific as you can — new CLI flags, dashboard UI changes, API endpoints, etc.
+
+        Example:
+        - Add `--model` flag to `copilot-monitor stats` to filter by model name
+        - Add a model-filter dropdown to the dashboard /stats page
+      placeholder: 'e.g., Add a --model flag to the stats command that accepts a model name...'
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: |
+        Have you tried any workarounds or considered alternative approaches? What are the tradeoffs?
+
+        This helps us understand the design space.
+      placeholder: "e.g., I can currently grep the SQLite database directly with sqlite3, but that's cumbersome...\n\nAnother approach could be..."
+    validations:
+      required: false
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: |
+        Anything else that's relevant — links to similar features in other tools, screenshots of mockups, related issues, etc.
+      placeholder: "e.g., Link to similar feature in OpenWebUI...\n\nRough CLI UX: copilot-monitor stats --model gpt-4o --since 7d"
+    validations:
+      required: false

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://koopycat.github.io/copilot-monitor/
+    about: Read the API docs, architecture guide, and setup instructions
+  - name: Question or discussion
+    url: https://github.com/koopycat/copilot-monitor/discussions
+    about: Ask questions or start a discussion
