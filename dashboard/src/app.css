@@ -650,6 +650,11 @@ tbody tr:hover {
   margin: calc(var(--s2) * -1) auto var(--s4);
 }
 
+.model-row-toggle {
+  display: block;
+  margin: calc(var(--s2) * -1) auto var(--s1);
+}
+
 .sort-header {
   appearance: none;
   border: 0;

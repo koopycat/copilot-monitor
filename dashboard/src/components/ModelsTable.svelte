@@ -4,8 +4,11 @@
   import { dashboard } from '../stores/dashboard.svelte';
 
   type SortKey = 'model' | 'requests' | 'tokens' | 'latency' | 'cost';
+  const COMPACT_ROW_LIMIT = 5;
+
   let sortKey: SortKey = $state('tokens');
   let sortDirection: 'asc' | 'desc' = $state('desc');
+  let showAll = $state(false);
 
   const rows = $derived.by(() => {
     const multiplier = sortDirection === 'asc' ? 1 : -1;
@@ -30,6 +33,7 @@
       return multiplier * (Number(values[sortKey]) - Number(other[sortKey]));
     });
   });
+  const visibleRows = $derived(showAll ? rows : rows.slice(0, COMPACT_ROW_LIMIT));
   const maxToken = $derived(Math.max(1, ...rows.map((row) => row.total_tokens)));
   const colorModels = $derived([...new Set(dashboard.modelRows.map((row) => row.model))].sort());
 
@@ -54,23 +58,45 @@
 <table>
   <thead>
     <tr>
-      <th><button class="sort-header" onclick={() => sort('model')}>Model {indicator('model')}</button></th>
+      <th
+        ><button class="sort-header" onclick={() => sort('model')}
+          >Model {indicator('model')}</button
+        ></th
+      >
       <th>Upstream</th>
-      <th><button class="sort-header" onclick={() => sort('requests')}>Requests {indicator('requests')}</button></th>
+      <th
+        ><button class="sort-header" onclick={() => sort('requests')}
+          >Requests {indicator('requests')}</button
+        ></th
+      >
       <th class="col-optional">Cache&nbsp;%</th>
-      <th><button class="sort-header" onclick={() => sort('tokens')}>Total Tokens {indicator('tokens')}</button></th>
-      <th><button class="sort-header" onclick={() => sort('latency')}>Latency {indicator('latency')}</button></th>
-      <th><button class="sort-header" onclick={() => sort('cost')}>Total $ {indicator('cost')}</button></th>
+      <th
+        ><button class="sort-header" onclick={() => sort('tokens')}
+          >Total Tokens {indicator('tokens')}</button
+        ></th
+      >
+      <th
+        ><button class="sort-header" onclick={() => sort('latency')}
+          >Latency {indicator('latency')}</button
+        ></th
+      >
+      <th
+        ><button class="sort-header" onclick={() => sort('cost')}
+          >Total $ {indicator('cost')}</button
+        ></th
+      >
     </tr>
   </thead>
-  <tbody>
-    {#each rows as s (s.model + s.endpoint + s.upstream_host)}
+  <tbody id="models-table-body">
+    {#each visibleRows as s (s.model + s.endpoint + s.upstream_host)}
       <tr title={s.detail}>
         <td>
           <span class="bar-cell">
             <span
               class="bar-inline"
-              style="width: {dashboard.barW(s.total_tokens, maxToken)}px; background: {color(s.model)};"
+              style="width: {dashboard.barW(s.total_tokens, maxToken)}px; background: {color(
+                s.model,
+              )};"
             ></span>
             {s.model}
             <span class="tag">{s.endpoint}</span>
@@ -88,3 +114,15 @@
     {/each}
   </tbody>
 </table>
+
+{#if rows.length > COMPACT_ROW_LIMIT}
+  <button
+    type="button"
+    class="btn-sm model-row-toggle"
+    aria-expanded={showAll}
+    aria-controls="models-table-body"
+    onclick={() => (showAll = !showAll)}
+  >
+    {showAll ? 'Show top 5' : `Show all ${rows.length} models`}
+  </button>
+{/if}
