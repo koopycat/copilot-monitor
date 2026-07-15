@@ -118,6 +118,7 @@ cursor pointer.
 | `.period-btn`            | Period selection          | `.active`: accent-fill fill                                 |
 | `.toggle-btn`            | Granularity/metric toggle | `.active`: accent-fill fill                                 |
 | `.btn-sm`, `.btn-cancel` | Generic / cancel          | Hover: surface bg                                           |
+| `.model-row-toggle`      | Models row disclosure     | `.btn-sm` styling, count label, `aria-expanded`             |
 | `.btn-save`              | Primary action            | accent-fill fill, accent-hover on hover                     |
 | `.refresh-btn`           | Manual refresh            | Hover: accent border, active: scale(0.92), `.loading`: spin |
 
@@ -147,6 +148,13 @@ Standard `<table>` with collapsed borders. Numeric columns use `.num`
 (tabular-nums, nowrap). Model cells use `.bar-cell` (flex with inline bar). Text
 cells use `.text-cell` (ellipsis overflow). Sortable columns use `.sort-header`
 (appearance: none button).
+
+The Models table renders the first five rows under the active sort by default
+when more than five rows exist. A centered `.model-row-toggle` button reveals
+all rows and returns to the compact view, with the complete row count in its
+collapsed label. Sorting, inline-bar scaling, and model color assignment use the
+complete model collection so disclosure does not alter rankings or visual
+encoding.
 
 ### Loading & Empty States
 
