@@ -9,12 +9,18 @@ const PERIODS = [
   { key: '365d', label: '365d' },
 ];
 
+function dashboardPeriodBar(page) {
+  return page.locator('.period-bar:not(.session-period-bar)');
+}
+
 test.describe('Initial Load', () => {
   test('header, period selector, and defaults', async ({ loadedPage: page }) => {
+    const periodBar = dashboardPeriodBar(page);
+
     await expect(page.locator('h1')).toContainText('Copilot Monitor');
-    await expect(page.locator('.period-bar')).toBeVisible();
-    await expect(page.locator('.period-btn')).toHaveCount(6);
-    await expect(page.locator('.period-btn.active')).toHaveText('30d');
+    await expect(periodBar).toBeVisible();
+    await expect(periodBar.locator('.period-btn')).toHaveCount(6);
+    await expect(periodBar.locator('.period-btn.active')).toHaveText('30d');
     await expect(page.locator('.metric-label').first()).toContainText('30d');
   });
 
@@ -28,9 +34,10 @@ test.describe('Initial Load', () => {
 test.describe('Period Switching', () => {
   for (const period of PERIODS) {
     test(`switches to ${period.key}`, async ({ loadedPage: page }) => {
-      await page.locator(`.period-btn:has-text("${period.key}")`).click();
+      const periodBar = dashboardPeriodBar(page);
+      await periodBar.getByRole('button', { name: period.key, exact: true }).click();
 
-      await expect(page.locator('.period-btn.active')).toHaveText(period.key);
+      await expect(periodBar.locator('.period-btn.active')).toHaveText(period.key);
       await expect(page.locator('.metric-label').first()).toContainText(period.label);
       await expect(page.locator('#chart')).toBeVisible();
       await expect(page.locator('table tbody tr').first()).toBeVisible();
@@ -62,12 +69,16 @@ test.describe('Metric Toggle', () => {
 });
 
 test.describe('Refresh', () => {
-  test('refresh button updates timestamp', async ({ loadedPage: page }) => {
-    // Both subtitles exist in DOM with x-show; data loads → "Loading…" hides
-    const loading = page.locator('.subtitle').filter({ hasText: 'Loading…' });
-    await expect(loading).toBeHidden({ timeout: 10_000 });
-    await page.locator('.refresh-btn').click();
-    await expect(loading).toBeHidden({ timeout: 10_000 });
+  test('manual refresh completes', async ({ loadedPage: page }) => {
+    const refreshButton = page.getByRole('button', { name: 'Refresh now' });
+    const statsResponse = page.waitForResponse(
+      (response) => response.url().includes('/api/stats?') && response.request().method() === 'GET',
+    );
+
+    await refreshButton.click();
+    await statsResponse;
+    await expect(refreshButton).toBeEnabled();
+    await expect(page.locator('.subtitle')).toContainText('Updated');
   });
 });
 
@@ -76,24 +87,39 @@ test.describe('Export Link', () => {
     const link = page.locator('a:has-text("Export CSV")');
     await expect(link).toHaveAttribute('href', /since=30d/);
 
-    await page.locator('.period-btn:has-text("7d")').click();
+    await dashboardPeriodBar(page).getByRole('button', { name: '7d', exact: true }).click();
     await expect(link).toHaveAttribute('href', /since=7d/);
   });
 });
 
 test.describe('Auto Granularity', () => {
   test('today defaults to hour granularity', async ({ loadedPage: page }) => {
-    await page.locator('.period-btn:has-text("Today")').click();
+    await dashboardPeriodBar(page).getByRole('button', { name: 'Today', exact: true }).click();
     await expect(page.locator('.toggle-btn:has-text("Hour")')).toHaveClass(/active/);
   });
 
   test('90d defaults to day granularity', async ({ loadedPage: page }) => {
-    await page.locator('.period-btn:has-text("90d")').click();
+    await dashboardPeriodBar(page).getByRole('button', { name: '90d', exact: true }).click();
     await expect(page.locator('.toggle-btn:has-text("Day")')).toHaveClass(/active/);
   });
 });
 
 test.describe('Table Sections', () => {
+  test('all collapsible sections retain native disclosure markers', async ({
+    loadedPage: page,
+  }) => {
+    const summaries = [
+      '.models-section > summary',
+      '.sessions-section > summary',
+      '.anomaly-feed > summary',
+      '.routes-panel > summary',
+    ];
+
+    for (const selector of summaries) {
+      await expect(page.locator(selector)).toHaveCSS('display', 'list-item');
+    }
+  });
+
   test('models and sessions sections are expanded initially', async ({ loadedPage: page }) => {
     await expect(page.locator('.models-section')).toHaveAttribute('open', '');
     await expect(page.locator('.sessions-section')).toHaveAttribute('open', '');
@@ -111,7 +137,7 @@ test.describe('Table Sections', () => {
     const statsResponse = page.waitForResponse(
       (response) => response.url().includes('/api/stats?') && response.request().method() === 'GET',
     );
-    await page.locator('.refresh-btn').click();
+    await page.getByRole('button', { name: 'Refresh now' }).click();
     await statsResponse;
     await expect(models.locator('table')).toBeHidden();
   });
