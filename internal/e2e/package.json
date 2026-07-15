@@ -6,7 +6,7 @@
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",
-    "seed": "go run ./seed/main.go ../../testdata.db",
+    "seed": "cd ../.. && go run ./internal/e2e/seed/main.go ./testdata.db",
     "lint": "eslint tests/ *.config.js",
     "lint:fix": "eslint tests/ *.config.js --fix"
   },

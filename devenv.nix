@@ -1,7 +1,15 @@
 {pkgs, ...}: {
   languages.go = {
     enable = true;
-    package = pkgs.go_1_26;
+    # Go 1.26.4 contains GO-2026-5856. Remove this override once nixpkgs ships
+    # Go 1.26.5 or newer in go_1_26.
+    package = pkgs.go_1_26.overrideAttrs (_old: rec {
+      version = "1.26.5";
+      src = pkgs.fetchurl {
+        url = "https://go.dev/dl/go${version}.src.tar.gz";
+        hash = "sha256-SVvkvIcXasVnOS5bQRar2YRm0z17SdQedkzMaXay3EI=";
+      };
+    });
   };
 
   languages.javascript = {

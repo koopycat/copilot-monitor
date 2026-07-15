@@ -1,0 +1,9 @@
+{
+  "routes": [
+    {
+      "path": "/chat/completions",
+      "upstream_host": "api.githubcopilot.com",
+      "capture": "usage"
+    }
+  ]
+}

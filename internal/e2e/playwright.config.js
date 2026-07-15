@@ -14,7 +14,6 @@ export default defineConfig({
   expect: { timeout: 5_000 },
   workers: 1, // single binary on single port
   reporter: 'list',
-  globalSetup: './setup/global-setup.js',
   use: {
     baseURL: `http://127.0.0.1:${WEB_PORT}`,
     viewport: { width: 1440, height: 900 },
@@ -24,7 +23,7 @@ export default defineConfig({
   webServer: [
     {
       // Go API server (backend)
-      command: `go run ../../cmd/copilot-monitor serve --db ${DB_PATH} --addr 127.0.0.1:${API_PORT}`,
+      command: `pnpm seed && go run ../../cmd/copilot-monitor serve --db ${DB_PATH} --routes-config ./routes.json --addr 127.0.0.1:${API_PORT}`,
       url: `http://127.0.0.1:${API_PORT}/api/health`,
       timeout: 30_000,
       reuseExistingServer: false,

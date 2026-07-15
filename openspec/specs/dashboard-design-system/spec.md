@@ -138,18 +138,27 @@ filter.
 All collapsible dashboard sections SHALL use a consistent bordered card
 container style: a 1px border in `var(--border)`, border radius of
 `var(--radius-lg)`, surface background (`var(--surface)`), and internal padding.
+All collapsible sections SHALL use the native `<details>` disclosure arrow as
+the sole collapse indicator. No section SHALL display custom
+"collapsed"/"expanded" text labels.
 
 #### Scenario: Models section has card style
 
 - **WHEN** the dashboard loads and the Models section is visible
 - **THEN** the section appears as a bordered card matching the Anomalies section
-  style
+  style, with only the native disclosure arrow as its collapse indicator
 
 #### Scenario: Sessions section has card style
 
 - **WHEN** the dashboard loads and the Recent Sessions section is visible
 - **THEN** the section appears as a bordered card matching the Anomalies section
-  style
+  style, with only the native disclosure arrow as its collapse indicator
+
+#### Scenario: All sections use the same indicator
+
+- **WHEN** the dashboard is fully loaded
+- **THEN** all collapsible sections (Models, Sessions, Anomalies, Routes) show
+  identical collapse indicators
 
 #### Scenario: Sections remain independently collapsible
 
