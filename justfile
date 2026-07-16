@@ -17,7 +17,7 @@ build: dashboard-build
 
 # Go-only fast build (skips dashboard, uses stub embed). Use during development.
 build-go:
-    go build -tags nodashboard -o ./bin/copilot-monitor ./cmd/copilot-monitor
+    GOTOOLCHAIN=go1.26.5 go build -tags nodashboard -o ./bin/copilot-monitor ./cmd/copilot-monitor
 
 dashboard-build:
     cd dashboard && pnpm install --frozen-lockfile && pnpm build
@@ -26,11 +26,11 @@ dashboard-build:
 
 # Fast unit tests (excludes integration)
 test:
-    go test -tags nodashboard $(go list ./... | grep -v 'internal/integration')
+    GOTOOLCHAIN=go1.26.5 go test -tags nodashboard ./internal/api/... ./internal/catalog/... ./internal/cli/... ./internal/compression/... ./internal/cost/... ./internal/log/... ./internal/policy/... ./internal/proxy/... ./internal/store/...
 
 # Run all tests across every package
 test-all:
-    go test -tags nodashboard ./...
+    GOTOOLCHAIN=go1.26.5 go test -tags nodashboard ./...
 
 # Run a single test by name pattern: just test-one TestStoreSessions
 test-one pattern:
@@ -50,9 +50,16 @@ e2e:
 # ── Check ────────────────────────────────────────────────────────────────────
 
 vet:
-    go vet ./...
-    go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
-    go run golang.org/x/vuln/cmd/govulncheck@v1.5.0 ./...
+    GOTOOLCHAIN=go1.26.5 go vet ./...
+    GOTOOLCHAIN=go1.26.5 go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
+    GOTOOLCHAIN=go1.26.5 go run golang.org/x/vuln/cmd/govulncheck@v1.5.0 ./...
+
+# Full CI check: vet + staticcheck + test (matches what CI runs)
+check: vet
+    just build-go
+    GOTOOLCHAIN=go1.26.5 go vet -tags nodashboard ./...
+    GOTOOLCHAIN=go1.26.5 go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 -tags nodashboard ./...
+    GOTOOLCHAIN=go1.26.5 go test -tags nodashboard ./internal/api/... ./internal/catalog/... ./internal/cli/... ./internal/compression/... ./internal/cost/... ./internal/log/... ./internal/policy/... ./internal/proxy/... ./internal/store/...
 
 dashboard-check:
     cd dashboard && pnpm check
