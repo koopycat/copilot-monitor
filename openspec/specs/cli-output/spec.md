@@ -116,15 +116,16 @@ identical to the current structured log format.
 
 #### Scenario: Default is human format
 
-- **WHEN** `copilot-monitor run --routes-config routes.json` is executed without
-  `--log-format`
+- **WHEN** `copilot-monitor run --upstream api.githubcopilot.com` is executed
+  without `--log-format`
 - **THEN** the default log format is `human` and requests are displayed with
   rich colored output
 
 #### Scenario: Explicit JSON format
 
-- **WHEN** `copilot-monitor run --routes-config routes.json --log-format json`
-  is executed
+- **WHEN**
+  `copilot-monitor run --upstream api.githubcopilot.com --log-format json` is
+  executed
 - **THEN** each request is emitted as a single JSON object per line
 
 #### Scenario: Log format on serve command
@@ -144,14 +145,15 @@ widths in the output.
 
 #### Scenario: Output piped to file
 
-- **WHEN** `copilot-monitor run --routes-config routes.json --no-live 2>log.txt`
-  is executed
+- **WHEN**
+  `copilot-monitor run --upstream api.githubcopilot.com --no-live 2>log.txt` is
+  executed
 - **THEN** `log.txt` contains human-readable request lines without ANSI codes
 - **AND** fields are space-separated in a grep-parseable format
 
 #### Scenario: JSON format when piped
 
 - **WHEN**
-  `copilot-monitor run --routes-config routes.json --no-live --log-format json 2>log.jsonl`
+  `copilot-monitor run --upstream api.githubcopilot.com --no-live --log-format json 2>log.jsonl`
   is executed
 - **THEN** `log.jsonl` contains one JSON object per line as before

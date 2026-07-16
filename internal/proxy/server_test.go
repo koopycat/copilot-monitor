@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,33 +21,13 @@ import (
 	"copilot-monitoring/internal/store"
 )
 
-// testRouter returns a Router configured with typical routes used by server tests.
-func testRouter() *Router {
-	return NewRouter(&ProxyConfig{
-		Routes: []RouteConfig{
-			{Label: "ping", Path: "/_ping", UpstreamHost: "", Capture: "local"},
-			{Label: "chat", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
-			{Label: "agent", Path: "/agents", UpstreamHost: "api.githubcopilot.com", Capture: "usage", PrefixMatch: true},
-			{Path: "/models", UpstreamHost: "api.githubcopilot.com", Capture: "none"},
-			{Path: "/models/session", UpstreamHost: "api.githubcopilot.com", Capture: "none"},
-			{Path: "/responses", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
-			{Path: "/embeddings", UpstreamHost: "api.githubcopilot.com", Capture: "metadata"},
-			{Path: "/v1/chat/completions", UpstreamHost: "api.githubcopilot.com", Capture: "usage"},
-		},
-	})
-}
-
 func TestMakeUpstreamRequestPreservesAuthAndRewritesTarget(t *testing.T) {
 	in := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions?x=1", strings.NewReader(`{"model":"gpt-4o"}`))
 	in.Header.Set("Authorization", "Bearer secret")
 	in.Header.Set("Content-Type", "application/json")
 	in.Header.Set("Connection", "keep-alive")
 
-	route, ok := testRouter().Match("/chat/completions")
-	if !ok {
-		t.Fatal("missing chat route")
-	}
-	out, err := MakeUpstreamRequest(in, route, []byte(`{"model":"gpt-4o"}`))
+	out, err := MakeUpstreamRequest(in, "api.githubcopilot.com", []byte(`{"model":"gpt-4o"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,8 +80,8 @@ func TestStripHopByHopHeadersAlsoStripsConnectionTokens(t *testing.T) {
 }
 
 func TestHandlerPing(t *testing.T) {
-	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), nil, "", nil, testRouter())
+	h := NewHandler(log.NewWriterWithFormat(io.Discard, log.FormatHuman))
+	h.SetUpstream("api.githubcopilot.com")
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/_ping", nil)
 	rr := httptest.NewRecorder()
 
@@ -115,52 +94,27 @@ func TestHandlerPing(t *testing.T) {
 	if string(body) != "OK" {
 		t.Fatalf("body = %q, want OK", string(body))
 	}
-	if !strings.Contains(logs.String(), "endpoint=ping") {
-		t.Fatalf("logs missing endpoint=ping: %s", logs.String())
-	}
 }
 
-func TestHandlerUnknownPath(t *testing.T) {
-	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), nil, "", nil, NewRouter(nil))
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/nope", nil)
-	rr := httptest.NewRecorder()
-
-	h.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusBadGateway {
-		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadGateway)
-	}
-	if !strings.Contains(logs.String(), "route=unknown") {
-		t.Fatalf("logs missing route=unknown: %s", logs.String())
-	}
-}
-
-func TestHandlerProviderDefaultRoute(t *testing.T) {
-	// A route config with a provider default for copilot and no specific routes.
-	defaultRouter := NewRouter(&ProxyConfig{
-		Routes: []RouteConfig{
-			{Provider: "copilot", UpstreamHost: "api.githubcopilot.com", Capture: "none"},
-		},
-	})
-
-	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), nil, "", nil, defaultRouter)
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+func TestHandlerForwardToUpstream(t *testing.T) {
+	// Unknown paths are forwarded to the configured upstream.
+	h := NewHandler(log.NewWriterWithFormat(io.Discard, log.FormatHuman))
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.URL.Host != "api.githubcopilot.com" {
 			t.Fatalf("host = %q, want api.githubcopilot.com", req.URL.Host)
 		}
-		if req.URL.Path != "/models/session" {
-			t.Fatalf("path = %q, want /models/session", req.URL.Path)
+		if req.URL.Path != "/nope" {
+			t.Fatalf("path = %q, want /nope", req.URL.Path)
 		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": {"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{"models":[]}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"forwarded":true}`)),
 		}, nil
-	})}
+	})})
 
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/copilot/models/session", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/nope", nil)
 	rr := httptest.NewRecorder()
 
 	h.ServeHTTP(rr, req)
@@ -168,10 +122,8 @@ func TestHandlerProviderDefaultRoute(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
 	}
-	// Log should not show "route=unknown" with provider default
-	logStr := logs.String()
-	if strings.Contains(logStr, "route=unknown") {
-		t.Fatalf("logs should not contain route=unknown with provider default: %s", logStr)
+	if rr.Body.String() != `{"forwarded":true}` {
+		t.Fatalf("body = %q, want forwarded response", rr.Body.String())
 	}
 }
 
@@ -183,8 +135,9 @@ func TestHandlerPersistsUsageMissingWhenNoUsage(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "test-project", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := NewHandlerWithStore(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "test-project")
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header: http.Header{
@@ -193,7 +146,7 @@ func TestHandlerPersistsUsageMissingWhenNoUsage(t *testing.T) {
 			// No usage field — should trigger UsageMissing
 			Body: io.NopCloser(strings.NewReader(`{"model":"gpt-4o","id":"chatcmpl-123","choices":[]}`)),
 		}, nil
-	})}
+	})})
 
 	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-4o"}`))
 	req.Header.Set("Authorization", "Bearer secret")
@@ -243,8 +196,9 @@ func TestHandlerPersistsSSEUsage(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "test-project", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := NewHandlerWithStore(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "test-project")
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.URL.Host != "api.githubcopilot.com" {
 			t.Fatalf("host = %q, want api.githubcopilot.com", req.URL.Host)
 		}
@@ -255,7 +209,7 @@ func TestHandlerPersistsSSEUsage(t *testing.T) {
 			},
 			Body: io.NopCloser(strings.NewReader("data: {\"model\":\"gpt-4o\",\"usage\":{\"prompt_tokens\":7,\"prompt_tokens_details\":{\"cached_tokens\":2},\"completion_tokens\":3,\"total_tokens\":10}}\n\n")),
 		}, nil
-	})}
+	})})
 
 	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-4o","stream":true}`))
 	req.Header.Set("Authorization", "Bearer secret")
@@ -295,8 +249,9 @@ func TestHandlerPersistsJSONUsage(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "test-project", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := NewHandlerWithStore(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "test-project")
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header: http.Header{
@@ -304,7 +259,7 @@ func TestHandlerPersistsJSONUsage(t *testing.T) {
 			},
 			Body: io.NopCloser(strings.NewReader(`{"model":"gpt-4o","usage":{"prompt_tokens":7,"prompt_tokens_details":{"cached_tokens":2},"completion_tokens":3,"total_tokens":10}}`)),
 		}, nil
-	})}
+	})})
 
 	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-4o","stream":false}`))
 	req.Header.Set("Authorization", "Bearer secret")
@@ -337,8 +292,9 @@ func TestHandlerDoesNotRetainUpstreamErrorBody(t *testing.T) {
 
 	const sensitive = "do not keep this prompt text"
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := NewHandlerWithStore(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "")
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
 			Header: http.Header{
@@ -346,7 +302,7 @@ func TestHandlerDoesNotRetainUpstreamErrorBody(t *testing.T) {
 			},
 			Body: io.NopCloser(strings.NewReader(`{"error":"` + sensitive + `"}`)),
 		}, nil
-	})}
+	})})
 
 	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-4o","stream":false}`))
 	req.Header.Set("Authorization", "Bearer secret")
@@ -388,8 +344,9 @@ func TestHandlerWritesUsageDebugRecord(t *testing.T) {
 	}
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), nil, "", usageDebug, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := NewHandlerWithStoreAndUsageDebug(log.NewWriterWithFormat(&logs, log.FormatHuman), nil, "", usageDebug)
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header: http.Header{
@@ -398,7 +355,7 @@ func TestHandlerWritesUsageDebugRecord(t *testing.T) {
 			},
 			Body: io.NopCloser(strings.NewReader("data: {\"model\":\"gpt-5-mini\",\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3,\"total_tokens\":10}}\n\n")),
 		}, nil
-	})}
+	})})
 
 	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-5-mini","stream":true}`))
 	req.Header.Set("Authorization", "Bearer secret")
@@ -438,14 +395,15 @@ func TestHandlerDoesNotPersistZeroUsageAgentRoutes(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := NewHandlerWithStore(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "")
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": {"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(`{"models":[]}`)),
 		}, nil
-	})}
+	})})
 
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/agents/swe/models", nil)
 	req.Header.Set("Authorization", "Bearer secret")
@@ -453,7 +411,7 @@ func TestHandlerDoesNotPersistZeroUsageAgentRoutes(t *testing.T) {
 
 	h.ServeHTTP(rr, req)
 
-	// Agent route has capture:usage, so zero usage should now be persisted with usage_missing=true
+	// Zero usage should be persisted with usage_missing=true
 	stats, err := st.Stats(context.Background(), store.StatsFilter{})
 	if err != nil {
 		t.Fatal(err)
@@ -468,8 +426,9 @@ func TestHandlerDoesNotPersistZeroUsageAgentRoutes(t *testing.T) {
 
 func TestStructuredJSONLogLineEmitted(t *testing.T) {
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatJSON), nil, "", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := NewHandler(log.NewWriterWithFormat(&logs, log.FormatJSON))
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header: http.Header{
@@ -477,7 +436,7 @@ func TestStructuredJSONLogLineEmitted(t *testing.T) {
 			},
 			Body: io.NopCloser(strings.NewReader(`{"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}`)),
 		}, nil
-	})}
+	})})
 
 	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-4o"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -526,10 +485,6 @@ func TestStructuredJSONLogLineEmitted(t *testing.T) {
 	if entry.Status != http.StatusOK {
 		t.Fatalf("status = %d, want %d", entry.Status, http.StatusOK)
 	}
-	// latency_ms may be 0 in fast test round trips, but the field must exist
-	// and be in the output JSON. We check the JSON key exists by unmarshalling.
-	// The struct field is int64, so 0 is valid for instant responses.
-	_ = entry.LatencyMS
 	if entry.CaptureMode == "" {
 		t.Fatal("missing capture_mode")
 	}
@@ -546,7 +501,8 @@ func TestHealthEndpoint(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, testRouter())
+	h := NewHandlerWithStore(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "")
+	h.SetUpstream("api.githubcopilot.com")
 
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733/_health", nil)
 	rr := httptest.NewRecorder()
@@ -585,8 +541,9 @@ func TestHandlerPrefersRequestModelOverResponseModel(t *testing.T) {
 	defer st.Close()
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := NewHandlerWithStore(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "")
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header: http.Header{
@@ -594,7 +551,7 @@ func TestHandlerPrefersRequestModelOverResponseModel(t *testing.T) {
 			},
 			Body: io.NopCloser(strings.NewReader("data: {\"model\":\"gpt-4o-mini-2024-07-18\",\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3,\"total_tokens\":10}}\n\n")),
 		}, nil
-	})}
+	})})
 
 	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"claude-sonnet-4","stream":true}`))
 	req.Header.Set("Authorization", "Bearer secret")
@@ -618,101 +575,6 @@ func TestHandlerPrefersRequestModelOverResponseModel(t *testing.T) {
 	}
 }
 
-func TestHandlerRoutesByModel(t *testing.T) {
-	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
-
-	// Create config with two routes on same path, different models
-	cfg := &ProxyConfig{
-		Routes: []RouteConfig{
-			{Path: "/v1/chat/completions", UpstreamHost: "openai.example.com", Capture: "usage", Models: []string{"gpt-4o"}},
-			{Path: "/v1/chat/completions", UpstreamHost: "anthropic.example.com", Capture: "usage", Models: []string{"claude-*"}},
-		},
-	}
-	router := NewRouter(cfg)
-
-	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, router)
-
-	var capturedHost string
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		capturedHost = req.URL.Host
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header: http.Header{
-				"Content-Type": {"application/json"},
-			},
-			Body: io.NopCloser(strings.NewReader(`{"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}`)),
-		}, nil
-	})}
-
-	// gpt-4o should go to OpenAI upstream
-	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-4o","stream":false}`))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-	}
-	if capturedHost != "openai.example.com" {
-		t.Fatalf("host = %q, want openai.example.com", capturedHost)
-	}
-
-	// claude-sonnet should go to Anthropic upstream
-	req = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"claude-sonnet-4","stream":false}`))
-	req.Header.Set("Content-Type", "application/json")
-	rr = httptest.NewRecorder()
-	h.ServeHTTP(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-	}
-	if capturedHost != "anthropic.example.com" {
-		t.Fatalf("host = %q, want anthropic.example.com", capturedHost)
-	}
-}
-
-func TestHandlerStripsAnthropicProviderPrefix(t *testing.T) {
-	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
-
-	router := NewRouter(&ProxyConfig{Routes: []RouteConfig{
-		{
-			Path:         "/v1/messages",
-			UpstreamHost: "api.anthropic.com",
-			Capture:      "metadata",
-			Provider:     "anthropic",
-		},
-	}})
-	h := NewHandlerWithRouter(log.NewWriter(io.Discard), st, "", nil, router)
-
-	var capturedHost string
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		capturedHost = req.URL.Host
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     http.Header{"Content-Type": {"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{}`)),
-		}, nil
-	})}
-
-	req := httptest.NewRequest(http.MethodPost, "/anthropic/v1/messages", strings.NewReader(`{}`))
-	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-	}
-	if capturedHost != "api.anthropic.com" {
-		t.Fatalf("host = %q, want api.anthropic.com", capturedHost)
-	}
-}
-
 func TestPolicyBlocklistBlocksModel(t *testing.T) {
 	// 1. Open store
 	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
@@ -726,14 +588,15 @@ func TestPolicyBlocklistBlocksModel(t *testing.T) {
 
 	// 3. Create handler with store
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := NewHandlerWithStore(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "")
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader("{}")),
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 		}, nil
-	})}
+	})})
 
 	// 4. Send blocked model request
 	body := strings.NewReader(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
@@ -764,14 +627,15 @@ func TestPolicyBlocklistBlocksModel(t *testing.T) {
 func TestPolicyNotAppliedWhenNoStore(t *testing.T) {
 	// Handler without store — policy evaluation skipped
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), nil, "", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := NewHandler(log.NewWriterWithFormat(&logs, log.FormatHuman))
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader(`{"usage":{"total_tokens":100}}`)),
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 		}, nil
-	})}
+	})})
 
 	body := strings.NewReader(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
 	req := httptest.NewRequest("POST", "/chat/completions", body)
@@ -790,14 +654,15 @@ func TestPolicyCacheRefreshOnExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	var logs bytes.Buffer
-	h := NewHandlerWithRouter(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := NewHandlerWithStore(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "")
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(strings.NewReader("{}")),
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 		}, nil
-	})}
+	})})
 
 	// 2. First request — blocked (warms cache)
 	body := strings.NewReader(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
@@ -807,7 +672,7 @@ func TestPolicyCacheRefreshOnExpiry(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 
 	// 3. Expire the cache
-	h.policyUntil = time.Now().Add(-1 * time.Second)
+	h.ExpirePolicyCache()
 
 	// 4. Change policy to allow_all
 	err = st.SetPolicy(ctx, &policy.Policy{Mode: policy.AllowAll})

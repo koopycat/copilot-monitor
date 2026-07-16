@@ -11,7 +11,6 @@ import (
 
 	"copilot-monitoring/dashboard"
 	"copilot-monitoring/internal/api"
-	"copilot-monitoring/internal/proxy"
 	"copilot-monitoring/internal/store"
 )
 
@@ -20,7 +19,6 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	addr := fs.String("addr", "127.0.0.1:7734", "HTTP listen address")
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
-	routesConfig := fs.String("routes-config", "", "optional JSON file with additional route definitions")
 	retentionDays := fs.Int("retention-days", 365, "days of requests and sessions to retain (0 disables)")
 	anomalyRetentionDays := fs.Int("anomaly-retention-days", 30, "days of anomalies to retain (0 disables)")
 	dryRun := fs.Bool("dry-run", false, "report retention deletions without executing them")
@@ -49,14 +47,8 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 
-	proxyCfg, err := proxy.LoadConfig(*routesConfig)
-	if err != nil {
-		fmt.Fprintf(stderr, "failed to load routes config: %v\n", err)
-		return 1
-	}
-
 	mux := http.NewServeMux()
-	mux.Handle("/api/", api.NewHandlerWithConfig(st, proxyCfg))
+	mux.Handle("/api/", api.NewHandler(st))
 	mux.Handle("/", dashboard.Handler())
 
 	server := &http.Server{

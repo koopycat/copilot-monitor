@@ -10,13 +10,11 @@ import (
 	"time"
 
 	"copilot-monitoring/internal/catalog"
-	"copilot-monitoring/internal/proxy"
 	"copilot-monitoring/internal/store"
 )
 
 type Handler struct {
-	db           *store.Store
-	routesConfig *proxy.ProxyConfig
+	db *store.Store
 
 	catalogOnce sync.Once
 	catalog     catalog.Catalog
@@ -24,13 +22,8 @@ type Handler struct {
 }
 
 func NewHandler(db *store.Store) *Handler {
-	return NewHandlerWithConfig(db, nil)
-}
-
-func NewHandlerWithConfig(db *store.Store, cfg *proxy.ProxyConfig) *Handler {
 	return &Handler{
-		db:           db,
-		routesConfig: cfg,
+		db: db,
 	}
 }
 
@@ -149,9 +142,5 @@ func (h *Handler) handleUpstreams(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleConfig(w http.ResponseWriter, r *http.Request) {
 	jsonHeader(w)
-	if h.routesConfig == nil {
-		json.NewEncoder(w).Encode(map[string][]any{"routes": {}})
-		return
-	}
-	json.NewEncoder(w).Encode(h.routesConfig)
+	json.NewEncoder(w).Encode(map[string]any{"upstream": "configured via CLI"})
 }

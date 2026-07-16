@@ -50,20 +50,12 @@ copilot-monitor version
 
 ## First capture with pi/Kilo
 
-This path requires a separately installed and authenticated `pi` client. Set up
-the Kilo routes once. The default configuration path is
-`${XDG_CONFIG_HOME:-$HOME/.config}/copilot-monitor/routes.json`.
+This path requires a separately installed and authenticated `pi` client.
+
+In terminal 1, start the proxy and dashboard, forwarding to your upstream:
 
 ```sh
-mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/copilot-monitor"
-cp examples/routes-kilo.json "${XDG_CONFIG_HOME:-$HOME/.config}/copilot-monitor/routes.json"
-copilot-monitor validate --routes-config "${XDG_CONFIG_HOME:-$HOME/.config}/copilot-monitor/routes.json"
-```
-
-In terminal 1, start the proxy and dashboard:
-
-```sh
-copilot-monitor run --dashboard
+copilot-monitor run --dashboard --upstream api.githubcopilot.com
 ```
 
 In terminal 2, verify both services, make one request through the proxy, then
@@ -72,45 +64,22 @@ inspect the capture:
 ```sh
 curl http://127.0.0.1:7733/_health
 curl http://127.0.0.1:7734/api/health
-KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi -p 'Reply OK'
+KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi -p 'Reply OK'
 copilot-monitor stats --since 1h
 ```
 
-## Client setup and routes
+## Client setup
 
-Built-in routes cover GitHub Copilot. A valid default routes file auto-loads
-from `${XDG_CONFIG_HOME:-$HOME/.config}/copilot-monitor/routes.json`; an
-explicit `--routes-config <file>` replaces that default configuration.
+Point your client's base URL to the proxy address (`http://127.0.0.1:7733`). All
+traffic is forwarded to the configured `--upstream` host.
 
 VS Code is not auto-detected. To route GitHub Copilot through the proxy, set
-`github.copilot.advanced.debug.overrideCapiUrl` to
-`http://127.0.0.1:7733/copilot` in VS Code settings, then run
-`copilot-monitor run`.
-
-A client base URL must match the routes it will request after its provider
-prefix is removed. For example, the Kilo base URL `http://127.0.0.1:7733/kilo`
-matches the `/chat/completions` route in
-[`examples/routes-kilo.json`](examples/routes-kilo.json).
-
-Choose a route file that matches the client's API paths, validate it, then pass
-it explicitly to `run`:
-
-| Route example                                                      | Route path after prefix stripping | Matching proxy base URL           |
-| ------------------------------------------------------------------ | --------------------------------- | --------------------------------- |
-| [`examples/routes/openai.json`](examples/routes/openai.json)       | `/v1/chat/completions`            | `http://127.0.0.1:7733/openai/v1` |
-| [`examples/routes/anthropic.json`](examples/routes/anthropic.json) | `/v1/messages`                    | `http://127.0.0.1:7733/anthropic` |
+`github.copilot.advanced.debug.overrideCapiUrl` to `http://127.0.0.1:7733` in VS
+Code settings, then run:
 
 ```sh
-copilot-monitor validate --routes-config examples/routes/openai.json
-copilot-monitor run --routes-config examples/routes/openai.json
+copilot-monitor run --upstream api.githubcopilot.com
 ```
-
-`init` is optional. It only creates a starter OpenAI/Anthropic routes file,
-using the `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` environment keys when
-present; it is not a full client configuration. It writes to the default route
-path and refuses to overwrite it without `--force`. Built-in routes remain
-available for Copilot when no valid default config or explicit route file is
-used.
 
 ## Commands
 
@@ -124,8 +93,6 @@ used.
 | `sessions`   | List sessions derived from a 30-minute inactivity gap.                       |
 | `live`       | Show the current session; use `--watch` to refresh.                          |
 | `export`     | Export captured request metadata as CSV.                                     |
-| `init`       | Create a starter routes file from environment keys.                          |
-| `validate`   | Validate a routes configuration file.                                        |
 | `inspect`    | Show detected proxy anomalies.                                               |
 | `completion` | Generate zsh shell completion scripts.                                       |
 | `version`    | Print the installed version.                                                 |
@@ -145,15 +112,14 @@ The live tail is shown when `run` writes to a terminal on stderr. Use
 ### Cost accuracy
 
 Cost is an embedded equivalent provider list-price estimate, not invoice
-reconciliation. Fallback pricing, routes marked not billed, and requests with
-missing usage data reduce its accuracy.
+reconciliation. Fallback pricing and requests with missing usage data reduce its
+accuracy.
 
 ## Data and privacy
 
 The default SQLite database is
 `${XDG_DATA_HOME:-$HOME/.local/share}/copilot-monitor/store.db`. Override it
-with `--db <path>`. The default routes file is
-`${XDG_CONFIG_HOME:-$HOME/.config}/copilot-monitor/routes.json`.
+with `--db <path>`.
 
 The normal database stores request metadata and token counts, not prompts,
 completions, source code, or auth material. `--raw-log <path>` is different: it
@@ -163,7 +129,5 @@ Treat that output as sensitive.
 ## Useful docs
 
 [API and dashboard](docs/api.md) · [Architecture](docs/architecture.md) ·
-[Homebrew](docs/homebrew.md) · [Kilo routes](examples/routes-kilo.json) ·
-[OpenAI routes](examples/routes/openai.json) ·
-[Anthropic routes](examples/routes/anthropic.json) ·
-[Project site](https://koopycat.github.io/copilot-monitor/)
+[Homebrew](docs/homebrew.md) ·
+[Project site](https://koopykat.github.io/copilot-monitor/)

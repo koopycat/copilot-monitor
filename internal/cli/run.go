@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -25,12 +23,12 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	addr := fs.String("addr", "127.0.0.1:7733", "HTTP listen address")
+	upstream := fs.String("upstream", "", "upstream host to proxy requests to (required, e.g. api.githubcopilot.com)")
+	headroomProxyAddr := fs.String("headroom-proxy-addr", "127.0.0.1:8787", "headroom compression proxy address")
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
 	project := fs.String("project", "", "optional project label")
 	usageDebugPath := fs.String("usage-debug-log", "", "optional JSONL path for usage-only debug metadata")
 	rawLogPath := fs.String("raw-log", "", "optional JSONL path for raw request debugging (logs truncated bodies, headers; treat output as sensitive)")
-	routesConfig := fs.String("routes-config", "", "JSON file with route definitions (defaults to built-in routes)")
-	routesConfigDefaults := fs.Bool("routes-config-defaults", false, "print built-in default routes as JSON and exit")
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
 	dashboardFlag := fs.Bool("dashboard", false, "start dashboard API and UI on a separate port (7734)")
 	retentionDays := fs.Int("retention-days", 365, "days of requests and sessions to retain (0 disables)")
@@ -41,14 +39,9 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	if *routesConfigDefaults {
-		data, err := json.MarshalIndent(proxy.DefaultRoutes(), "", "  ")
-		if err != nil {
-			fmt.Fprintf(stderr, "failed to marshal default routes: %v\n", err)
-			return 1
-		}
-		fmt.Fprintln(stdout, string(data))
-		return 0
+	if *upstream == "" {
+		fmt.Fprintln(stderr, "error: --upstream is required")
+		return 1
 	}
 
 	st, err := store.Open(*dbPath)
@@ -90,42 +83,8 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "raw debug logging is enabled: request bodies (up to %d bytes) are written to %s. This file may contain source code and prompts. Treat it as sensitive.\n", 1024, *rawLogPath)
 	}
 
-	var proxyCfg *proxy.ProxyConfig
-	var sourceTag string
-	if *routesConfig == "" {
-		defaultPath := defaultConfigPath()
-		cfg, err := proxy.LoadConfig(defaultPath)
-		if cfg != nil && err == nil && len(cfg.Routes) > 0 {
-			proxyCfg = cfg
-			*routesConfig = defaultPath
-			sourceTag = fmt.Sprintf("(%d routes from %s)", len(proxyCfg.Routes), defaultPath)
-		} else {
-			if err != nil {
-				fmt.Fprintf(stderr, "warning: default routes config %s is invalid (%v), using built-in defaults\n", defaultPath, err)
-			} else if cfg != nil && len(cfg.Routes) == 0 {
-				fmt.Fprintf(stderr, "warning: default routes config %s contains no routes, using built-in defaults\n", defaultPath)
-			}
-			proxyCfg = proxy.DefaultRoutes()
-			sourceTag = "(built-in default routes)"
-		}
-	} else {
-		var err error
-		proxyCfg, err = proxy.LoadConfig(*routesConfig)
-		if err != nil {
-			fmt.Fprintf(stderr, "failed to load routes config %q: %v\n", *routesConfig, err)
-			return 1
-		}
-		if len(proxyCfg.Routes) == 0 {
-			fmt.Fprintf(stderr, "error: routes config %q contains no routes\n", *routesConfig)
-			return 1
-		}
-		sourceTag = fmt.Sprintf("(%d routes from %s)", len(proxyCfg.Routes), *routesConfig)
-	}
-
 	// First-line startup banner — must appear before any other output.
-	fmt.Fprintf(stderr, "copilot-monitor: listening on %s %s - curl http://%s/_ping\n", settingsAddr(*addr), sourceTag, settingsAddr(*addr))
-
-	router := proxy.NewRouter(proxyCfg)
+	fmt.Fprintf(stderr, "copilot-monitor: listening on %s upstream=%s headroom=%s - curl http://%s/_ping\n", settingsAddr(*addr), *upstream, *headroomProxyAddr, settingsAddr(*addr))
 
 	// Validate log format.
 	var lf log.LogFormat
@@ -146,7 +105,8 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		logWriter = log.Disabled()
 	}
 
-	proxyHandler := proxy.NewHandlerWithRouter(logWriter, st, *project, usageDebug, router)
+	proxyHandler := proxy.NewHandlerWithStoreAndUsageDebug(logWriter, st, *project, usageDebug)
+	proxyHandler.SetUpstream(*upstream)
 	cat, err := st.Catalog()
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to load pricing catalog: %v\n", err)
@@ -186,6 +146,8 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 
 	fmt.Fprintf(stdout, "copilot-monitor listening on http://%s\n", settingsAddr(*addr))
 	fmt.Fprintf(stdout, "database: %s\n", store.FormatPath(*dbPath))
+	fmt.Fprintf(stdout, "upstream: %s\n", *upstream)
+	fmt.Fprintf(stdout, "headroom proxy: %s\n", *headroomProxyAddr)
 	if *usageDebugPath != "" {
 		fmt.Fprintf(stdout, "usage debug log: %s\n", store.FormatPath(*usageDebugPath))
 	}
@@ -200,7 +162,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	defer stopTail()
 
 	// Graceful shutdown on Ctrl+C: stop the server, then stop the tail.
-	// SIGINT → exit 130, SIGTERM → exit 0.
+	// SIGINT -> exit 130, SIGTERM -> exit 0.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	sigReceived := make(chan os.Signal, 1)
@@ -287,19 +249,4 @@ func writeLines(w io.Writer, s string) int {
 	}
 	fmt.Fprintln(w, s)
 	return count
-}
-
-// defaultConfigPath returns the default routes config path at
-// $XDG_CONFIG_HOME/copilot-monitor/routes.json, falling back to
-// ~/.config/copilot-monitor/routes.json.
-func defaultConfigPath() string {
-	dir := os.Getenv("XDG_CONFIG_HOME")
-	if dir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return ""
-		}
-		dir = filepath.Join(home, ".config")
-	}
-	return filepath.Join(dir, "copilot-monitor", "routes.json")
 }

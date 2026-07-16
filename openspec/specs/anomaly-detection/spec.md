@@ -2,10 +2,10 @@
 
 ## Purpose
 
-Detect and persist operational anomalies in proxy traffic: unrouted paths, SSE
-parse errors, missing auth headers, unknown upstream hosts, unknown content
-types, and unrecognized WebSocket events. Anomalies are written asynchronously
-through a buffered channel with deduplication to avoid flooding.
+Detect and persist operational anomalies in proxy traffic: SSE parse errors,
+missing auth headers, unknown upstream hosts, unknown content types, and
+unrecognized WebSocket events. Anomalies are written asynchronously through a
+buffered channel with deduplication to avoid flooding.
 
 ## Requirements
 
@@ -17,7 +17,7 @@ reference, path, timestamp, and structured detail.
 
 #### Scenario: Anomaly record is written
 
-- **WHEN** an anomaly detection hook fires with category `unrouted_path` and
+- **WHEN** an anomaly detection hook fires with category `parse_error` and
   severity `warn`
 - **THEN** a row is inserted into the `anomalies` table with those values plus
   an ISO-8601 timestamp
@@ -27,29 +27,6 @@ reference, path, timestamp, and structured detail.
 - **WHEN** the proxy starts and the database is opened
 - **THEN** the `anomalies` table exists (created with
   `CREATE TABLE IF NOT EXISTS`), causing no data loss on existing databases
-
-### Requirement: Unrouted path detection
-
-The system SHALL record an anomaly when a request arrives at a path that matches
-no configured route, including the full path, method, model, provider prefix,
-and a descriptive detail string that uniquely identifies the path, model, and
-provider combination.
-
-#### Scenario: Unknown path recorded
-
-- **WHEN** a POST request arrives at `/v1/chat/completions` with model `gpt-5`
-  and provider `openai`, and no route matches
-- **THEN** an anomaly is recorded with category `unrouted_path`, severity
-  `warn`, path `/v1/chat/completions`, method `POST`, model `gpt-5`, and detail
-  `"no route matched: POST /v1/chat/completions (model gpt-5, provider openai)"`
-
-#### Scenario: Unknown path without model
-
-- **WHEN** a GET request arrives at `/unknown` with no model in the request body
-  and no route matches
-- **THEN** an anomaly is recorded with category `unrouted_path`, severity
-  `warn`, path `/unknown`, method `GET`, model empty, and detail
-  `"no route matched: GET /unknown"`
 
 ### Requirement: SSE parse error detection
 
@@ -73,15 +50,15 @@ The system SHALL record an anomaly when the SSE observer fails to parse a
 
 The system SHALL record an anomaly when a request arrives at a recognized
 Copilot CAPI path without an Authorization header. The anomaly record SHALL
-include the model, endpoint, and upstream host from the matched route.
+include the model and upstream host.
 
 #### Scenario: Chat completion without auth
 
 - **WHEN** a request arrives at `/chat/completions` without an `Authorization`
-  header and a route matches
+  header
 - **THEN** an anomaly is recorded with category `auth_missing`, severity
-  `error`, the request path, the matched route's endpoint, the model from the
-  request body, and the upstream host from the matched route
+  `error`, the request path, the model from the request body, and the upstream
+  host
 
 #### Scenario: Health endpoint without auth
 
@@ -90,34 +67,32 @@ include the model, endpoint, and upstream host from the matched route.
 
 ### Requirement: Unknown upstream host detection
 
-The system SHALL record an anomaly when the router forwards a request to an
+The system SHALL record an anomaly when the proxy forwards a request to an
 upstream host that has not been seen in any previous request within the current
 proxy session.
 
 #### Scenario: New upstream host appears
 
-- **WHEN** a route matches and forwards to an upstream host the proxy has never
-  proxied to before in the current session
+- **WHEN** the proxy forwards to an upstream host it has never proxied to before
+  in the current session
 - **THEN** an anomaly is recorded with category `unknown_upstream`, severity
   `info`, and the upstream hostname in the detail
 
 ### Requirement: Unknown Content-Type detection
 
 The system SHALL record an anomaly when a response arrives with a Content-Type
-header that is neither `text/event-stream`, `application/json`, nor `text/plain`
-on a route with capture enabled.
+header that is neither `text/event-stream`, `application/json`, nor
+`text/plain`.
 
-#### Scenario: Unknown Content-Type on captured route
+#### Scenario: Unknown Content-Type on request
 
-- **WHEN** a response arrives with Content-Type `application/octet-stream` on a
-  route with `capture: usage`
+- **WHEN** a response arrives with Content-Type `application/octet-stream`
 - **THEN** an anomaly is recorded with category `unknown_content_type`, severity
   `info`, and the Content-Type value in the detail
 
 #### Scenario: Known Content-Type is not recorded
 
-- **WHEN** a response arrives with Content-Type `text/event-stream` on a route
-  with `capture: usage`
+- **WHEN** a response arrives with Content-Type `text/event-stream`
 - **THEN** no anomaly is recorded for unknown Content-Type
 
 ### Requirement: WebSocket unknown event type detection
@@ -140,16 +115,16 @@ path, detail_hash) tuple within a 5-minute cooldown window to prevent flooding.
 
 #### Scenario: Duplicate anomaly suppressed within cooldown
 
-- **WHEN** an anomaly is recorded for category `unrouted_path` and path
-  `/v1/new-endpoint`
+- **WHEN** an anomaly is recorded for category `auth_missing` and path
+  `/v1/chat/completions`
 - **AND** a second anomaly for the same category and path arrives 2 minutes
   later
 - **THEN** no additional row is written to the `anomalies` table
 
 #### Scenario: Anomaly re-recorded after cooldown
 
-- **WHEN** an anomaly was recorded for category `unrouted_path` and path
-  `/v1/new-endpoint` 6 minutes ago
+- **WHEN** an anomaly was recorded for category `auth_missing` and path
+  `/v1/chat/completions` 6 minutes ago
 - **AND** a new anomaly for the same category and path arrives
 - **THEN** a new row is written to the `anomalies` table
 

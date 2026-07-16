@@ -58,6 +58,7 @@ type RequestRecord struct {
 	CompressionOriginalTokens int
 	CompressionFinalTokens    int
 	CompressionLatencyMS      int64
+	HeadroomProxied           bool
 }
 
 type StatsFilter struct {
@@ -117,6 +118,7 @@ type ExportRow struct {
 	CompressionOriginalTokens int    `json:"compression_original_tokens,omitempty"`
 	CompressionFinalTokens    int    `json:"compression_final_tokens,omitempty"`
 	CompressionLatencyMS      int64  `json:"compression_latency_ms,omitempty"`
+	HeadroomProxied           bool   `json:"headroom_proxied"`
 }
 
 // DBPath returns the path the store was opened with.
@@ -204,6 +206,7 @@ func (s *Store) init(ctx context.Context) error {
 		{"compression_original_tokens", "INTEGER"},
 		{"compression_final_tokens", "INTEGER"},
 		{"compression_latency_ms", "INTEGER"},
+		{"headroom_proxied", "INTEGER NOT NULL DEFAULT 0"},
 	} {
 		var count int
 		if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pragma_table_info('requests') WHERE name = ?", m.name).Scan(&count); err == nil && count == 0 {
@@ -257,8 +260,8 @@ INSERT INTO requests (
   latency_ms, prompt_tokens, cached_input_tokens, cache_write_tokens,
   completion_tokens, total_tokens, project, not_billed, provider, session_id, usage_missing,
   compression_status, compression_original_tokens, compression_final_tokens,
-  compression_latency_ms
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  compression_latency_ms, headroom_proxied
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		rec.Timestamp.UTC().Format(time.RFC3339Nano),
 		rec.Endpoint,
 		rec.Method,
@@ -283,6 +286,7 @@ INSERT INTO requests (
 		nullInt(rec.CompressionOriginalTokens),
 		nullInt(rec.CompressionFinalTokens),
 		nullInt64(rec.CompressionLatencyMS),
+		boolInt(rec.HeadroomProxied),
 	)
 	if err != nil {
 		return err
@@ -430,7 +434,8 @@ func (s *Store) ExportRequests(ctx context.Context, since, until time.Time, upst
 SELECT ts, endpoint, COALESCE(model,''), status, latency_ms,
   COALESCE(prompt_tokens,0), COALESCE(cached_input_tokens,0), COALESCE(cache_write_tokens,0),
   COALESCE(completion_tokens,0), COALESCE(total_tokens,0), COALESCE(project,''),
-  COALESCE(compression_status,''), COALESCE(compression_original_tokens,0), COALESCE(compression_final_tokens,0), COALESCE(compression_latency_ms,0)
+  COALESCE(compression_status,''), COALESCE(compression_original_tokens,0), COALESCE(compression_final_tokens,0), COALESCE(compression_latency_ms,0),
+  headroom_proxied
 FROM requests
 WHERE (? = '' OR ts >= ?)
   AND (? = '' OR ts < ?)
@@ -449,7 +454,8 @@ ORDER BY ts DESC`, sinceStr, sinceStr, untilStr, untilStr, upstreamHost, upstrea
 		if err := rows.Scan(&row.Timestamp, &row.Endpoint, &row.Model, &row.Status, &row.LatencyMS,
 			&row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens,
 			&row.CompletionTokens, &row.TotalTokens, &row.Project,
-			&row.CompressionStatus, &row.CompressionOriginalTokens, &row.CompressionFinalTokens, &row.CompressionLatencyMS); err != nil {
+			&row.CompressionStatus, &row.CompressionOriginalTokens, &row.CompressionFinalTokens, &row.CompressionLatencyMS,
+			&row.HeadroomProxied); err != nil {
 			return nil, err
 		}
 		out = append(out, row)

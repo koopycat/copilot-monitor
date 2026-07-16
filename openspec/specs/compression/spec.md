@@ -2,137 +2,70 @@
 
 ## Purpose
 
-Optionally transform outgoing chat completion requests through a local loopback
-compression processor to reduce token usage, with per-route configuration,
-optional strict mode, and detailed status tracking.
+Detect when requests arrive through an external Headroom compression proxy and
+flag them with a `headroom_proxied` indicator. No inline compression
+transformation is performed by Copilot Monitor.
 
 ## Requirements
 
-### Requirement: Loopback compression processor
+### Requirement: Headroom proxy detection
 
-The system MAY transform request bodies through a configured local loopback
-compression endpoint before upstream forwarding. Compression is configured
-per-route via a `compression` block in the routes JSON configuration.
-Compression SHALL be enabled when a route specifies `compression.endpoint`.
-Eligible chat requests SHALL be transformed after routing and policy checks.
-Only model and supported messages SHALL be sent to the processor; provider auth
-and headers SHALL be excluded.
+The system SHALL detect requests arriving from a Headroom compression proxy by
+checking the RemoteAddr of the incoming connection against a configured
+headroom-proxy address. When detected, the request SHALL be flagged with
+`headroom_proxied = true` in the stored record.
 
-#### Scenario: Compression endpoint configured
+#### Scenario: Request from Headroom detected
 
-- **WHEN** a route in the routes JSON includes
-  `"compression": {"endpoint": "127.0.0.1:8787"}`
-- **THEN** eligible POST `/chat/completions` requests on that route are sent to
-  the compression endpoint before upstream forwarding
+- **WHEN** a request arrives from `127.0.0.1:8787` and `--headroom-proxy-addr`
+  is set to `127.0.0.1:8787`
+- **THEN** the request is flagged `headroom_proxied = true` in the database
 
-#### Scenario: Compression not configured
+#### Scenario: Request from other source
 
-- **WHEN** no route has a `compression` block, or `compression.endpoint` is
-  empty
-- **THEN** requests are forwarded unchanged
+- **WHEN** a request arrives from `127.0.0.1:54321` and `--headroom-proxy-addr`
+  is set to `127.0.0.1:8787`
+- **THEN** the request is flagged `headroom_proxied = false`
 
-#### Scenario: Ineligible request type
+#### Scenario: Default headroom-proxy-addr
 
-- **WHEN** a request is not a POST to `/chat/completions` or
-  `/v1/chat/completions`
-- **THEN** compression is skipped regardless of configuration
+- **WHEN** no `--headroom-proxy-addr` is provided
+- **THEN** the default of `127.0.0.1:8787` is used
 
 ---
 
-### Requirement: Compression configuration
+### Requirement: Headroom-proxy-addr configuration
 
-Compression SHALL support optional strict mode, user-message scope control, and
-optional target ratio, configured via the `compression` block in the routes
-JSON.
+The `--headroom-proxy-addr` flag SHALL be available on the `run` command. It
+SHALL accept a host:port value. It is independent of the `--upstream` flag.
 
-#### Scenario: Strict mode enabled
+#### Scenario: Custom headroom address
 
-- **WHEN** `"required": true` is set in the compression config and compression
-  fails
-- **THEN** the upstream request is blocked with a 502 error rather than
-  forwarded uncompressed
-
-#### Scenario: User message compression
-
-- **WHEN** `"compress_user_messages": true` is set in the compression config
-- **THEN** user message content is included in the compression request to the
-  processor
-
-#### Scenario: Target ratio
-
-- **WHEN** `"target_ratio": 0.5` is set in the compression config
-- **THEN** the compression processor is instructed to aim for a 50% compression
-  ratio
+- **WHEN** `--headroom-proxy-addr 127.0.0.1:9797` is set
+- **THEN** RemoteAddr matching uses `127.0.0.1:9797`
 
 ---
 
-### Requirement: Compression fail-open
+### Requirement: No inline compression
 
-When strict mode is NOT enabled, the proxy SHALL continue forwarding the
-original request body if the compression processor is unreachable or returns an
-error.
+Copilot Monitor SHALL NOT perform any compression transformation on request
+bodies. Compression, when desired, is handled by an external Headroom proxy
+running as a separate process in front of Copilot Monitor.
 
-#### Scenario: Compression processor unreachable
+#### Scenario: No compression callout
 
-- **WHEN** the compression endpoint is unreachable and `required` is false
-- **THEN** the original request body is forwarded unchanged
-
-#### Scenario: Compression processor returns error
-
-- **WHEN** the compression endpoint returns a 4xx or 5xx and `required` is false
-- **THEN** the original request body is forwarded unchanged
+- **WHEN** a request arrives
+- **THEN** the proxy does not call a compression endpoint, does not modify
+  request bodies, and does not attempt to decompress responses
 
 ---
 
-### Requirement: Compression status labels
+### Requirement: headroom_proxied in export
 
-Compression SHALL emit stable status labels for every eligible request. Labels
-distinguish: `applied` (tokens reduced), `no_change` (tokens unchanged),
-`bypassed` (unsupported envelope), and `failed_*` with error categories.
+The `headroom_proxied` flag SHALL be included in CSV export output as a column.
 
-#### Scenario: Tokens reduced
+#### Scenario: Export includes headroom_proxied
 
-- **WHEN** compression reduces token count
-- **THEN** status is `applied`
-
-#### Scenario: No token change
-
-- **WHEN** compression processes the request but no tokens are saved
-- **THEN** status is `no_change`
-
-#### Scenario: Unsupported envelope
-
-- **WHEN** the compression processor does not support the request format
-- **THEN** status is `bypassed`
-
-#### Scenario: Compression fails in fail-open mode
-
-- **WHEN** compression fails with a non-strict timeout and strict mode is off
-- **THEN** status is `failed_fail_open` with a category indicating the error
-  type
-
-#### Scenario: Compression fails in strict mode
-
-- **WHEN** compression fails with strict mode on
-- **THEN** status is `failed_required` and the upstream request is not made
-
-#### Scenario: Error categories
-
-- **WHEN** a compression error occurs
-- **THEN** the error is categorized as one of: canceled, timeout, http_4xx,
-  http_5xx, invalid_response, or transport
-
----
-
-### Requirement: Compression aggregates filter to applied only
-
-Compression statistics in dashboards and reports SHALL only count requests where
-`compression_status` is `applied`. Requests with `no_change`, `bypassed`, or
-`failed_*` SHALL be excluded from compression aggregates (`compressed_requests`,
-`compression_removed_tokens`, `avg_compression_ratio`).
-
-#### Scenario: No-change requests excluded from stats
-
-- **WHEN** a model has 10 `applied` requests (100 tokens saved) and 90
-  `no_change` requests (0 tokens saved)
-- **THEN** the stats report 10 compressed requests and 100 tokens removed
+- **WHEN** `copilot-monitor export` is run
+- **THEN** the CSV includes a `headroom_proxied` column with `true` or `false`
+  values

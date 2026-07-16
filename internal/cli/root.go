@@ -41,10 +41,6 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runServe(args[1:], stdout, stderr)
 	case "export":
 		return runExport(args[1:], stdout, stderr)
-	case "validate":
-		return runValidate(args[1:], stdout, stderr)
-	case "init":
-		return runInit(args[1:], stdout, stderr)
 	case "inspect":
 		return runInspect(args[1:], stdout, stderr)
 	case "completion":
@@ -67,7 +63,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprint(w, strings.TrimSpace(`copilot-monitor monitors LLM API usage through a local HTTP reverse proxy.
 
 Usage:
-  copilot-monitor run --routes-config <file> [--addr 127.0.0.1:7733] [--db path] [--project name] [--usage-debug-log path] [--no-live] [--dashboard] [--retention-days 365] [--anomaly-retention-days 30] [--dry-run]
+  copilot-monitor run --upstream <host> [--addr 127.0.0.1:7733] [--headroom-proxy-addr 127.0.0.1:8787] [--db path] [--project name] [--usage-debug-log path] [--no-live] [--dashboard] [--retention-days 365] [--anomaly-retention-days 30] [--dry-run]
   copilot-monitor stats [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
   copilot-monitor today [--db path] [--project name] [--endpoint chat]
@@ -76,8 +72,6 @@ Usage:
   copilot-monitor live [--db path] [--json] [--watch]
   copilot-monitor serve [--addr 127.0.0.1:7734] [--db path] [--retention-days 365] [--anomaly-retention-days 30] [--dry-run]
   copilot-monitor export [--since 30d] [--db path]
-  copilot-monitor init [--force]
-  copilot-monitor validate --routes-config path.json
   copilot-monitor completion zsh
   copilot-monitor version
 
@@ -91,8 +85,6 @@ Commands:
   rebuild-sessions  Rebuild sessions from all requests (offline maintenance).
   live              Print the current active session (--watch to auto-refresh).
   export            Export captured request metadata to CSV.
-  init              Create a starter routes.json config file.
-  validate          Validate a routes config file.
   inspect           Show detected proxy anomalies (unrouted paths, parse errors, auth issues).
   completion        Generate shell completion scripts (currently zsh only).
   version           Print the version.

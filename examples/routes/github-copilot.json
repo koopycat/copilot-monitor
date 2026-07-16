@@ -1,53 +1,6 @@
 {
-  "routes": [
-    // Local ping endpoint — responds with OK without proxying.
-    // No provider set, so it matches any prefix (copilot, openai, kilo, etc.).
-    {
-      "label": "ping",
-      "path": "/_ping",
-      "capture": "local"
-    },
-    // Provider default — all unmatched paths on the copilot prefix
-    // fall through to this route. Covers: /chat/completions, /agents/*,
-    // /models, /models/session, /responses, /v1/messages/*, and unknown paths.
-    //
-    // Optional Headroom compression for /chat/completions. Uncomment to enable:
-    // "compression": {
-    //   "endpoint": "127.0.0.1:8787",
-    //   "compress_user_messages": false,
-    //   "target_ratio": 0.5
-    // },
-    {
-      "provider": "copilot",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "usage"
-    },
-    // Embeddings — metadata capture overrides the default.
-    {
-      "label": "embeddings",
-      "path": "/embeddings",
-      "upstream_host": "api.githubcopilot.com",
-      "capture": "metadata",
-      "provider": "copilot"
-    },
-    // Legacy completions engines — different upstream, not billed.
-    {
-      "label": "completions",
-      "path": "/v1/engines",
-      "upstream_host": "copilot-proxy.githubusercontent.com",
-      "capture": "usage",
-      "prefix_match": true,
-      "provider": "copilot",
-      "not_billed": true
-    },
-    // Legacy completions — different upstream, not billed.
-    {
-      "label": "completions",
-      "path": "/v1/completions",
-      "upstream_host": "copilot-proxy.githubusercontent.com",
-      "capture": "usage",
-      "provider": "copilot",
-      "not_billed": true
-    }
-  ]
+  "note": "The routes configuration file is no longer used.",
+  "architecture": "Copilot Monitor now uses a single --upstream flag to forward all requests.",
+  "usage": "copilot-monitor run --dashboard --upstream api.githubcopilot.com",
+  "why": "The --upstream flag replaces the routes.json file. All incoming requests (except /_ping and /_health) are forwarded to the configured upstream host. Provider prefix stripping, per-route capture modes, and compression configuration have been removed in favor of this simpler model. An optional Headroom compression proxy can sit in front of Copilot Monitor; traffic arriving from Headroom is detected via RemoteAddr and flagged with headroom_proxied."
 }

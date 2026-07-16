@@ -212,8 +212,8 @@ Reports SHALL support filtering by upstream host where applicable. A dedicated
 
 #### Scenario: Upstream filter
 
-- **WHEN** `?upstream=api.openai.com` is passed to stats, cost, timeline, or
-  export
+- **WHEN** `?upstream=api.githubcopilot.com` is passed to stats, cost, timeline,
+  or export
 - **THEN** results are limited to requests to that upstream
 
 #### Scenario: Upstream discovery
@@ -223,57 +223,16 @@ Reports SHALL support filtering by upstream host where applicable. A dedicated
 
 ---
 
-### Requirement: Config validation command
-
-A `validate` subcommand SHALL check a route config file for errors without
-starting the proxy.
-
-#### Scenario: Valid config
-
-- **WHEN** `copilot-monitor validate --routes-config valid.json`
-- **THEN** a message confirming the config is valid is printed, no server is
-  started, exit code 0
-
-#### Scenario: Invalid config
-
-- **WHEN** `copilot-monitor validate --routes-config invalid.json`
-- **THEN** the specific validation error is printed, no server is started, exit
-  code 1
-
----
-
-### Requirement: Init command
-
-An `init` subcommand SHALL create a starter route config file with auto-detected
-providers from the environment.
-
-#### Scenario: Providers detected
-
-- **WHEN** API key environment variables are present
-- **THEN** routes are created only for detected providers
-
-#### Scenario: No providers detected
-
-- **WHEN** no API keys are found in the environment
-- **THEN** a generic stub with model filters is created as a template
-
-#### Scenario: Existing config
-
-- **WHEN** the config file already exists and `--force` is not set
-- **THEN** the command refuses to overwrite and exits with an error
-
----
-
 ### Requirement: Startup banner
 
-The `run` command SHALL emit startup information showing the address, route
-count, database path, and a copy-pasteable verification curl command.
+The `run` command SHALL emit startup information showing the address, upstream
+host, database path, and a copy-pasteable verification curl command.
 
 #### Scenario: Proxy startup
 
-- **WHEN** `copilot-monitor run --routes-config ...` starts
+- **WHEN** `copilot-monitor run --upstream api.githubcopilot.com` starts
 - **THEN** stderr gets:
-  `copilot-monitor: listening on 127.0.0.1:7733 (N routes) - curl http://127.0.0.1:7733/_ping`
+  `copilot-monitor: listening on 127.0.0.1:7733 (upstream api.githubcopilot.com) - curl http://127.0.0.1:7733/_ping`
 
 #### Scenario: Combined mode startup
 
@@ -307,9 +266,9 @@ on the same port.
 
 #### Scenario: Combined mode
 
-- **WHEN** `copilot-monitor run --dashboard --routes-config ...`
-- **THEN** paths matching proxy routes are forwarded to upstreams, all other
-  paths serve the dashboard and API
+- **WHEN** `copilot-monitor run --dashboard --upstream api.githubcopilot.com`
+- **THEN** paths `/_ping` and `/_health` are handled locally, all other paths
+  are forwarded to the upstream, and the dashboard and API are served
 
 ---
 

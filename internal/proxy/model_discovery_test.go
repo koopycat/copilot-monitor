@@ -30,14 +30,15 @@ func newModelDiscoveryHandler(t *testing.T, p *policy.Policy, body string) *Hand
 	t.Cleanup(func() { require.NoError(t, st.Close()) })
 	require.NoError(t, st.SetPolicy(context.Background(), p))
 
-	h := NewHandlerWithRouter(log.Disabled(), st, "", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+	h := NewHandlerWithStore(log.Disabled(), st, "")
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": {"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(body)),
 		}, nil
-	})}
+	})})
 	return h
 }
 
@@ -152,14 +153,15 @@ func TestFilterModelDiscoveryResponseLeavesOversizedBodyUnchanged(t *testing.T) 
 }
 
 func TestHandlerLeavesModelDiscoveryUnchangedWithoutPolicyStore(t *testing.T) {
-	h := NewHandlerWithRouter(log.Disabled(), nil, "", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+	h := NewHandler(log.Disabled())
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": {"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(modelListResponse)),
 		}, nil
-	})}
+	})})
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/models", nil))
@@ -201,8 +203,9 @@ func TestHandlerDoesNotBufferNonDiscoveryResponsesForPolicyFiltering(t *testing.
 	defer st.Close()
 	require.NoError(t, st.SetPolicy(context.Background(), &policy.Policy{Mode: policy.Allowlist, Models: []string{"gpt-4o"}}))
 
-	h := NewHandlerWithRouter(log.Disabled(), st, "", nil, testRouter())
-	h.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+	h := NewHandlerWithStore(log.Disabled(), st, "")
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": {"application/json"}},
@@ -211,7 +214,7 @@ func TestHandlerDoesNotBufferNonDiscoveryResponsesForPolicyFiltering(t *testing.
 				maxSize: 32 << 10,
 			}),
 		}, nil
-	})}
+	})})
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/chat/completions", strings.NewReader(`{"model":"gpt-4o"}`)))

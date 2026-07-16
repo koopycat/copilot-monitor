@@ -15,26 +15,21 @@ in the binary. No hosted services are required.
 
 #### Scenario: User starts the proxy
 
-- **WHEN** user runs `copilot-monitor run --routes-config routes.json`
+- **WHEN** user runs `copilot-monitor run --upstream api.githubcopilot.com`
 - **THEN** the proxy starts listening on 127.0.0.1:7733 and the embedded
   dashboard is available
 
 ---
 
-### Requirement: Configurable provider proxying
+### Requirement: Single upstream forwarding
 
-The system SHALL proxy LLM API traffic for any provider defined in the route
-configuration file. No provider routing SHALL be hardcoded.
+The system SHALL forward all LLM API traffic to the single host specified by the
+`--upstream` flag.
 
-#### Scenario: Route matches a configured path
+#### Scenario: Upstream configured
 
-- **WHEN** a request arrives at a path defined in the route config
-- **THEN** the request is forwarded to the configured upstream host
-
-#### Scenario: Route does not match any configured path
-
-- **WHEN** a request arrives at a path not defined in the route config
-- **THEN** the proxy returns a 502 error response
+- **WHEN** `--upstream api.githubcopilot.com` is set and a request arrives
+- **THEN** the request is forwarded to `api.githubcopilot.com`
 
 ---
 
@@ -110,19 +105,21 @@ identical to the previous default behavior.
 
 #### Scenario: Default is human format
 
-- **WHEN** `copilot-monitor run --routes-config routes.json` is executed without
-  `--log-format`
+- **WHEN** `copilot-monitor run --upstream api.githubcopilot.com` is executed
+  without `--log-format`
 - **THEN** the log format defaults to `human`
 
 #### Scenario: Explicit JSON format
 
-- **WHEN** `copilot-monitor run --routes-config routes.json --log-format json`
-  is executed
+- **WHEN**
+  `copilot-monitor run --upstream api.githubcopilot.com --log-format json` is
+  executed
 - **THEN** each request is emitted as a single JSON object per line
 
 #### Scenario: Invalid format value
 
-- **WHEN** `copilot-monitor run --routes-config routes.json --log-format xml` is
+- **WHEN**
+  `copilot-monitor run --upstream api.githubcopilot.com --log-format xml` is
   executed
 - **THEN** the command exits with an error indicating valid values are `human`
   and `json`
@@ -237,14 +234,34 @@ be discarded and a parse error recorded.
 
 ---
 
+### Requirement: Headroom-proxied detection
+
+The system SHALL detect requests coming through an external Headroom compression
+proxy by comparing the RemoteAddr against `--headroom-proxy-addr` (default
+`127.0.0.1:8787`). When a match is found, the request SHALL be flagged
+`headroom_proxied = true` in the database.
+
+#### Scenario: Headroom proxy in front
+
+- **WHEN** `--headroom-proxy-addr 127.0.0.1:8787` is set and a request arrives
+  from `127.0.0.1:8787`
+- **THEN** the request is stored with `headroom_proxied = true`
+
+#### Scenario: Direct request
+
+- **WHEN** a request arrives from any other address
+- **THEN** the request is stored with `headroom_proxied = false`
+
+---
+
 ### Requirement: Startup validation
 
 All fatal configuration errors SHALL be detected and reported before the proxy
 accepts its first client connection.
 
-#### Scenario: Invalid route config
+#### Scenario: Missing upstream
 
-- **WHEN** the route configuration is invalid
+- **WHEN** `--upstream` is not provided
 - **THEN** the process exits with code 1 before the HTTP listener starts
 
 #### Scenario: Store cannot be opened
@@ -282,19 +299,17 @@ SHALL only be valid with `run`, not `serve`.
 ### Requirement: Raw log record content
 
 Each raw log record SHALL include: request ID, timestamp, HTTP method, original
-URL path, stripped provider prefix, resolved route endpoint, upstream host,
-request model, request stream flag, request body (raw bytes, truncated to 1024
-bytes), response status, response latency, redacted response headers, routing
-decision, compression status, and policy decision.
+URL path, upstream host, request model, request stream flag, request body (raw
+bytes, truncated to 1024 bytes), response status, response latency, redacted
+response headers, policy decision, and headroom_proxied flag.
 
 #### Scenario: Full record written
 
 - **WHEN** a request is proxied with raw logging enabled
 - **THEN** the JSON record contains all required fields: `request_id`, `ts`,
-  `method`, `path`, `provider`, `endpoint`, `upstream`, `model`, `stream`,
-  `request_body` (base64-encoded, truncated to 1024 bytes), `status`,
-  `latency_ms`, `response_headers` (redacted), `route_matched`,
-  `compression_status`, `policy_allowed`
+  `method`, `path`, `upstream`, `model`, `stream`, `request_body`
+  (base64-encoded, truncated to 1024 bytes), `status`, `latency_ms`,
+  `response_headers` (redacted), `policy_allowed`, `headroom_proxied`
 
 #### Scenario: Request body truncation
 

@@ -119,23 +119,21 @@ recent session and indicates whether it is active or idle.
 
 ---
 
-### Requirement: Compression metrics persistence
+### Requirement: Headroom-proxied flag persistence
 
-The system SHALL persist estimated compression metrics when compression is
-applied: compression status, estimated original tokens, estimated final tokens,
-and compression latency as nullable columns. Derived aggregates (tokens removed,
-ratio) SHALL appear in stats and export.
+The system SHALL persist a `headroom_proxied` boolean flag on each request
+indicating whether the request arrived from a Headroom compression proxy
+(detected via RemoteAddr matching `--headroom-proxy-addr`).
 
-#### Scenario: Compression applied to request
+#### Scenario: Headroom-proxied detected
 
-- **WHEN** compression is applied to a request
-- **THEN** compression status, original tokens, final tokens, and latency are
-  persisted with the row
+- **WHEN** a request arrives from the configured `--headroom-proxy-addr`
+- **THEN** `headroom_proxied` is stored as `true` with the row
 
-#### Scenario: Compression not attempted
+#### Scenario: No Headroom proxy
 
-- **WHEN** compression is not configured or the request is not eligible
-- **THEN** compression columns are stored as null
+- **WHEN** a request arrives from any other address
+- **THEN** `headroom_proxied` is stored as `false`
 
 ---
 
