@@ -456,18 +456,3 @@ func (h *Handler) recordAnomaly(rec store.AnomalyRecord) {
 		h.anomalyRecorder.Record(rec)
 	}
 }
-
-var knownContentTypes = map[string]bool{
-	"text/event-stream":        true,
-	"application/json":         true,
-	"text/plain":               true,
-	"text/html":                true,
-	"application/octet-stream": true,
-}
-
-func isKnownContentType(ct string) bool {
-	if idx := strings.Index(ct, ";"); idx >= 0 {
-		ct = strings.TrimSpace(ct[:idx])
-	}
-	return knownContentTypes[strings.ToLower(ct)]
-}
