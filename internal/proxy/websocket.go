@@ -356,18 +356,20 @@ func writeWSFrame(w io.Writer, opcode byte, payload []byte) error {
 
 // storeRequestRecord builds a store.RequestRecord for persistence.
 func storeRequestRecord(ts time.Time, h *Handler, r *http.Request, model string, stream bool, status int, latencyMS int64, usage Usage, usageSeen bool, project string) store.RequestRecord {
+	hp := h.isHeadroomProxied(r)
 	if !usageSeen {
 		return store.RequestRecord{
-			Timestamp:    ts,
-			Endpoint:     r.URL.Path,
-			Method:       r.Method,
-			Path:         r.URL.RequestURI(),
-			UpstreamHost: h.upstream,
-			Model:        model,
-			Stream:       stream,
-			Status:       status,
-			LatencyMS:    latencyMS,
-			Project:      project,
+			Timestamp:       ts,
+			Endpoint:        r.URL.Path,
+			Method:          r.Method,
+			Path:            r.URL.RequestURI(),
+			UpstreamHost:    h.upstream,
+			Model:           model,
+			Stream:          stream,
+			Status:          status,
+			LatencyMS:       latencyMS,
+			Project:         project,
+			HeadroomProxied: hp,
 		}
 	}
 	return store.RequestRecord{
@@ -386,6 +388,7 @@ func storeRequestRecord(ts time.Time, h *Handler, r *http.Request, model string,
 		CompletionTokens:  usage.CompletionTokens,
 		TotalTokens:       usage.TotalTokens,
 		Project:           project,
+		HeadroomProxied:   hp,
 	}
 }
 

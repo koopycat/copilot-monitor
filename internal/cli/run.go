@@ -107,6 +107,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 
 	proxyHandler := proxy.NewHandlerWithStoreAndUsageDebug(logWriter, st, *project, usageDebug)
 	proxyHandler.SetUpstream(*upstream)
+	proxyHandler.SetHeadroomProxyAddr(*headroomProxyAddr)
 	cat, err := st.Catalog()
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to load pricing catalog: %v\n", err)

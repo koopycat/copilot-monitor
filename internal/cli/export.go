@@ -38,13 +38,13 @@ func runExport(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	fmt.Fprintln(stdout, "ts,endpoint,model,status,latency_ms,prompt_tokens,cached_input_tokens,cache_write_tokens,completion_tokens,total_tokens,project,compression_status,compression_original_tokens,compression_final_tokens,compression_latency_ms")
+	fmt.Fprintln(stdout, "ts,endpoint,model,status,latency_ms,prompt_tokens,cached_input_tokens,cache_write_tokens,completion_tokens,total_tokens,project,headroom_proxied")
 	for _, row := range rows {
-		fmt.Fprintf(stdout, "%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%s,%s,%d,%d,%d\n",
+		fmt.Fprintf(stdout, "%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%s,%t\n",
 			row.Timestamp, row.Endpoint, csvField(row.Model), row.Status, row.LatencyMS,
 			row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens,
 			row.CompletionTokens, row.TotalTokens, csvField(row.Project),
-			csvField(row.CompressionStatus), row.CompressionOriginalTokens, row.CompressionFinalTokens, row.CompressionLatencyMS)
+			row.HeadroomProxied)
 	}
 	return 0
 }
