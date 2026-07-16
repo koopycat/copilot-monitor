@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -24,16 +25,17 @@ import (
 const policyCacheTTL = 5 * time.Second
 
 type Handler struct {
-	log             *log.Writer
-	client          *http.Client
-	store           *store.Store
-	project         string
-	usageDebug      *UsageDebugLogger
-	rawLogger       *RawLogger
-	cat             catalog.Catalog
-	upstream        string
-	nextID          atomic.Uint64
-	anomalyRecorder *AnomalyRecorder
+	log               *log.Writer
+	client            *http.Client
+	store             *store.Store
+	project           string
+	usageDebug        *UsageDebugLogger
+	rawLogger         *RawLogger
+	cat               catalog.Catalog
+	upstream          string
+	headroomProxyAddr string
+	nextID            atomic.Uint64
+	anomalyRecorder   *AnomalyRecorder
 
 	policyMu     sync.RWMutex
 	policyCache  *policy.Policy
@@ -110,6 +112,23 @@ func NewHandlerWithStoreAndUsageDebug(log *log.Writer, st *store.Store, project 
 // SetUpstream sets the single upstream host to forward requests to.
 func (h *Handler) SetUpstream(upstream string) {
 	h.upstream = upstream
+}
+
+// SetHeadroomProxyAddr sets the address of an optional Headroom proxy running
+// in front of Copilot Monitor. Requests from this address are flagged.
+func (h *Handler) SetHeadroomProxyAddr(addr string) {
+	h.headroomProxyAddr = addr
+}
+
+func (h *Handler) isHeadroomProxied(r *http.Request) bool {
+	if h.headroomProxyAddr == "" {
+		return false
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	return host == h.headroomProxyAddr
 }
 
 // SetCatalog sets the pricing catalog used for per-request cost estimation.
@@ -353,16 +372,17 @@ func (h *Handler) persistBlockedRequest(ctx context.Context, ts time.Time, r *ht
 		return
 	}
 	if err := h.store.InsertRequest(ctx, store.RequestRecord{
-		Timestamp:    ts,
-		Endpoint:     r.URL.Path,
-		Method:       r.Method,
-		Path:         r.URL.RequestURI(),
-		UpstreamHost: h.upstream,
-		Model:        meta.Model,
-		Stream:       meta.Stream,
-		Status:       403,
-		LatencyMS:    0,
-		Project:      h.project,
+		Timestamp:       ts,
+		Endpoint:        r.URL.Path,
+		Method:          r.Method,
+		Path:            r.URL.RequestURI(),
+		UpstreamHost:    h.upstream,
+		Model:           meta.Model,
+		Stream:          meta.Stream,
+		Status:          403,
+		LatencyMS:       0,
+		Project:         h.project,
+		HeadroomProxied: h.isHeadroomProxied(r),
 	}); err != nil {
 		h.log.Warn("store_error=%q\n", err.Error())
 	}
@@ -397,6 +417,7 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, r *http.Requ
 		CompletionTokens:  usage.CompletionTokens,
 		TotalTokens:       usage.TotalTokens,
 		Project:           h.project,
+		HeadroomProxied:   h.isHeadroomProxied(r),
 		UsageMissing:      usageMissing,
 	}); err != nil {
 		h.log.Warn("store_error=%q\n", err.Error())
