@@ -24,10 +24,9 @@ const fakeUpstreamJSON = `{"usage":{"prompt_tokens":100,"completion_tokens":50,"
 // setupPolicyTest creates the full test harness:
 //  1. In-memory SQLite store
 //  2. Fake upstream TLS server returning usage JSON for any request
-//  3. ProxyConfig with one route: /chat/completions → fake upstream, capture=usage
-//  4. Router from config
-//  5. Handler with log.Disabled(), store, and router
-//  6. Internal HTTP client replaced with one that skips TLS verification
+//  3. Handler with log.Disabled()
+//  4. Single upstream set to the fake upstream host
+//  5. Internal HTTP client replaced with one that skips TLS verification
 //     so it can talk to the test TLS server.
 func setupPolicyTest(t *testing.T) (*store.Store, *proxy.Handler, *httptest.Server) {
 	t.Helper()
@@ -52,22 +51,9 @@ func setupPolicyTest(t *testing.T) (*store.Store, *proxy.Handler, *httptest.Serv
 		t.Fatalf("url.Parse(%q): %v", fakeUpstream.URL, err)
 	}
 
-	// 3. Create ProxyConfig with one route pointing to the fake upstream
-	cfg := &proxy.ProxyConfig{
-		Routes: []proxy.RouteConfig{
-			{
-				Path:         "/chat/completions",
-				UpstreamHost: u.Host,
-				Capture:      "usage",
-			},
-		},
-	}
-
-	// 4. Create Router from config
-	router := proxy.NewRouter(cfg)
-
-	// 5. Create Handler with router
-	h := proxy.NewHandlerWithRouter(log.Disabled(), st, "", nil, router)
+	// 3. Create Handler with log.Disabled() and store
+	h := proxy.NewHandlerWithStore(log.Disabled(), st, "")
+	h.SetUpstream(u.Host)
 
 	// 6. Replace internal HTTP client with one that skips TLS verification
 	tr := &http.Transport{

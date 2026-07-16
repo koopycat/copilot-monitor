@@ -2,30 +2,34 @@
 
 > Synthesized from three research streams: proxy pipeline architectures, LLM
 > proxy landscape, and composable middleware patterns. July 2026.
+>
+> **Note:** This document explores future pipeline architectures. The current
+> implementation is simpler: a single `--upstream` flag, no routes config, no
+> inline compression. Headroom is an optional external enhancement that runs in
+> front of copilot-monitor, not as a pipeline stage. See `architecture.md` for
+> the current state.
 
 ## 1. The Problem
 
 ### 1.1 What we have
 
-Copilot Monitor is a Go reverse proxy with a **monolithic `Handler.ServeHTTP`**
-that does everything inline:
+Copilot Monitor is a Go reverse proxy with a simple single-upstream handler:
 
 ```text
 ServeHTTP (server.go)
+  ├─ /_ping, /_health → local response
   ├─ readAndRestoreBody → ParseRequestMetadata
-  ├─ Router.MatchModel → route, upstream
   ├─ Policy check (inline, cached)
   ├─ WebSocket branch (hijack + frame inspector)
-  ├─ MakeUpstreamRequest → HTTP call
+  ├─ MakeUpstreamRequest → single upstream
   ├─ streamResponse + SSEObserver (inline observation)
-  ├─ Logging (inline calls)
   └─ persistRequest (inline call)
 ```
 
-This works. It's a single binary at ~15MB RSS. It handles HTTP, SSE, and
-WebSocket. It's well-factored into helper files (`capture.go`, `sse.go`,
-`websocket.go`, `forward.go`, `router.go`). The concerns are separated at the
-file level, but the **control flow is locked in the handler body**.
+This works. It's a single binary at ~15MB RSS, started with one flag:
+`copilot-monitor run --upstream https://api.kilo.ai/api/gateway`. It handles
+HTTP, SSE, and WebSocket. All incoming requests (except local paths) are
+forwarded to the single upstream and observed for token usage.
 
 ### 1.2 What we want
 
@@ -42,14 +46,17 @@ running multiple full proxy processes. The pipeline should:
 
 ### 1.3 The immediate use case
 
-The [Headroom integration analysis](./headroom-integration-analysis.md)
-identified that running two full proxies in sequence (Headroom + Copilot
-Monitor) works but adds operational complexity. A pipeline architecture would
-let a single proxy run multiple stages:
+An optional Headroom compression proxy can sit in front of Copilot Monitor for
+token reduction. The current architecture runs Headroom externally:
 
 ```text
-Tool → [Route] → [Policy] → [Compress] → [Observe] → [Forward] → LLM API
+Pi → headroom:8787 --upstream http://127.0.0.1:7733
+     → monitor:7733 --upstream https://api.kilo.ai/api/gateway
 ```
+
+This is two independent processes with no integration code coupling them.
+Copilot Monitor simply detects requests from Headroom's address and flags them.
+A future pipeline architecture could optionally run both stages in one process.
 
 ## 2. The Landscape: What the Ecosystem Teaches Us
 
@@ -198,15 +205,15 @@ per-request Service.
 
 From the research, a lightweight proxy pipeline should meet these targets:
 
-| Metric            | Lightweight target             | What we have now               |
-| ----------------- | ------------------------------ | ------------------------------ |
-| Resident memory   | <50 MB                         | ~15 MB                         |
-| Startup time      | <100 ms                        | <50 ms                         |
-| Per-stage latency | <100 μs (sync) / <1 ms (async) | ~10 μs (inline calls)          |
-| Dependencies      | stdlib + SQLite driver         | stdlib + go-sqlite3            |
-| Binary size       | <20 MB                         | ~12 MB                         |
-| Config            | 1 file or env vars             | routes.json (optional) + flags |
-| Process count     | 1                              | 2 (proxy + dashboard)          |
+| Metric            | Lightweight target             | What we have now      |
+| ----------------- | ------------------------------ | --------------------- |
+| Resident memory   | <50 MB                         | ~15 MB                |
+| Startup time      | <100 ms                        | <50 ms                |
+| Per-stage latency | <100 μs (sync) / <1 ms (async) | ~10 μs (inline calls) |
+| Dependencies      | stdlib + SQLite driver         | stdlib + go-sqlite3   |
+| Binary size       | <20 MB                         | ~12 MB                |
+| Config            | 1 file or env vars             | --upstream flag       |
+| Process count     | 1                              | 2 (proxy + dashboard) |
 
 Copilot Monitor already meets or exceeds all lightweight targets. Adding a
 pipeline architecture should maintain this profile.
@@ -605,7 +612,7 @@ the Headroom integration use case:
 {
   "pipeline": {
     "stages": [
-      { "type": "routing", "routes_config": "routes.json" },
+      { "type": "routing", "upstream": "api.githubcopilot.com" },
       { "type": "policy" },
       {
         "type": "capture",
@@ -632,10 +639,17 @@ pipeline := builder.Build()
 
 ## 4. Integration with Headroom
 
-### 4.1 The current problem
+> **Current architecture (July 2026):** Headroom runs as a separate process in
+> front of Copilot Monitor. See `architecture.md` for the current setup.
 
-Today, to get both compression (Headroom) and observability (Copilot Monitor),
-you run two full proxy processes:
+```text
+headroom proxy --port 8787 --backend openai --openai-api-url http://127.0.0.1:7733
+copilot-monitor run --upstream https://api.kilo.ai/api/gateway
+```
+
+The sections below explore future pipeline architectures where Headroom's
+compression runs as a stage within Copilot Monitor. These are design sketches,
+not implemented.
 
 ```text
 Tool → copilot-monitor:7733 → headroom:8787 → LLM API

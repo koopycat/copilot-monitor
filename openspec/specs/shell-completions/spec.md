@@ -24,16 +24,16 @@ top-level subcommands and, where applicable, their flags and flag values.
 - **WHEN** the generated script is sourced and the user types `copilot-monitor`
   followed by TAB
 - **THEN** zsh offers completions for all top-level subcommands: `run`, `serve`,
-  `stats`, `cost`, `today`, `sessions`, `live`, `export`, `init`, `validate`,
-  `inspect`, `version`, `help`, `completion`
+  `stats`, `cost`, `today`, `sessions`, `live`, `export`, `inspect`, `version`,
+  `help`, `completion`
 
 #### Scenario: Tab-complete flag for command with flags
 
 - **WHEN** the generated script is sourced and the user types
   `copilot-monitor run --` followed by TAB
-- **THEN** zsh offers the flags accepted by `run`: `--routes-config`, `--addr`,
+- **THEN** zsh offers the flags accepted by `run`: `--upstream`, `--addr`,
   `--db`, `--project`, `--usage-debug-log`, `--no-live`, `--dashboard`,
-  `--log-format`
+  `--log-format`, `--headroom-proxy-addr`
 
 #### Scenario: Completion does not require database or config files
 

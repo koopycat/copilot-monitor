@@ -518,11 +518,11 @@ not standard `net/http`.
 | linkerd2-proxy            | Rust         | Fixed stack (Tower) | None (hardcoded)   | ~10MB |
 | oauth2-proxy              | Go           | Single handler      | Provider interface | ~15MB |
 | nginx unit                | C + runtimes | Route→app           | Config file        | ~15MB |
-| Copilot Monitor (current) | Go           | Monolithic handler  | Routes config      | ~15MB |
+| Copilot Monitor (current) | Go           | Monolithic handler  | --upstream flag    | ~15MB |
 
 **The takeaway**: For a local developer proxy, a hardcoded pipeline with one
-extension point (routes-config, policy config) is the sweet spot. Don't build a
-plugin system until you have at least 3 distinct plugins you need to support.
+extension point (--upstream flag, policy config) is the sweet spot. Don't build
+a plugin system until you have at least 3 distinct plugins you need to support.
 
 ---
 

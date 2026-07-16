@@ -2,211 +2,111 @@
 
 ## Purpose
 
-Route LLM API requests to upstream providers based on a JSON configuration file,
-with model-based filtering, provider prefix stripping, and explicit capture
-modes.
+Route all LLM API traffic to a single upstream host via the `--upstream` flag.
+No route configuration file, provider prefixes, or per-path routing.
 
 ## Requirements
 
-### Requirement: Configuration-driven routing
+### Requirement: Single upstream flag
 
-The system SHALL define routing entirely through a JSON route configuration
-file. When no configuration file is provided, built-in default routes SHALL be
-used. No provider routing SHALL be hardcoded beyond the built-in defaults.
+The system SHALL accept a required `--upstream` flag on the `run` command. All
+incoming requests (except reserved local endpoints) SHALL be forwarded to the
+specified upstream host. The upstream host SHALL be provided as a bare hostname
+or host:port value; the proxy SHALL connect over HTTPS on port 443 unless a
+custom port is included.
 
-#### Scenario: Routes are loaded from config
+#### Scenario: Upstream flag provided
 
-- **WHEN** the proxy starts with `--routes-config routes.json`
-- **THEN** all routes are read from the JSON file and used for request matching
+- **WHEN** the proxy starts with `--upstream api.githubcopilot.com`
+- **THEN** all requests (except `/_ping` and `/_health`) are forwarded to
+  `api.githubcopilot.com` over HTTPS
 
-#### Scenario: Missing routes config loads defaults
+#### Scenario: Upstream with port
 
-- **WHEN** the proxy starts without `--routes-config`
-- **THEN** built-in default routes (GitHub Copilot endpoints) are loaded and the
-  startup banner indicates defaults are active
+- **WHEN** the proxy starts with `--upstream localhost:8080`
+- **THEN** all requests are forwarded to `localhost` on port `8080`
 
----
+#### Scenario: Missing upstream flag
 
-### Requirement: Unknown path rejection
-
-Unknown inbound paths SHALL be rejected with an error response.
-
-#### Scenario: Unknown path
-
-- **WHEN** a request arrives at a path that matches no configured route
-- **THEN** the proxy returns 502 Bad Gateway
+- **WHEN** `copilot-monitor run` is started without `--upstream`
+- **THEN** the process exits with code 1 and a message indicating `--upstream`
+  is required
 
 ---
 
-### Requirement: Local paths
+### Requirement: All requests forwarded as-is
 
-Local health and ping paths SHALL NOT be forwarded upstream. They SHALL return
-responses directly from the proxy.
+Every request (method, path, query, headers, body) SHALL be forwarded to the
+configured upstream unchanged, except for standard hop-by-hop header stripping.
+No prefix stripping, path rewriting, or provider label extraction SHALL be
+performed.
 
-#### Scenario: Ping endpoint
+#### Scenario: Request forwarded unchanged
 
-- **WHEN** a request matches a route with `capture: "local"`
-- **THEN** the proxy returns 200 OK without forwarding to any upstream
+- **WHEN** a POST request arrives at `/v1/chat/completions` with body
+  `{"model":"gpt-4o"}`
+- **THEN** the proxy forwards the same method, path, query, headers, and body to
+  the upstream
 
----
+#### Scenario: Hop-by-hop headers stripped
 
-### Requirement: Explicit capture mode
-
-Every configured route SHALL have an explicit capture mode: `usage`, `metadata`,
-`none`, `tunnel`, or `local`.
-
-#### Scenario: Validation of capture mode
-
-- **WHEN** the route config is validated
-- **THEN** any route with an unrecognized capture mode causes a validation error
+- **WHEN** a forwarded request contains Connection, Keep-Alive,
+  Proxy-Authenticate, TE, Trailer, Transfer-Encoding, or Upgrade headers
+- **THEN** those headers are removed before the request is sent upstream
 
 ---
 
-### Requirement: Model-based filtering
+### Requirement: Local endpoint reservation
 
-Routes SHALL support optional model-based filtering with exact match and
-`*`-prefix patterns. Routes without model filters SHALL match any model.
+The paths `/_ping` and `/_health` SHALL be handled locally by the proxy and
+SHALL NOT be forwarded to the upstream. All other paths SHALL be forwarded.
 
-#### Scenario: Model filter matches
+#### Scenario: Ping handled locally
 
-- **WHEN** a route specifies `models: ["gpt-4o"]` and a request body contains
-  `"model": "gpt-4o"`
-- **THEN** the route matches
+- **WHEN** a GET request is made to `/_ping`
+- **THEN** the proxy returns 200 OK with body `OK` without contacting the
+  upstream
 
-#### Scenario: Prefix pattern matches
+#### Scenario: Health handled locally
 
-- **WHEN** a route specifies `models: ["gpt-*"]` and a request body contains
-  `"model": "gpt-4o-mini"`
-- **THEN** the route matches
+- **WHEN** a GET request is made to `/_health`
+- **THEN** the proxy returns a JSON health response without contacting the
+  upstream
 
-#### Scenario: Model filter does not match
+#### Scenario: Other paths forwarded
 
-- **WHEN** a route specifies `models: ["gpt-4o"]` and a request body contains
-  `"model": "claude-3-opus"`
-- **THEN** the route does not match
-
-#### Scenario: No model filter
-
-- **WHEN** a route has no `models` field or an empty models array
-- **THEN** the route matches any model
+- **WHEN** a GET request is made to `/models`
+- **THEN** the request is forwarded to the upstream
 
 ---
 
-### Requirement: Provider label
+### Requirement: Unknown path handling
 
-Routes SHALL support an explicit `provider` label used in reports and cost
-attribution.
+There are no "unknown" paths under the single-upstream model. Every path that is
+not `/_ping` or `/_health` SHALL be forwarded. The upstream determines the
+validity of the path and returns an appropriate response.
 
-#### Scenario: Provider label in reports
+#### Scenario: Path unknown to upstream
 
-- **WHEN** a route has `"provider": "openai"`
-- **THEN** the provider value is stored with captured requests and used in cost
-  lookups and report output
-
----
-
-### Requirement: Not-billed flag
-
-Routes SHALL support a `not_billed` flag that marks request rows as zero-cost
-regardless of token counts.
-
-#### Scenario: Not-billed route
-
-- **WHEN** a route has `"not_billed": true`
-- **THEN** captured rows are stored with the not-billed flag and cost
-  calculations return zero for those rows
+- **WHEN** a request arrives at `/nonexistent` and the upstream returns 404
+- **THEN** the 404 is forwarded back to the client as-is
 
 ---
 
-### Requirement: Provider prefix stripping
+### Requirement: WebSocket upgrade forwarding
 
-Known provider prefixes in URL paths SHALL be stripped before route matching and
-stored for provider attribution in reports. Recognized prefixes are `/copilot/`,
-`/openai/`, and `/kilo/`.
+WebSocket upgrade requests SHALL be detected and proxied over TLS to the
+configured upstream host bidirectionally.
 
-#### Scenario: Copilot prefix stripped
+#### Scenario: WebSocket upgrade forwarded
 
-- **WHEN** a request arrives at `/copilot/chat/completions`
-- **THEN** the prefix `copilot` is extracted, the path `/chat/completions` is
-  used for route matching, and the prefix is stored for reports
+- **WHEN** a request contains `Upgrade: websocket` and `Connection: upgrade`
+  headers
+- **THEN** the connection is hijacked, a TLS connection to the upstream is
+  established, and data is relayed bidirectionally
 
-#### Scenario: No recognized prefix
+#### Scenario: WebSocket headers preserved
 
-- **WHEN** a request arrives at `/v1/chat/completions` with no recognized prefix
-- **THEN** the full path is used for route matching and no prefix is stored
-
----
-
-### Requirement: Provider prefix in model matching
-
-The stripped provider prefix SHALL be passed to model-based route matching for
-routes that filter by provider.
-
-#### Scenario: Provider-specific route matching
-
-- **WHEN** a route has `"provider": "openai"` and a request has prefix `openai`
-- **THEN** the route is considered for matching
-
-#### Scenario: Provider mismatch in route matching
-
-- **WHEN** a route has `"provider": "openai"` and a request has prefix `copilot`
-- **THEN** the route is excluded from matching
-
----
-
-### Requirement: Provider default upstream
-
-A route entry with only `provider` and `upstream_host` (no `path`) SHALL act as
-a default fallback route for that provider. When no specific path route matches,
-the provider default route SHALL be used, forwarding the request to the
-configured upstream host with the original path.
-
-#### Scenario: Provider default catches unmatched path
-
-- **WHEN** a route config has
-  `{ "provider": "copilot", "upstream_host": "api.githubcopilot.com" }` and a
-  request arrives at `/copilot/models/session` with no specific route for
-  `/models/session` with provider `copilot`
-- **THEN** the request is forwarded to `api.githubcopilot.com` using the path
-  `/models/session`
-
-#### Scenario: Specific path takes precedence over default
-
-- **WHEN** a route config has both
-  `{ "provider": "copilot", "path": "/models", "upstream_host": "api.githubcopilot.com" }`
-  and a provider default
-  `{ "provider": "copilot", "upstream_host": "fallback.example.com" }`, and a
-  request arrives at `/copilot/models`
-- **THEN** the specific route is used (`api.githubcopilot.com`), not the default
-
-#### Scenario: Provider default with different provider does not match
-
-- **WHEN** a route config has
-  `{ "provider": "copilot", "upstream_host": "api.githubcopilot.com" }` and a
-  request arrives at `/openai/v1/chat/completions`
-- **THEN** the route does NOT match, and the request gets 502 (unless another
-  route matches)
-
-#### Scenario: Multiple provider defaults are independent
-
-- **WHEN** a route config has defaults for `copilot` and `openai`
-- **THEN** requests with prefix `copilot` fall through to the copilot default
-  and requests with prefix `openai` fall through to the openai default
-
-#### Scenario: Provider default validation
-
-- **WHEN** a route entry has no `path` field
-- **THEN** it SHALL have both `provider` and `upstream_host` set, otherwise
-  config validation fails
-
-#### Scenario: Provider default without upstream errors on validate
-
-- **WHEN** a route entry has `provider` but no `path` and no `upstream_host`
-- **THEN** config validation SHALL fail with a message indicating that a
-  provider default route requires `upstream_host`
-
-#### Scenario: Provider default with capture field
-
-- **WHEN** a provider default route specifies a `capture` mode
-- **THEN** requests matched by the default inherit that capture mode (defaulting
-  to `usage` if unspecified)
+- **WHEN** proxying a WebSocket connection
+- **THEN** all request headers including auth are cloned and sent to the
+  upstream

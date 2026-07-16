@@ -9,10 +9,10 @@ Requirements are managed through OpenSpec. Behavioral requirements live in
 | Capability  | File                                 | Scope                                                                                                       |
 | ----------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | proxy       | `openspec/specs/proxy/spec.md`       | Core proxy behavior, WebSocket, health, shutdown, request IDs, buffer limits, startup validation, live tail |
-| routing     | `openspec/specs/routing/spec.md`     | Route configuration, model filtering, provider labels, prefix stripping                                     |
-| capture     | `openspec/specs/capture/spec.md`     | Usage metadata, session grouping, compression metrics, debug logging, structured logging                    |
+| routing     | `openspec/specs/routing/spec.md`     | Single --upstream forwarding, local endpoint reservation, WebSocket upgrade                                 |
+| capture     | `openspec/specs/capture/spec.md`     | Usage metadata, session grouping, headroom-proxied flag, debug logging, structured logging                  |
 | policy      | `openspec/specs/policy/spec.md`      | Model allow/block, fail-open, API management, model discovery                                               |
-| compression | `openspec/specs/compression/spec.md` | Loopback processor, timeout/strict/ratio config, fail-open, status labels                                   |
+| compression | `openspec/specs/compression/spec.md` | Headroom-proxied detection via RemoteAddr, no inline compression                                            |
 | reporting   | `openspec/specs/reporting/spec.md`   | CLI commands, dashboard API, filtering, export, init, validate                                              |
 | dashboard   | `openspec/specs/dashboard/spec.md`   | Dashboard UI, metrics, charts, policy management, routes display                                            |
 | privacy     | `openspec/specs/privacy/spec.md`     | Data minimization, locality, loopback binding, export boundaries                                            |

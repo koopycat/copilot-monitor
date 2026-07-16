@@ -27,16 +27,28 @@ func readAndRestoreBody(r *http.Request) ([]byte, error) {
 	return body, nil
 }
 
-func MakeUpstreamRequest(in *http.Request, route Route, body []byte) (*http.Request, error) {
-	if route.Upstream == "" {
-		return nil, fmt.Errorf("route has no upstream")
+func MakeUpstreamRequest(in *http.Request, upstream string, body []byte) (*http.Request, error) {
+	if upstream == "" {
+		return nil, errors.New("no upstream configured")
 	}
-	path, rawPath := route.ApplyPathPrefix(in.URL.Path, in.URL.RawPath)
+	var base *url.URL
+	if strings.Contains(upstream, "://") {
+		var err error
+		base, err = url.Parse(upstream)
+		if err != nil {
+			return nil, fmt.Errorf("invalid upstream URL: %w", err)
+		}
+	} else {
+		base = &url.URL{Host: upstream}
+	}
+	if base.Scheme == "" {
+		base.Scheme = "https"
+	}
 	outURL := &url.URL{
-		Scheme:     "https",
-		Host:       route.Upstream,
-		Path:       path,
-		RawPath:    rawPath,
+		Scheme:     base.Scheme,
+		Host:       base.Host,
+		Path:       base.Path + in.URL.Path,
+		RawPath:    base.RawPath + in.URL.RawPath,
 		RawQuery:   in.URL.RawQuery,
 		ForceQuery: in.URL.ForceQuery,
 	}
@@ -47,7 +59,7 @@ func MakeUpstreamRequest(in *http.Request, route Route, body []byte) (*http.Requ
 	}
 	out.Header = StripHopByHopHeaders(in.Header)
 	out.Header.Set("Accept-Encoding", "identity")
-	out.Host = route.Upstream
+	out.Host = base.Host
 	out.ContentLength = int64(len(body))
 	if len(body) == 0 {
 		out.Body = http.NoBody

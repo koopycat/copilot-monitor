@@ -16,40 +16,37 @@ and `?project=` filters unless noted. Server failures use the structured
 response `{"error":"internal server error"}`; details are logged only on the
 server.
 
-| Method | Path                              | Parameters                                   | Returns                                            |
-| ------ | --------------------------------- | -------------------------------------------- | -------------------------------------------------- |
-| `GET`  | `/api/health`                     | none                                         | Health, including retention status                 |
-| `GET`  | `/api/stats`                      | `?since=&project=&endpoint=`                 | `[]ModelStats` with latency and compression fields |
-| `GET`  | `/api/cost`                       | `?since=&project=&endpoint=`                 | Total cost and rows                                |
-| `GET`  | `/api/today`                      | `?project=&endpoint=`                        | `[]ModelStats` since local midnight                |
-| `GET`  | `/api/sessions`                   | `?since=&project=&limit=&cursor=&cursor_id=` | `[]SessionStats`, newest first                     |
-| `GET`  | `/api/sessions/count`             | `?since=&until=&project=`                    | `{"count": N}` for the matching session filter     |
-| `GET`  | `/api/sessions/distinct-projects` | none                                         | Sorted `[]string` project names                    |
-| `GET`  | `/api/anomalies`                  | `?category=&severity=`                       | Up to 50 recent anomalies                          |
-| `GET`  | `/api/stats/timeline`             | `?since=&granularity=day\|hour`              | `[]TimelineBucket`                                 |
-| `GET`  | `/api/export`                     | `?since=`                                    | CSV with compression columns                       |
-| `GET`  | `/api/session/current`            | none                                         | Current session with per-model compression metrics |
-| `GET`  | `/`                               | none                                         | HTML dashboard                                     |
+| Method | Path                              | Parameters                                   | Returns                                                        |
+| ------ | --------------------------------- | -------------------------------------------- | -------------------------------------------------------------- |
+| `GET`  | `/api/health`                     | none                                         | Health, including retention status                             |
+| `GET`  | `/api/stats`                      | `?since=&project=&endpoint=`                 | `[]ModelStats` with latency and headroom-proxied flag          |
+| `GET`  | `/api/cost`                       | `?since=&project=&endpoint=`                 | Total cost and rows                                            |
+| `GET`  | `/api/today`                      | `?project=&endpoint=`                        | `[]ModelStats` since local midnight                            |
+| `GET`  | `/api/sessions`                   | `?since=&project=&limit=&cursor=&cursor_id=` | `[]SessionStats`, newest first                                 |
+| `GET`  | `/api/sessions/count`             | `?since=&until=&project=`                    | `{"count": N}` for the matching session filter                 |
+| `GET`  | `/api/sessions/distinct-projects` | none                                         | Sorted `[]string` project names                                |
+| `GET`  | `/api/anomalies`                  | `?category=&severity=`                       | Up to 50 recent anomalies                                      |
+| `GET`  | `/api/stats/timeline`             | `?since=&granularity=day\|hour`              | `[]TimelineBucket`                                             |
+| `GET`  | `/api/export`                     | `?since=`                                    | CSV with headroom-proxied flag                                 |
+| `GET`  | `/api/session/current`            | none                                         | Current session with per-model stats and headroom-proxied flag |
+| `GET`  | `/`                               | none                                         | HTML dashboard                                                 |
 
 `/api/health` includes `retention_days`, `last_prune_at` (or `null` before the
 first run), and `pruned_count` from the latest retention pass. For session
 pagination, pass the final row's `started_at` and `id` as `cursor` and
 `cursor_id` to retrieve the next older page.
 
-### Compression fields
+### Headroom-proxied flag
 
-When compression is configured on a route, model stat responses include:
+When an optional Headroom compression proxy runs in front of Copilot Monitor,
+the proxy detects it via RemoteAddr and sets a `headroom_proxied` flag on the
+captured request. This flag is available in:
 
-- `compressed_requests` -- requests with compression applied
-- `compression_original_tokens` -- estimated original input tokens
-- `compression_final_tokens` -- estimated compressed input tokens
-- `compression_removed_tokens` -- estimated tokens removed
-- `avg_compression_ratio` -- average compression ratio
-
-Export rows include `compression_status`, `compression_original_tokens`,
-`compression_final_tokens`, and `compression_latency_ms`. Cost rows and
-current-session model rows include `compressed_requests` and
-`compression_removed_tokens`.
+- Model stat responses as `headroom_proxied` (boolean per-request, or count in
+  aggregates)
+- Export CSV rows as a `headroom_proxied` column
+- Session model stats as `headroom_proxied` (boolean indicating at least one
+  request in the group arrived via Headroom)
 
 ## Dashboard
 

@@ -31,7 +31,7 @@ func headerContainsToken(value, token string) bool {
 	return false
 }
 
-func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Request, route Route, body []byte) error {
+func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Request, body []byte) error {
 	if len(body) != 0 {
 		return fmt.Errorf("websocket request unexpectedly had body bytes=%d", len(body))
 	}
@@ -42,7 +42,7 @@ func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Reque
 		return fmt.Errorf("response writer does not support hijacking")
 	}
 
-	upstreamConn, err := tls.DialWithDialer(&net.Dialer{}, "tcp", route.Upstream+":443", &tls.Config{ServerName: route.Upstream, MinVersion: tls.VersionTLS12})
+	upstreamConn, err := tls.DialWithDialer(&net.Dialer{}, "tcp", h.upstream+":443", &tls.Config{ServerName: h.upstream, MinVersion: tls.VersionTLS12})
 	if err != nil {
 		http.Error(w, "upstream websocket dial failed", http.StatusBadGateway)
 		return err
@@ -50,17 +50,16 @@ func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Reque
 	defer upstreamConn.Close()
 
 	upstreamReq := r.Clone(r.Context())
-	upstreamPath, upstreamRawPath := route.ApplyPathPrefix(r.URL.Path, r.URL.RawPath)
 	upstreamReq.URL = &url.URL{
 		Scheme:     "https",
-		Host:       route.Upstream,
-		Path:       upstreamPath,
-		RawPath:    upstreamRawPath,
+		Host:       h.upstream,
+		Path:       r.URL.Path,
+		RawPath:    r.URL.RawPath,
 		RawQuery:   r.URL.RawQuery,
 		ForceQuery: r.URL.ForceQuery,
 	}
 	upstreamReq.RequestURI = ""
-	upstreamReq.Host = route.Upstream
+	upstreamReq.Host = h.upstream
 	upstreamReq.Header = cloneHeaders(r.Header)
 	upstreamReq.Body = http.NoBody
 	upstreamReq.ContentLength = 0
@@ -97,13 +96,12 @@ func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Reque
 	}
 
 	// Write a debug log entry for the WebSocket connection start.
-	h.writeUsageDebugWS(id, route, r, "", false, 0, 0, 0, 0, 0)
+	h.writeUsageDebugWS(id, r, "", false, 0, 0, 0, 0, 0)
 
-	// Create the frame inspector for upstream→client traffic.
+	// Create the frame inspector for upstream->client traffic.
 	inspector := &wsInspector{
 		h:       h,
 		idBase:  id,
-		route:   route,
 		r:       r,
 		started: time.Now(),
 	}
@@ -130,7 +128,6 @@ func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Reque
 type wsInspector struct {
 	h       *Handler
 	idBase  uint64
-	route   Route
 	r       *http.Request
 	model   string    // tracked from response.create events
 	started time.Time // connection start time for latency
@@ -206,8 +203,6 @@ func (w *wsInspector) inspectTextFrame(payload []byte) {
 			Severity:  "info",
 			Path:      w.r.URL.Path,
 			Method:    w.r.Method,
-			Endpoint:  string(w.route.Endpoint),
-			Upstream:  w.route.Upstream,
 			Detail:    fmt.Sprintf("unknown WebSocket event type: %s", msgType),
 		})
 	}
@@ -253,13 +248,13 @@ func (w *wsInspector) inspectTextFrame(payload []byte) {
 
 		if w.h.store != nil {
 			if err := w.h.store.InsertRequest(context.Background(), storeRequestRecord(
-				ts, w.route, w.r, model, true, 200, latencyMS, usage, usageSeen, w.h.project,
+				ts, w.h, w.r, model, true, 200, latencyMS, usage, usageSeen, w.h.project,
 			)); err != nil {
 				w.h.log.Warn("ws_store_error=%q\n", err.Error())
 			}
 		}
 
-		w.h.writeUsageDebugWS(id, w.route, w.r, model, usageSeen,
+		w.h.writeUsageDebugWS(id, w.r, model, usageSeen,
 			usage.PromptTokens, usage.CachedInputTokens, usage.CacheWriteTokens,
 			usage.CompletionTokens, usage.TotalTokens)
 
@@ -270,14 +265,14 @@ func (w *wsInspector) inspectTextFrame(payload []byte) {
 	}
 }
 
-func (h *Handler) writeUsageDebugWS(id uint64, route Route, r *http.Request, model string, usageSeen bool, prompt, cached, cacheWrite, completions, total int) {
+func (h *Handler) writeUsageDebugWS(id uint64, r *http.Request, model string, usageSeen bool, prompt, cached, cacheWrite, completions, total int) {
 	if h.usageDebug == nil {
 		return
 	}
 	record := UsageDebugRecord{
 		Timestamp:     time.Now().UTC(),
 		RequestID:     id,
-		Endpoint:      string(route.Endpoint),
+		Endpoint:      r.URL.Path,
 		Path:          r.URL.RequestURI(),
 		RequestModel:  model,
 		Status:        200,
@@ -299,7 +294,7 @@ const wsMaxPayloadLen = 1 << 20 // 1 MiB
 
 // readWSFrame reads a single WebSocket frame from r.
 // Returns payload, opcode, fin flag, and any error.
-// For upstream→client frames, masking is not expected (server→client = unmasked).
+// For upstream->client frames, masking is not expected (server->client = unmasked).
 func readWSFrame(r io.Reader) (payload []byte, opcode byte, fin bool, err error) {
 	header := make([]byte, 2)
 	if _, err := io.ReadFull(r, header); err != nil {
@@ -360,29 +355,27 @@ func writeWSFrame(w io.Writer, opcode byte, payload []byte) error {
 }
 
 // storeRequestRecord builds a store.RequestRecord for persistence.
-func storeRequestRecord(ts time.Time, route Route, r *http.Request, model string, stream bool, status int, latencyMS int64, usage Usage, usageSeen bool, project string) store.RequestRecord {
+func storeRequestRecord(ts time.Time, h *Handler, r *http.Request, model string, stream bool, status int, latencyMS int64, usage Usage, usageSeen bool, project string) store.RequestRecord {
 	if !usageSeen {
 		return store.RequestRecord{
 			Timestamp:    ts,
-			Endpoint:     string(route.Endpoint),
+			Endpoint:     r.URL.Path,
 			Method:       r.Method,
 			Path:         r.URL.RequestURI(),
-			UpstreamHost: route.Upstream,
+			UpstreamHost: h.upstream,
 			Model:        model,
 			Stream:       stream,
 			Status:       status,
 			LatencyMS:    latencyMS,
 			Project:      project,
-			NotBilled:    route.NotBilled,
-			Provider:     route.Provider,
 		}
 	}
 	return store.RequestRecord{
 		Timestamp:         ts,
-		Endpoint:          string(route.Endpoint),
+		Endpoint:          r.URL.Path,
 		Method:            r.Method,
 		Path:              r.URL.RequestURI(),
-		UpstreamHost:      route.Upstream,
+		UpstreamHost:      h.upstream,
 		Model:             model,
 		Stream:            stream,
 		Status:            status,
@@ -393,8 +386,6 @@ func storeRequestRecord(ts time.Time, route Route, r *http.Request, model string
 		CompletionTokens:  usage.CompletionTokens,
 		TotalTokens:       usage.TotalTokens,
 		Project:           project,
-		NotBilled:         route.NotBilled,
-		Provider:          route.Provider,
 	}
 }
 

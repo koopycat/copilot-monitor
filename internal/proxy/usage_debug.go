@@ -77,14 +77,14 @@ func isSensitiveHeader(name string) bool {
 		strings.Contains(lower, "credential")
 }
 
-func (h *Handler) writeUsageDebug(ts time.Time, id uint64, route Route, r *http.Request, meta RequestMetadata, resp *http.Response, observer *SSEObserver) {
-	if h.usageDebug == nil || route.Capture == CaptureNone || route.Capture == CaptureLocal || route.Capture == CaptureTunnel {
+func (h *Handler) writeUsageDebug(ts time.Time, id uint64, r *http.Request, meta RequestMetadata, resp *http.Response, observer *SSEObserver) {
+	if h.usageDebug == nil {
 		return
 	}
 	record := UsageDebugRecord{
 		Timestamp:       ts,
 		RequestID:       id,
-		Endpoint:        string(route.Endpoint),
+		Endpoint:        r.URL.Path,
 		Path:            r.URL.RequestURI(),
 		RequestModel:    meta.Model,
 		Status:          resp.StatusCode,

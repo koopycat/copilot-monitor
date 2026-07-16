@@ -23,8 +23,6 @@ _copilot-monitor() {
     'rebuild-sessions:Rebuild sessions from all requests'
     'live:Print the current active session'
     'export:Export captured request metadata to CSV'
-    'init:Create a starter routes.json config file'
-    'validate:Validate a routes config file'
     'inspect:Show detected proxy anomalies'
     'version:Print the version'
     'help:Show help'
@@ -47,8 +45,8 @@ _copilot-monitor() {
       case $words[1] in
         run)
           _arguments \
-            '--routes-config[path to routes configuration file]:file:_files' \
-			'--routes-config-defaults[print built-in default routes as JSON and exit]' \
+            '--upstream[upstream host to proxy requests to]:host:' \
+            '--headroom-proxy-addr[headroom compression proxy address]:address:' \
             '--addr[HTTP listen address]:address:' \
             '--db[SQLite database path]:file:_files' \
             '--project[filter by project]:project:' \
@@ -65,7 +63,6 @@ _copilot-monitor() {
           _arguments \
             '--addr[HTTP listen address]:address:' \
             '--db[SQLite database path]:file:_files' \
-            '--routes-config[optional JSON file with additional route definitions]:file:_files' \
             '--retention-days[days of requests and sessions to retain (0 disables)]:days:' \
             '--anomaly-retention-days[days of anomalies to retain (0 disables)]:days:' \
             '--dry-run[report retention deletions without executing them]'
@@ -117,14 +114,6 @@ _copilot-monitor() {
           _arguments \
             '--db[SQLite database path]:file:_files' \
             '--since[duration to look back]:duration:(24h 7d 30d all)'
-          ;;
-        init)
-          _arguments \
-            '--force[overwrite existing routes config]'
-          ;;
-        validate)
-          _arguments \
-            '--routes-config[path to routes configuration file]:file:_files'
           ;;
         inspect)
           _arguments \
