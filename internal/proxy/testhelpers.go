@@ -1,5 +1,3 @@
-//go:build testonly
-
 package proxy
 
 import (
