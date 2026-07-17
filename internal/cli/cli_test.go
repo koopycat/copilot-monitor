@@ -140,7 +140,7 @@ func TestTodayCommand(t *testing.T) {
 		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
 	}
 	out := stdout.String()
-	if !strings.Contains(out, "Usage since") || !strings.Contains(out, "gpt-4o") {
+	if !strings.Contains(out, "Usage for") || !strings.Contains(out, "gpt-4o") {
 		t.Fatalf("unexpected today output:\n%s", out)
 	}
 }
@@ -195,7 +195,7 @@ func TestRebuildSessionsCommand(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "sessions rebuilt") {
+	if !strings.Contains(stdout.String(), "rebuilt 1 sessions from 2 requests") {
 		t.Fatalf("unexpected output: %q", stdout.String())
 	}
 
@@ -331,8 +331,8 @@ func TestRenderLiveModelOverview(t *testing.T) {
 	for _, want := range []string{
 		"MODEL",
 		"REQUESTS",
-		"CACHE HIT",
-		"COST",
+		"CACHE_HIT_PCT",
+		"EST_USD",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("live overview missing %q:\n%s", want, out)
@@ -452,7 +452,7 @@ func TestExportCommandCSV(t *testing.T) {
 		t.Fatalf("expected header + at least 1 row, got:\n%s", out)
 	}
 	header := lines[0]
-	for _, want := range []string{"ts", "endpoint", "model", "prompt_tokens", "cached_input_tokens", "total_tokens", "project"} {
+	for _, want := range []string{"ts", "endpoint", "model", "input_tokens", "cached_input_tokens", "total_tokens", "project"} {
 		if !strings.Contains(header, want) {
 			t.Fatalf("header missing %q: %s", want, header)
 		}
