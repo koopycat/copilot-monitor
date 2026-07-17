@@ -151,7 +151,7 @@
       <button class="btn-sm" onclick={startEdit}>Edit</button>
     </div>
   {:else}
-    <div class="toggle-group">
+    <div class="mode-select">
       <label>
         <input type="radio" name="policyMode" value="allow_all" bind:group={editMode} />
         Allow All

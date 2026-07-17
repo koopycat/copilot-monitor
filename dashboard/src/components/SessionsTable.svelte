@@ -2,6 +2,7 @@
   import { dur, intl, usd } from '../lib/format';
   import { PERIODS } from '../lib/periods';
   import { dashboard } from '../stores/dashboard.svelte';
+  import PeriodBar from './PeriodBar.svelte';
 
   const sessions = $derived(dashboard.sessions);
   const sessionPeriods = [{ key: 'all', label: 'All' }, ...PERIODS];
@@ -20,16 +21,8 @@
       <option value={project}>{project}</option>
     {/each}
   </select>
-  <div class="period-bar session-period-bar" aria-label="Filter sessions by date">
-    {#each sessionPeriods as period (period.key)}
-      <button
-        class="period-btn"
-        class:active={dashboard.sessionPeriod === period.key}
-        onclick={() => dashboard.switchSessionPeriod(period.key as typeof dashboard.sessionPeriod)}
-      >
-        {period.label}
-      </button>
-    {/each}
+  <div class="session-period-bar">
+    <PeriodBar periods={sessionPeriods} active={dashboard.sessionPeriod} onchange={(v) => dashboard.switchSessionPeriod(v as typeof dashboard.sessionPeriod)} />
   </div>
 </div>
 

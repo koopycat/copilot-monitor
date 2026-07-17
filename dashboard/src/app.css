@@ -344,6 +344,12 @@ a:hover {
   text-overflow: ellipsis;
 }
 
+.live-session-compression {
+  margin-top: var(--s2);
+  color: var(--success);
+  font-size: 0.75rem;
+}
+
 @keyframes session-glow {
   0% {
     box-shadow: 0 0 0 0 oklch(0.72 0.2 145 / 0);
@@ -635,7 +641,7 @@ tbody tr:hover {
   padding: 3px 6px;
 }
 
-.session-period-bar {
+.session-period-bar .period-bar {
   margin: 0;
 }
 
@@ -742,7 +748,6 @@ tbody tr:hover {
 .policy-panel h2 {
   margin: 0 0 var(--s2);
   font-size: 0.8125rem;
-  color: var(--ink);
   font-weight: 600;
 }
 
@@ -761,7 +766,7 @@ tbody tr:hover {
   font-size: 0.6875rem;
 }
 
-.policy-panel .toggle-group {
+.policy-panel .mode-select {
   display: flex;
   gap: var(--s4);
   margin-bottom: var(--s2);
@@ -770,13 +775,13 @@ tbody tr:hover {
   overflow: visible;
 }
 
-.policy-panel .toggle-group label {
+.policy-panel .mode-select label {
   font-size: 0.75rem;
   color: var(--muted);
   cursor: pointer;
 }
 
-.policy-panel .toggle-group input {
+.policy-panel .mode-select input {
   margin-right: 0.25rem;
 }
 

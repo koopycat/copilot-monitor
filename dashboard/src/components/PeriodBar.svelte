@@ -1,8 +1,6 @@
 <script lang="ts">
-  import type { Period } from '../lib/types';
-
   interface Props {
-    periods: Period[];
+    periods: { key: string; label: string }[];
     active: string;
     onchange: (value: string) => void;
   }
