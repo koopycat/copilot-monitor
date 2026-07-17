@@ -15,9 +15,10 @@ _copilot-monitor() {
   local -a commands
   commands=(
     'run:Start the local HTTP proxy listener'
+    'doctor:Check local setup'
     'serve:Start the read-only HTTP API and dashboard'
     'stats:Print captured usage grouped by model and endpoint'
-    'cost:Print estimated equivalent provider list-price cost'
+    'cost:Print published token-rate estimate'
     'today:Print today'\''s captured usage'
     'sessions:Print captured sessions'
     'rebuild-sessions:Rebuild sessions from all requests'
@@ -58,6 +59,17 @@ _copilot-monitor() {
             '--anomaly-retention-days[days of anomalies to retain (0 disables)]:days:' \
             '--dry-run[report retention deletions without executing them]' \
             '--log-format[log output format]:format:(human json)'
+          ;;
+        doctor)
+          _arguments \
+            '--db[SQLite database path to inspect]:file:_files' \
+            '--proxy-url[local proxy base URL]:url:' \
+            '--dashboard-url[local dashboard base URL]:url:' \
+            '--skip-proxy[skip local proxy health check]' \
+            '--skip-dashboard[skip local dashboard health check]' \
+            '--upstream[optional upstream host to test]:host:' \
+            '--timeout[timeout for local and upstream checks]:duration:' \
+            '--json[emit machine-readable JSON]'
           ;;
         serve)
           _arguments \

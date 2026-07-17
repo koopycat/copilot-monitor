@@ -77,6 +77,6 @@ body:
     attributes:
       label: Additional context
       description: Anything else you'd like to add? Related issues, workarounds you've tried, etc.
-      placeholder: 'e.g., This only happens when the --routes-config flag is used...'
+      placeholder: 'e.g., This only happens when the --upstream value includes a custom port...'
     validations:
       required: false

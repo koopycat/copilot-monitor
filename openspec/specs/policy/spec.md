@@ -35,14 +35,14 @@ The system SHALL support a global model allow/block policy with three modes:
 
 ---
 
-### Requirement: Blocked model response
+### Requirement: Blocked HTTP model response
 
-Blocked models SHALL return HTTP 403 with a JSON error body identifying the
-blocked model.
+Blocked HTTP requests SHALL return HTTP 403 with a JSON error body identifying
+the blocked model.
 
 #### Scenario: Model blocked
 
-- **WHEN** a request's model is blocked by policy
+- **WHEN** an HTTP request's model is blocked by policy
 - **THEN** the response is 403 with
   `{"error":"model_blocked","model":"<name>","message":"Model is blocked by policy"}`
 
@@ -55,8 +55,7 @@ zero token counts.
 
 #### Scenario: Blocked request stored
 
-- **WHEN** a request is blocked by policy and the route capture mode is `usage`
-  or `metadata`
+- **WHEN** a request is blocked by policy
 - **THEN** a row is inserted with status 403, zero tokens, and zero latency
 
 ---
@@ -107,6 +106,36 @@ store errors SHALL default to allowing the request.
 - **WHEN** the store is unreachable when loading the policy
 - **THEN** the last successfully cached policy is used; if no cache exists, the
   request is allowed
+
+---
+
+### Requirement: WebSocket model policy enforcement
+
+The system SHALL evaluate the active model policy before forwarding a complete
+client-to-upstream WebSocket text message that explicitly contains a model. A
+disallowed model message SHALL not be forwarded upstream.
+
+#### Scenario: Blocked WebSocket model
+
+- **WHEN** a client sends a complete WebSocket text message naming a model
+  blocked by the active policy
+- **THEN** the proxy does not forward that message to the upstream
+- **AND** persists a blocked request with status 403 and `stream=true`
+- **AND** sends the client a WebSocket close frame with code 1008 and reason
+  `model_blocked`
+
+#### Scenario: Allowed WebSocket model
+
+- **WHEN** a client sends a complete WebSocket text message naming a model
+  allowed by the active policy
+- **THEN** the proxy forwards the original frame sequence upstream
+
+#### Scenario: WebSocket message without a usable model
+
+- **WHEN** a client text message has no model, cannot be parsed as JSON, or
+  exceeds the bounded inspection buffer
+- **THEN** the proxy forwards it unchanged according to fail-open policy
+  semantics
 
 ---
 

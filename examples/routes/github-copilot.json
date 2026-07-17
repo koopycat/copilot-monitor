@@ -1,6 +1,0 @@
-{
-  "note": "The routes configuration file is no longer used.",
-  "architecture": "Copilot Monitor now uses a single --upstream flag to forward all requests.",
-  "usage": "copilot-monitor run --dashboard --upstream api.githubcopilot.com",
-  "why": "The --upstream flag replaces the routes.json file. All incoming requests (except /_ping and /_health) are forwarded to the configured upstream host. Provider prefix stripping, per-route capture modes, and compression configuration have been removed in favor of this simpler model. An optional Headroom compression proxy can sit in front of Copilot Monitor; traffic arriving from Headroom is detected via RemoteAddr and flagged with headroom_proxied."
-}

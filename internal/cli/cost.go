@@ -63,9 +63,12 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 		}
 		return 0
 	}
-	fmt.Fprintf(stdout, "Estimated equivalent provider list-price cost (%s). This is not your actual bill.\n", cat.Currency)
+	fmt.Fprintf(stdout, "Published token-rate estimate (%s). This is not invoice reconciliation.\n", total.Estimate.Currency)
+	if total.Estimate.RateSource != "" {
+		fmt.Fprintf(stdout, "Rate source: %s\n", total.Estimate.RateSource)
+	}
 	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "MODEL\tENDPOINT\tPROVIDER\tREQUESTS\tINPUT_TOK\tCACHED_TOK\tCACHE_WRITE_TOK\tOUTPUT_TOK\tINPUT $\tCACHED $\tCACHE WRITE $\tOUTPUT $\tEST. LIST $")
+	fmt.Fprintln(tw, "MODEL\tENDPOINT\tPROVIDER\tREQUESTS\tINPUT_TOK\tCACHED_TOK\tCACHE_WRITE_TOK\tOUTPUT_TOK\tINPUT USD\tCACHED USD\tCACHE WRITE USD\tOUTPUT USD\tEST. USD")
 	for _, row := range total.Rows {
 		provider := row.Provider
 		if row.Fallback {
@@ -82,7 +85,7 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "\n* provider or generic fallback pricing used for %d row(s).\n", total.FallbackCount)
 	}
 	if total.NotBilledCount > 0 {
-		fmt.Fprintf(stdout, "%d row(s) are not billed (not_billed flag set in route config).\n", total.NotBilledCount)
+		fmt.Fprintf(stdout, "%d row(s) are marked not billed and excluded from the estimate.\n", total.NotBilledCount)
 	}
 	if usageMissingCount > 0 {
 		fmt.Fprintf(stdout, "(%d request(s) had no usage data)\n", usageMissingCount)

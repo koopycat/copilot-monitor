@@ -157,8 +157,8 @@ the sole collapse indicator. No section SHALL display custom
 #### Scenario: All sections use the same indicator
 
 - **WHEN** the dashboard is fully loaded
-- **THEN** all collapsible sections (Models, Sessions, Anomalies, Routes) show
-  identical collapse indicators
+- **THEN** all collapsible sections (Models, Sessions, Anomalies) show identical
+  collapse indicators
 
 #### Scenario: Sections remain independently collapsible
 

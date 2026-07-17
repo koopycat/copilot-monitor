@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"copilot-monitoring/internal/policy"
 	"copilot-monitoring/internal/store"
 )
 
@@ -31,7 +32,7 @@ func headerContainsToken(value, token string) bool {
 	return false
 }
 
-func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Request, body []byte) error {
+func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Request, body []byte, activePolicy *policy.Policy, policyAvailable bool) error {
 	if len(body) != 0 {
 		return fmt.Errorf("websocket request unexpectedly had body bytes=%d", len(body))
 	}
@@ -42,7 +43,8 @@ func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Reque
 		return fmt.Errorf("response writer does not support hijacking")
 	}
 
-	upstreamConn, err := tls.DialWithDialer(&net.Dialer{}, "tcp", h.upstream+":443", &tls.Config{ServerName: h.upstream, MinVersion: tls.VersionTLS12})
+	upstreamAddr, serverName := websocketUpstreamTarget(h.upstream)
+	upstreamConn, err := tls.DialWithDialer(&net.Dialer{}, "tcp", upstreamAddr, &tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12})
 	if err != nil {
 		http.Error(w, "upstream websocket dial failed", http.StatusBadGateway)
 		return err
@@ -98,29 +100,49 @@ func (h *Handler) proxyWebSocket(id uint64, w http.ResponseWriter, r *http.Reque
 	// Write a debug log entry for the WebSocket connection start.
 	h.writeUsageDebugWS(id, r, "", false, 0, 0, 0, 0, 0)
 
-	// Create the frame inspector for upstream->client traffic.
+	// Create frame inspectors for both directions. The client inspector holds a
+	// complete text message until its model can be checked, while the upstream
+	// inspector continues to capture model and usage metadata.
 	inspector := &wsInspector{
 		h:       h,
 		idBase:  id,
 		r:       r,
 		started: time.Now(),
 	}
+	clientInspector := &wsClientInspector{
+		h:               h,
+		idBase:          id,
+		r:               r,
+		activePolicy:    activePolicy,
+		policyAvailable: policyAvailable,
+	}
+	clientWriter := &wsLockedWriter{w: clientConn}
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		_, _ = io.Copy(upstreamConn, clientConn)
+		result := clientInspector.copyInspected(upstreamConn, clientBuf.Reader)
+		if result.Blocked {
+			_ = writeWSModelBlockedClose(clientWriter)
+		}
 		_ = upstreamConn.Close()
 	}()
 	go func() {
 		defer wg.Done()
-		inspector.copyInspected(clientConn, br)
+		inspector.copyInspected(clientWriter, br)
 		_ = clientConn.Close()
 	}()
 	wg.Wait()
 	h.log.Websocket("id=%d complete=true\n", id)
 	return nil
+}
+
+func websocketUpstreamTarget(upstream string) (address, serverName string) {
+	if host, _, err := net.SplitHostPort(upstream); err == nil {
+		return upstream, host
+	}
+	return net.JoinHostPort(upstream, "443"), upstream
 }
 
 // wsInspector reads WebSocket frames from upstream and forwards them to the
@@ -133,6 +155,41 @@ type wsInspector struct {
 	started time.Time // connection start time for latency
 }
 
+// wsClientInspector holds complete client text messages long enough to enforce
+// the model policy before the message is sent upstream. It intentionally keeps
+// the same fail-open boundary as HTTP requests without a usable model.
+type wsClientInspector struct {
+	h               *Handler
+	idBase          uint64
+	r               *http.Request
+	activePolicy    *policy.Policy
+	policyAvailable bool
+}
+
+type wsRelayResult struct {
+	Blocked bool
+	Stopped bool
+}
+
+// wsLockedWriter serializes writes to the client connection. Upstream traffic
+// and a policy close frame can otherwise be written concurrently.
+type wsLockedWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (w *wsLockedWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.w.Write(p)
+}
+
+func (w *wsLockedWriter) writeFrame(frame wsFrame) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return writeWSFrameDirect(w.w, frame)
+}
+
 // copyInspected reads WebSocket frames from src and writes them to dst,
 // inspecting text frame payloads for model and usage data.
 // Every frame is forwarded as-is (preserving opcode and fin).
@@ -141,7 +198,7 @@ type wsInspector struct {
 func (w *wsInspector) copyInspected(dst io.Writer, src io.Reader) {
 	var inspectBuf []byte
 	for {
-		payload, opcode, fin, err := readWSFrame(src)
+		frame, err := readWSFrame(src)
 		if err != nil {
 			if err != io.EOF {
 				w.h.log.Warn("id=%d ws_frame_read_error=%q\n", w.idBase, err.Error())
@@ -150,27 +207,27 @@ func (w *wsInspector) copyInspected(dst io.Writer, src io.Reader) {
 		}
 
 		// Forward every frame as-is to the client.
-		if err := writeWSFrame(dst, opcode, payload); err != nil {
+		if err := writeWSFrame(dst, frame); err != nil {
 			return
 		}
 
 		// Reassemble fragmented text frames for inspection only.
-		switch opcode {
+		switch frame.opcode {
 		case wsTextFrame:
-			if len(inspectBuf)+len(payload) <= wsMaxPayloadLen {
-				inspectBuf = append(inspectBuf, payload...)
+			if len(inspectBuf)+len(frame.payload) <= wsMaxPayloadLen {
+				inspectBuf = append(inspectBuf, frame.payload...)
 			}
-			if fin {
+			if frame.fin {
 				if len(inspectBuf) > 0 {
 					w.inspectTextFrame(inspectBuf)
 				}
 				inspectBuf = inspectBuf[:0]
 			}
 		case wsContFrame:
-			if len(inspectBuf)+len(payload) <= wsMaxPayloadLen {
-				inspectBuf = append(inspectBuf, payload...)
+			if len(inspectBuf)+len(frame.payload) <= wsMaxPayloadLen {
+				inspectBuf = append(inspectBuf, frame.payload...)
 			}
-			if fin {
+			if frame.fin {
 				if len(inspectBuf) > 0 {
 					w.inspectTextFrame(inspectBuf)
 				}
@@ -178,10 +235,142 @@ func (w *wsInspector) copyInspected(dst io.Writer, src io.Reader) {
 			}
 		}
 
-		if opcode == wsCloseFrame {
+		if frame.opcode == wsCloseFrame {
 			return
 		}
 	}
+}
+
+// copyInspected forwards client frames while buffering each complete text
+// message before it reaches the upstream. Interleaved control frames are held
+// with the message so the original frame sequence stays intact.
+func (w *wsClientInspector) copyInspected(dst io.Writer, src io.Reader) wsRelayResult {
+	var textFrames []wsFrame
+	var textPayload []byte
+	textTooLarge := false
+
+	flushText := func() wsRelayResult {
+		if len(textFrames) == 0 {
+			return wsRelayResult{}
+		}
+		result := w.forwardTextMessage(dst, textFrames, textPayload, textTooLarge)
+		textFrames = nil
+		textPayload = nil
+		textTooLarge = false
+		return result
+	}
+	flushUninspected := func() wsRelayResult {
+		for _, pending := range textFrames {
+			if err := writeWSFrame(dst, pending); err != nil {
+				return wsRelayResult{Stopped: true}
+			}
+		}
+		textFrames = nil
+		textPayload = nil
+		textTooLarge = false
+		return wsRelayResult{}
+	}
+
+	for {
+		frame, err := readWSFrame(src)
+		if err != nil {
+			if err != io.EOF {
+				w.h.log.Warn("id=%d ws_client_frame_read_error=%q\n", w.idBase, err.Error())
+			}
+			return wsRelayResult{}
+		}
+
+		switch frame.opcode {
+		case wsTextFrame:
+			// A new data frame before the previous fragmented message ended is a
+			// protocol violation. Preserve existing behaviour by forwarding the
+			// pending message without inspecting it, then begin a new one.
+			if len(textFrames) > 0 {
+				if result := flushUninspected(); result.Stopped {
+					return result
+				}
+			}
+			textFrames = append(textFrames, frame)
+			textPayload, textTooLarge = appendWSInspectionPayload(textPayload, frame.payload, textTooLarge)
+			if frame.fin {
+				if result := flushText(); result.Blocked || result.Stopped {
+					return result
+				}
+			}
+		case wsContFrame:
+			if len(textFrames) == 0 {
+				if err := writeWSFrame(dst, frame); err != nil {
+					return wsRelayResult{Stopped: true}
+				}
+				continue
+			}
+			textFrames = append(textFrames, frame)
+			textPayload, textTooLarge = appendWSInspectionPayload(textPayload, frame.payload, textTooLarge)
+			if frame.fin {
+				if result := flushText(); result.Blocked || result.Stopped {
+					return result
+				}
+			}
+		case wsPingFrame, wsPongFrame:
+			if len(textFrames) > 0 {
+				textFrames = append(textFrames, frame)
+				continue
+			}
+			if err := writeWSFrame(dst, frame); err != nil {
+				return wsRelayResult{Stopped: true}
+			}
+		case wsCloseFrame:
+			if len(textFrames) > 0 {
+				if result := flushUninspected(); result.Stopped {
+					return result
+				}
+			}
+			if err := writeWSFrame(dst, frame); err != nil {
+				return wsRelayResult{Stopped: true}
+			}
+			return wsRelayResult{}
+		default:
+			if len(textFrames) > 0 {
+				if result := flushUninspected(); result.Stopped {
+					return result
+				}
+			}
+			if err := writeWSFrame(dst, frame); err != nil {
+				return wsRelayResult{Stopped: true}
+			}
+		}
+	}
+}
+
+func appendWSInspectionPayload(existing, payload []byte, tooLarge bool) ([]byte, bool) {
+	if tooLarge {
+		return nil, true
+	}
+	if len(existing)+len(payload) > wsMaxPayloadLen {
+		return nil, true
+	}
+	return append(existing, payload...), false
+}
+
+func (w *wsClientInspector) forwardTextMessage(dst io.Writer, frames []wsFrame, payload []byte, tooLarge bool) wsRelayResult {
+	if tooLarge {
+		w.h.log.Warn("id=%d ws_policy_inspection_skipped=payload_too_large\n", w.idBase)
+	} else {
+		meta := ParseRequestMetadata(payload)
+		if w.policyAvailable && w.activePolicy != nil && meta.Model != "" && !w.activePolicy.Allowed(meta.Model) {
+			meta.Stream = true
+			meta.HasStream = true
+			w.h.log.Warn("id=%d ws_policy_blocked model=%q\n", w.idBase, meta.Model)
+			w.h.persistBlockedRequest(context.Background(), time.Now().UTC(), w.r, meta)
+			return wsRelayResult{Blocked: true}
+		}
+	}
+	for _, frame := range frames {
+		if err := writeWSFrame(dst, frame); err != nil {
+			return wsRelayResult{Stopped: true}
+		}
+	}
+	return wsRelayResult{}
 }
 
 // inspectTextFrame parses a text frame payload as JSON and looks for
@@ -292,66 +481,137 @@ const (
 
 const wsMaxPayloadLen = 1 << 20 // 1 MiB
 
-// readWSFrame reads a single WebSocket frame from r.
-// Returns payload, opcode, fin flag, and any error.
-// For upstream->client frames, masking is not expected (server->client = unmasked).
-func readWSFrame(r io.Reader) (payload []byte, opcode byte, fin bool, err error) {
+type wsFrame struct {
+	fin     bool
+	rsv     byte
+	opcode  byte
+	masked  bool
+	maskKey [4]byte
+	payload []byte // decoded for inspection; writer reapplies mask when needed
+}
+
+// readWSFrame reads one complete frame, decoding its mask for inspection while
+// retaining the frame attributes necessary to relay it unchanged.
+func readWSFrame(r io.Reader) (wsFrame, error) {
 	header := make([]byte, 2)
 	if _, err := io.ReadFull(r, header); err != nil {
-		return nil, 0, false, err
+		return wsFrame{}, err
 	}
-	fin = header[0]&0x80 != 0
-	opcode = header[0] & 0x0F
+	frame := wsFrame{
+		fin:    header[0]&0x80 != 0,
+		rsv:    header[0] & 0x70,
+		opcode: header[0] & 0x0F,
+		masked: header[1]&0x80 != 0,
+	}
 
 	payloadLen := uint64(header[1] & 0x7F)
 	switch payloadLen {
 	case 126:
 		ext := make([]byte, 2)
 		if _, err := io.ReadFull(r, ext); err != nil {
-			return nil, 0, false, err
+			return wsFrame{}, err
 		}
 		payloadLen = uint64(binary.BigEndian.Uint16(ext))
 	case 127:
 		ext := make([]byte, 8)
 		if _, err := io.ReadFull(r, ext); err != nil {
-			return nil, 0, false, err
+			return wsFrame{}, err
 		}
 		payloadLen = binary.BigEndian.Uint64(ext)
 	}
 
 	if payloadLen > wsMaxPayloadLen {
-		return nil, 0, false, fmt.Errorf("frame payload too large: %d > %d", payloadLen, wsMaxPayloadLen)
+		return wsFrame{}, fmt.Errorf("frame payload too large: %d > %d", payloadLen, wsMaxPayloadLen)
 	}
-	payload = make([]byte, payloadLen)
-	if payloadLen > 0 {
-		if _, err := io.ReadFull(r, payload); err != nil {
-			return nil, 0, false, err
+	if frame.masked {
+		if _, err := io.ReadFull(r, frame.maskKey[:]); err != nil {
+			return wsFrame{}, err
 		}
 	}
-	return payload, opcode, fin, nil
+	frame.payload = make([]byte, payloadLen)
+	if payloadLen > 0 {
+		if _, err := io.ReadFull(r, frame.payload); err != nil {
+			return wsFrame{}, err
+		}
+	}
+	if frame.masked {
+		applyWSMask(frame.payload, frame.maskKey)
+	}
+	return frame, nil
 }
 
-// writeWSFrame writes a single WebSocket frame to w.
-func writeWSFrame(w io.Writer, opcode byte, payload []byte) error {
-	frame := make([]byte, 2, 10+len(payload))
-	frame[0] = 0x80 | opcode // FIN=1
+// writeWSFrame writes a frame while preserving FIN, RSV, opcode, and masking.
+func writeWSFrame(w io.Writer, frame wsFrame) error {
+	if locked, ok := w.(*wsLockedWriter); ok {
+		return locked.writeFrame(frame)
+	}
+	return writeWSFrameDirect(w, frame)
+}
 
-	payloadLen := len(payload)
+func writeWSFrameDirect(w io.Writer, frame wsFrame) error {
+	first := frame.rsv | frame.opcode
+	if frame.fin {
+		first |= 0x80
+	}
+	header := []byte{first, 0}
+	payloadLen := len(frame.payload)
 	switch {
 	case payloadLen <= 125:
-		frame[1] = byte(payloadLen)
+		header[1] = byte(payloadLen)
 	case payloadLen <= 65535:
-		frame[1] = 126
-		frame = append(frame, 0, 0)
-		binary.BigEndian.PutUint16(frame[2:4], uint16(payloadLen))
+		header[1] = 126
+		header = append(header, 0, 0)
+		binary.BigEndian.PutUint16(header[2:4], uint16(payloadLen))
 	default:
-		frame[1] = 127
-		frame = append(frame, 0, 0, 0, 0, 0, 0, 0, 0)
-		binary.BigEndian.PutUint64(frame[2:10], uint64(payloadLen))
+		header[1] = 127
+		header = append(header, 0, 0, 0, 0, 0, 0, 0, 0)
+		binary.BigEndian.PutUint64(header[2:10], uint64(payloadLen))
 	}
-	frame = append(frame, payload...)
-	_, err := w.Write(frame)
-	return err
+	if frame.masked {
+		header[1] |= 0x80
+		header = append(header, frame.maskKey[:]...)
+	}
+	if err := writeWSBytes(w, header); err != nil {
+		return err
+	}
+	payload := frame.payload
+	if frame.masked {
+		payload = append([]byte(nil), payload...)
+		applyWSMask(payload, frame.maskKey)
+	}
+	return writeWSBytes(w, payload)
+}
+
+func writeWSBytes(w io.Writer, data []byte) error {
+	for len(data) > 0 {
+		n, err := w.Write(data)
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return io.ErrShortWrite
+		}
+		data = data[n:]
+	}
+	return nil
+}
+
+func applyWSMask(payload []byte, key [4]byte) {
+	for i := range payload {
+		payload[i] ^= key[i%len(key)]
+	}
+}
+
+const (
+	wsPolicyViolationCode = 1008
+	wsModelBlockedReason  = "model_blocked"
+)
+
+func writeWSModelBlockedClose(w io.Writer) error {
+	payload := make([]byte, 2+len(wsModelBlockedReason))
+	binary.BigEndian.PutUint16(payload[:2], wsPolicyViolationCode)
+	copy(payload[2:], wsModelBlockedReason)
+	return writeWSFrame(w, wsFrame{fin: true, opcode: wsCloseFrame, payload: payload})
 }
 
 // storeRequestRecord builds a store.RequestRecord for persistence.

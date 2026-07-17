@@ -5,13 +5,20 @@
 [![Release](https://img.shields.io/github/v/release/koopycat/copilot-monitor)](https://github.com/koopycat/copilot-monitor/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**See the tokens, latency, and estimated cost behind your AI-tool traffic.**
+**The local flight recorder for your AI coding traffic.**
 
-Copilot Monitor is a local HTTP proxy and SQLite-backed dashboard for LLM API
-traffic. It records request metadata, token usage, latency, and estimated cost
-on your machine. No cloud or telemetry. By default, the proxy listens only on
-`127.0.0.1`; the database does not store prompts, completions, source code, or
-auth headers.
+Copilot Monitor is a local HTTP proxy and SQLite-backed dashboard for GitHub
+Copilot and compatible AI clients. It records model, token and cache usage, HTTP
+status, end-to-end latency, and estimated model-rate cost on your machine. By
+default, the proxy listens only on `127.0.0.1`; the normal database capture does
+not store prompts, completions, source code, or auth headers.
+
+Each `run` process forwards to one explicit `--upstream` host. This is a
+developer-side traffic recorder, not a multi-provider gateway or shared
+observability platform: it does not manage provider routing, virtual keys,
+quotas, or invoice reconciliation. It complements those systems by making the
+traffic from your own tools inspectable without an SDK, collector, or monitoring
+account.
 
 ## Install
 
@@ -66,29 +73,61 @@ curl http://127.0.0.1:7733/_health
 curl http://127.0.0.1:7734/api/health
 KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi -p 'Reply OK'
 copilot-monitor stats --since 1h
+copilot-monitor doctor --upstream api.githubcopilot.com
 ```
 
-## Client setup
+## Client setup and compatibility
 
-Point your client's base URL to the proxy address (`http://127.0.0.1:7733`). All
-traffic is forwarded to the configured `--upstream` host.
+Your client must support a base-URL or upstream override. The proxy forwards all
+non-health requests unchanged to the one configured `--upstream` host.
 
-VS Code is not auto-detected. To route GitHub Copilot through the proxy, set
-`github.copilot.advanced.debug.overrideCapiUrl` to `http://127.0.0.1:7733` in VS
-Code settings, then run:
+| Client                   | Setup                                         | Coverage                                                                    |
+| ------------------------ | --------------------------------------------- | --------------------------------------------------------------------------- |
+| VS Code + GitHub Copilot | One-time advanced setting and a window reload | HTTP and Copilot `/responses` WebSocket usage capture                       |
+| pi + Kilo gateway        | Set `KILO_GATEWAY_BASE_URL` to the proxy      | First-capture path documented above                                         |
+| Other API clients        | Point a custom base URL at the proxy          | Best effort; paths and headers are forwarded unchanged to one upstream host |
+
+Model policy applies to HTTP requests and complete Copilot WebSocket text
+messages that explicitly name a model. As with HTTP requests that omit a model,
+invalid or over-limit WebSocket messages fail open rather than interrupting
+traffic the proxy cannot identify safely.
+
+VS Code is not auto-detected. Open **Preferences: Open User Settings (JSON)**
+and merge this setting, then run **Developer: Reload Window**:
+
+```json
+{
+  "github.copilot.advanced": {
+    "debug.overrideCapiUrl": "http://127.0.0.1:7733"
+  }
+}
+```
+
+Then start the proxy:
 
 ```sh
 copilot-monitor run --upstream api.githubcopilot.com
 ```
+
+If the dashboard is unavailable or no capture appears after a request, run:
+
+```sh
+copilot-monitor doctor --upstream api.githubcopilot.com
+```
+
+It checks the local proxy, dashboard, database path, and optional upstream TCP
+reachability without creating or migrating the database. It cannot inspect your
+editor's private settings, so keep the VS Code override and reload step above.
 
 ## Commands
 
 | Command      | Purpose                                                                      |
 | ------------ | ---------------------------------------------------------------------------- |
 | `run`        | Start the local proxy; `--dashboard` also starts the dashboard on port 7734. |
+| `doctor`     | Check local proxy, dashboard, database, and optional upstream setup.         |
 | `serve`      | Start the dashboard and read-only API from an existing database.             |
 | `stats`      | Show captured usage by model and endpoint.                                   |
-| `cost`       | Show estimated equivalent provider list-price cost.                          |
+| `cost`       | Show estimated model-rate cost; not a billing invoice.                       |
 | `today`      | Show usage since local midnight.                                             |
 | `sessions`   | List sessions derived from a 30-minute inactivity gap.                       |
 | `live`       | Show the current session; use `--watch` to refresh.                          |
@@ -100,9 +139,9 @@ copilot-monitor run --upstream api.githubcopilot.com
 
 Reporting and inspection commands, including `stats`, `cost`, `today`,
 `sessions`, `live`, and `inspect`, support `--json`. `export` writes CSV only.
-Not every command supports `--json` or `--db`. Commands that read or write
-captured data accept `--db <path>` where supported, including `run`, `serve`,
-reporting commands, `export`, and `inspect`.
+`doctor` also supports `--json`. Not every command supports `--json` or `--db`.
+Commands that read or write captured data accept `--db <path>` where supported,
+including `run`, `serve`, reporting commands, `export`, and `inspect`.
 
 The live tail is shown when `run` writes to a terminal on stderr. Use
 `--no-live` for per-request log lines.
@@ -111,9 +150,11 @@ The live tail is shown when `run` writes to a terminal on stderr. Use
 
 ### Cost accuracy
 
-Cost is an embedded equivalent provider list-price estimate, not invoice
-reconciliation. Fallback pricing and requests with missing usage data reduce its
-accuracy.
+Cost applies embedded per-token USD rates to captured usage. It does not know
+your plan allocation, included credits, discounts, account billing rules, or
+invoice total. Treat it as a directional engineering estimate, not billing
+reconciliation. Unknown models use clearly flagged fallback pricing, and
+requests without usage data cannot be priced accurately.
 
 ## Data and privacy
 
@@ -122,9 +163,11 @@ The default SQLite database is
 with `--db <path>`.
 
 The normal database stores request metadata and token counts, not prompts,
-completions, source code, or auth material. `--raw-log <path>` is different: it
-writes truncated request bodies and redacted response headers for debugging.
-Treat that output as sensitive.
+completions, source code, or auth material. There is no monitoring cloud,
+analytics, or phone-home; the proxy necessarily forwards the API request to the
+upstream host you configured. `--raw-log <path>` is different: it writes
+truncated request bodies and redacted response headers for debugging. Treat that
+output as sensitive.
 
 ## Useful docs
 

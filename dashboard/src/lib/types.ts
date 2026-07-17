@@ -35,6 +35,14 @@ export interface CostRow {
 export interface CostResponse {
   total_usd: number;
   rows: CostRow[];
+  estimate?: CostEstimate;
+}
+
+export interface CostEstimate {
+  currency: string;
+  rate_source?: string;
+  basis: 'published_token_rates' | string;
+  billing_scope: 'not_invoice_reconciliation' | string;
 }
 
 export type Granularity = 'day' | 'hour';
@@ -89,15 +97,6 @@ export interface CurrentSession {
     cost?: number;
     compression_removed_tokens?: number;
   }>;
-}
-
-export interface RouteConfig {
-  path: string;
-  upstream_host: string;
-  upstream_path_prefix?: string;
-  capture: string;
-  prefix_match?: boolean;
-  label?: string;
 }
 
 export type PeriodKey = 'today' | 'yesterday' | '7d' | '30d' | '90d' | '365d';

@@ -28,7 +28,6 @@ func TestWriterJSONFormat(t *testing.T) {
 		Model:          "gpt-4o",
 		Status:         200,
 		LatencyMS:      42,
-		CaptureMode:    "usage",
 		TokensCaptured: true,
 	})
 	got := strings.TrimSpace(buf.String())
@@ -294,7 +293,6 @@ func TestJSONSerializationOmitsZeroFields(t *testing.T) {
 		Model:          "gpt-4o",
 		Status:         200,
 		LatencyMS:      42,
-		CaptureMode:    "usage",
 		TokensCaptured: true,
 	}
 
@@ -329,7 +327,6 @@ func TestJSONSerializationWithNewFields(t *testing.T) {
 		Model:            "gpt-4o",
 		Status:           200,
 		LatencyMS:        42,
-		CaptureMode:      "usage",
 		TokensCaptured:   true,
 		PromptTokens:     1500,
 		CompletionTokens: 342,

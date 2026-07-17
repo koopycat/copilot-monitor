@@ -7,7 +7,6 @@ import type {
   ModelStats,
   PeriodKey,
   Policy,
-  RouteConfig,
   Session,
   TimelineEntry,
   Granularity,
@@ -98,10 +97,15 @@ export async function fetchSessions(
   signal: AbortSignal,
   cursor?: Session,
 ): Promise<Session[]> {
-  return (await safeFetch<Session[]>(`/api/sessions?${sessionQuery(filters, cursor)}`, signal)) ?? [];
+  return (
+    (await safeFetch<Session[]>(`/api/sessions?${sessionQuery(filters, cursor)}`, signal)) ?? []
+  );
 }
 
-export async function fetchSessionCount(filters: SessionFilters, signal: AbortSignal): Promise<number> {
+export async function fetchSessionCount(
+  filters: SessionFilters,
+  signal: AbortSignal,
+): Promise<number> {
   const params = buildParams({
     ...(filters.since ? { since: filters.since } : {}),
     ...(filters.until ? { until: filters.until } : {}),
@@ -137,17 +141,6 @@ export async function fetchUpstreams(signal: AbortSignal): Promise<string[]> {
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') throw e;
     return [];
-  }
-}
-
-export async function fetchConfig(signal: AbortSignal): Promise<{ routes: RouteConfig[] }> {
-  try {
-    const r = await fetch('/api/config', { signal });
-    if (!r.ok) return { routes: [] };
-    return (await r.json()) as { routes: RouteConfig[] };
-  } catch (e) {
-    if (e instanceof Error && e.name === 'AbortError') throw e;
-    return { routes: [] };
   }
 }
 

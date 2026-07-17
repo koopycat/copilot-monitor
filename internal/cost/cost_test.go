@@ -11,6 +11,7 @@ import (
 func TestCalculateWithCachedAndCacheWriteTokens(t *testing.T) {
 	catalog, err := catalog.Load([]byte(`{
 		"currency":"USD",
+		"source":"https://example.test/pricing",
 		"fallback":{"provider":"unknown","input_per_m":5,"cached_input_per_m":0.5,"cache_write_per_m":5,"output_per_m":15},
 		"provider_fallbacks":{"openai":{"provider":"openai-fallback","input_per_m":2,"cached_input_per_m":0.2,"cache_write_per_m":3,"output_per_m":8}},
 		"models":{"gpt-5-mini":{"provider":"openai","input_per_m":2,"cached_input_per_m":0.2,"cache_write_per_m":3,"output_per_m":8}}
@@ -39,6 +40,9 @@ func TestCalculateWithCachedAndCacheWriteTokens(t *testing.T) {
 	if !closeEnough(got.TotalUSD, 5.85) || got.Requests != 2 || got.TotalTokens != 1_600_000 {
 		t.Fatalf("total = %#v", got)
 	}
+	if got.Estimate.Currency != "USD" || got.Estimate.RateSource != "https://example.test/pricing" || got.Estimate.Basis != "published_token_rates" || got.Estimate.BillingScope != "not_invoice_reconciliation" {
+		t.Fatalf("estimate = %#v", got.Estimate)
+	}
 }
 
 func TestCalculateProviderFallback(t *testing.T) {
@@ -64,7 +68,7 @@ func TestCalculateProviderFallback(t *testing.T) {
 	if !got.Rows[0].Fallback {
 		t.Fatal("expected fallback row")
 	}
-	// Provider comes from the route config (ModelStats), not from the catalog
+	// Provider comes from captured request metadata (ModelStats), not the catalog.
 	if got.Rows[0].Provider != "anthropic" {
 		t.Fatalf("provider = %q, want anthropic", got.Rows[0].Provider)
 	}

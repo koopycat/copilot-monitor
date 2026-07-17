@@ -21,14 +21,14 @@ Set PlaybackSpeed 1
 Type "# Start proxy with --no-live"
 Enter
 Sleep 500ms
-Type "./bin/copilot-monitor run --no-live --db /tmp/demo.db &"
+Type "./bin/copilot-monitor run --no-live --upstream api.githubcopilot.com --db /tmp/demo.db &"
 Enter
 Sleep 2.5s
 
 Hide
-Type '(KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi -p "hello" &> /dev/null &)'
+Type '(KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi -p "hello" &> /dev/null &)'
 Enter
-Type '(KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi -p "hello" &> /dev/null &)'
+Type '(KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi -p "hello" &> /dev/null &)'
 Enter
 Sleep 2s
 Type "clear"

@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Copilot Monitor - Every LLM request, on the record</title>
+    <title>Copilot Monitor - Local AI traffic, on the record</title>
     <meta
       name="description"
-      content="A local reverse proxy that records every LLM API request: per-model token counts, latency, and estimated cost. Local SQLite. No cloud, no telemetry, no prompts stored. Works with Copilot, pi-agent, Claude Code, and more."
+      content="A local traffic recorder for GitHub Copilot and compatible AI clients: model, token, cache, status, and latency data in local SQLite. No monitoring account or analytics."
     />
     <script>
       document.documentElement.classList.add('js');
@@ -1492,13 +1492,12 @@
         <div class="hero-grid">
           <div>
             <span class="kicker">On the record</span>
-            <h1>Know exactly what your <span class="accent">AI tools</span> are costing you.</h1>
+            <h1>See the model calls your <span class="accent">AI coding tools</span> make.</h1>
             <p class="lede">
-              A local reverse proxy that intercepts LLM API requests and records the metadata that
-              matters: per-model token counts, latency, cache hits, and estimated cost. SQLite on
-              your machine. No cloud. No telemetry. No prompts, completions, or auth material ever
-              written to disk. Works with GitHub Copilot, pi-agent, Claude Code, and any OpenAI- or
-              Anthropic-compatible API.
+              A single-binary local traffic recorder for GitHub Copilot and compatible API clients.
+              It records model, token and cache usage, HTTP status, latency, and activity windows in
+              local SQLite. No monitoring account, collector, analytics, or stored conversations in
+              normal mode.
             </p>
 
             <div class="downloads">
@@ -1654,8 +1653,9 @@
       <section class="quickstart" id="quickstart" aria-labelledby="quickstart-title">
         <h2 id="quickstart-title">Get your first capture</h2>
         <p class="quickstart-intro">
-          With <code>copilot-monitor</code> on your PATH, choose your agent and send one real
-          request through the local proxy. Your dashboard will have data in about two minutes.
+          With <code>copilot-monitor</code> on your PATH, route one real request through the local
+          proxy. VS Code needs a one-time advanced setting and reload; pi needs an existing,
+          authenticated Kilo client.
         </p>
 
         <div class="setup-shell" data-setup-tabs>
@@ -1698,7 +1698,7 @@
                 <h3>VS Code + GitHub Copilot</h3>
                 <p>All traffic is forwarded to the configured <code>--upstream</code> host.</p>
               </div>
-              <span class="setup-time">~2 minutes</span>
+              <span class="setup-time">one-time setting</span>
             </div>
             <ol class="setup-steps">
               <li class="setup-step">
@@ -1717,7 +1717,7 @@
                   <p>Open <strong>Preferences: Open User Settings (JSON)</strong> and add:</p>
                   <pre class="setup-code"><code>{
   &quot;github.copilot.advanced&quot;: {
-    &quot;debug.overrideCapiUrl&quot;: &quot;http://127.0.0.1:7733/copilot&quot;
+    &quot;debug.overrideCapiUrl&quot;: &quot;http://127.0.0.1:7733&quot;
   }
 }</code></pre>
                 </div>
@@ -1728,9 +1728,13 @@
                   <h4>Reload and send one Copilot chat</h4>
                   <p>
                     Run <strong>Developer: Reload Window</strong>, use Copilot normally, then open
-                    <a href="http://127.0.0.1:7734">127.0.0.1:7734</a>.
+                    <a href="http://127.0.0.1:7734">127.0.0.1:7734</a> to confirm the capture.
                   </p>
-                  <span class="setup-success">✓ First request captured</span>
+                  <p>If the dashboard is unavailable or empty, run:</p>
+                  <pre
+                    class="setup-code"
+                  ><code>copilot-monitor doctor --upstream api.githubcopilot.com</code></pre>
+                  <span class="setup-success">✓ Local setup checked</span>
                 </div>
               </li>
             </ol>
@@ -1755,7 +1759,7 @@
                 </p>
                 <p>Start the proxy with <code>--upstream api.githubcopilot.com</code>.</p>
               </div>
-              <span class="setup-time">~2 minutes</span>
+              <span class="setup-time">existing auth</span>
             </div>
             <ol class="setup-steps">
               <li class="setup-step">
@@ -1774,11 +1778,15 @@
                   <p>In a second terminal:</p>
                   <pre
                     class="setup-code"
-                  ><code>KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733/kilo pi -p 'Reply OK'</code></pre>
+                  ><code>KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi -p 'Reply OK'</code></pre>
                   <p>
                     Open <a href="http://127.0.0.1:7734">127.0.0.1:7734</a> to inspect the capture.
                   </p>
-                  <span class="setup-success">✓ First request captured</span>
+                  <p>If the dashboard is unavailable or empty, run:</p>
+                  <pre
+                    class="setup-code"
+                  ><code>copilot-monitor doctor --upstream api.githubcopilot.com</code></pre>
+                  <span class="setup-success">✓ Local setup checked</span>
                 </div>
               </li>
             </ol>
@@ -1797,7 +1805,7 @@
           <a href="./assets/dashboard.png" target="_blank" rel="noopener">
             <img
               src="./assets/dashboard.png"
-              alt="Screenshot of the Copilot Monitor dashboard showing estimated AI-credit cost over 30 days, a live session panel, a stacked usage chart, and a per-model breakdown."
+              alt="Screenshot of the Copilot Monitor dashboard showing estimated model-rate cost over 30 days, a live session panel, a stacked usage chart, and a per-model breakdown."
               width="1280"
               height="1100"
               loading="lazy"
@@ -1814,14 +1822,19 @@
         <h2 data-reveal>Why it exists</h2>
 
         <p data-reveal>
-          AI coding tools burn through credits and tokens without showing you the bill. GitHub
-          Copilot has zero local cost observability: you can't see what you're spending, on which
-          models, until the monthly invoice arrives.
+          AI coding tools can hide the request-level details that explain a slow session, a changing
+          model mix, or unexpectedly high token use. Account and organization dashboards answer a
+          different question than the one a developer has while working locally.
         </p>
         <p data-reveal>
-          Copilot Monitor gives you the raw numbers from your own machine: per-model token counts,
-          latency, estimated cost, and 30-minute session groupings. Local dashboard with a period
-          selector (today / yesterday / 7d / 30d / 90d / 365d) and a JSON API for your own scripts.
+          Copilot Monitor records the traffic you choose to proxy: per-model token counts, HTTP
+          status, latency, estimated cost, and 30-minute session groupings. It gives one developer a
+          fast local record without deploying a shared control plane.
+        </p>
+        <p data-reveal>
+          It is not another multi-provider gateway. Gateways manage routing, credentials, quotas,
+          and team-wide controls; Copilot Monitor complements them as a local instrument for seeing
+          the traffic from your own tools.
         </p>
       </section>
 
@@ -1905,9 +1918,10 @@
               <div class="icon" aria-hidden="true">$</div>
               <h3>Per-model cost estimates, not a bill</h3>
               <p>
-                Every captured request maps to an estimated AI-credit list price, broken down by
-                prompt, cached input, cache write, and output tokens. Clearly labeled as estimates.
-                Tagged when pricing is fallback or not-billed.
+                Embedded per-token USD rates turn captured usage into a directional estimate, broken
+                down by input, cached input, cache write, and output tokens. It does not reconcile
+                plan allocation, included credits, discounts, or invoices. Fallback and not-billed
+                rows are tagged.
               </p>
               <div class="terminal" aria-hidden="true">
                 <span class="prompt">$</span> ./copilot-monitor cost --since 7d --json
@@ -1920,9 +1934,10 @@
             <div class="icon" aria-hidden="true">&#9000;</div>
             <h3>CLI + JSON API</h3>
             <p>
-              Every report (<code>stats</code>, <code>cost</code>, <code>today</code>,
-              <code>sessions</code>, <code>export</code>) works in the terminal and serves JSON for
-              your own tooling.
+              Core reports (<code>stats</code>, <code>cost</code>, <code>today</code>,
+              <code>sessions</code>, <code>live</code>, and <code>inspect</code>) support
+              machine-readable JSON. <code>export</code> writes CSV, and the local API exposes the
+              same captured data for your own tooling.
             </p>
           </div>
 
@@ -1946,10 +1961,11 @@
 
           <div class="feature" data-reveal>
             <div class="icon" aria-hidden="true">&#128274;</div>
-            <h3>Local-only by design</h3>
+            <h3>Local monitoring by design</h3>
             <p>
               Binds to <code>127.0.0.1</code>. SQLite at
-              <code>~/.local/share/copilot-monitor/store.db</code>. No external requests, ever.
+              <code>~/.local/share/copilot-monitor/store.db</code>. No monitoring cloud, account,
+              analytics, or phone-home.
             </p>
           </div>
 
@@ -1968,8 +1984,9 @@
         <h2 data-reveal>What is and isn't stored</h2>
 
         <p data-reveal>
-          The privacy contract is enforced by the schema, not by policy. No prompt, completion,
-          source code, or auth material is ever written to disk.
+          Normal capture is metadata-only: no prompt, completion, source code, or auth material is
+          written to the SQLite database. Raw debugging is an explicit exception and is marked as
+          sensitive.
         </p>
         <div class="privacy-grid">
           <div class="privacy-card" data-reveal>
@@ -1986,7 +2003,7 @@
           <div class="privacy-card not-stored" data-reveal>
             <span class="stamp" data-stamp>Redacted</span>
             <h4>
-              Never stored
+              Not stored by normal capture
               <span class="pill" style="color: var(--red); border-color: oklch(0.64 0.19 27 / 0.35)"
                 >blacked out</span
               >
@@ -2016,17 +2033,18 @@
         </div>
         <ul class="guarantees" data-reveal>
           <li>
-            <strong>Loopback only.</strong> The proxy and dashboard both bind to
-            <code>127.0.0.1</code>. Nothing is reachable from another machine.
+            <strong>Loopback by default.</strong> The proxy and dashboard bind to
+            <code>127.0.0.1</code> unless you explicitly change their listen address.
           </li>
           <li>
-            <strong>No external network calls.</strong> The binary never phones home, never updates
-            itself, and never sends analytics. Verified by reading the source.
+            <strong>No monitoring network calls.</strong> The binary never phones home, updates
+            itself, or sends analytics. It does forward the API request to the upstream host you
+            explicitly configured.
           </li>
           <li>
-            <strong>Local file only.</strong> SQLite lives at
-            <code>~/.local/share/copilot-monitor/store.db</code> on your machine. Delete the file,
-            every trace is gone.
+            <strong>Local database.</strong> Normal capture lives at
+            <code>~/.local/share/copilot-monitor/store.db</code> on your machine. Opt-in raw debug
+            logs are separate sensitive files.
           </li>
         </ul>
       </section>
@@ -2041,8 +2059,8 @@
             <h3>You use Copilot every day</h3>
             <span class="signal">$ copilot-monitor cost --since 30d</span>
             <p>
-              You want to know which models you're actually calling, and what your prompts cost. Not
-              a corporate dashboard. Your own numbers, on your own machine.
+              You want to know which models you're actually calling and their estimated token-rate
+              cost. Not a corporate dashboard. Your own numbers, on your own machine.
             </p>
           </div>
           <div class="persona" data-reveal>
@@ -2059,17 +2077,17 @@
             <h3>You don't trust cloud-side telemetry</h3>
             <span class="signal">binds 127.0.0.1 only</span>
             <p>
-              Read the schema, inspect the source, verify nothing leaves your machine. The privacy
-              contract is enforced by the schema, not by a privacy policy.
+              Read the schema and inspect the source. Monitoring data stays on your machine; only
+              the upstream API requests you explicitly proxy leave it.
             </p>
           </div>
           <div class="persona" data-reveal>
             <span class="file-no">FILE 04</span>
             <h3>You're piping usage into your own tooling</h3>
-            <span class="signal">--json on every command</span>
+            <span class="signal">JSON reports + local API</span>
             <p>
-              Every endpoint returns JSON. Every CLI command has <code>--json</code>. Queries are
-              SQL against a SQLite file you own.
+              Reporting commands that support <code>--json</code> and the local API are ready for
+              your own tooling. Export is CSV. Queries are SQL against a SQLite file you own.
             </p>
           </div>
         </div>

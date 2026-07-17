@@ -13,8 +13,8 @@ Requirements are managed through OpenSpec. Behavioral requirements live in
 | capture     | `openspec/specs/capture/spec.md`     | Usage metadata, session grouping, headroom-proxied flag, debug logging, structured logging                  |
 | policy      | `openspec/specs/policy/spec.md`      | Model allow/block, fail-open, API management, model discovery                                               |
 | compression | `openspec/specs/compression/spec.md` | Headroom-proxied detection via RemoteAddr, no inline compression                                            |
-| reporting   | `openspec/specs/reporting/spec.md`   | CLI commands, dashboard API, filtering, export, init, validate                                              |
-| dashboard   | `openspec/specs/dashboard/spec.md`   | Dashboard UI, metrics, charts, policy management, routes display                                            |
+| reporting   | `openspec/specs/reporting/spec.md`   | CLI commands, dashboard API, filtering, export, and setup diagnosis                                         |
+| dashboard   | `openspec/specs/dashboard/spec.md`   | Dashboard UI, metrics, charts, policy management                                                            |
 | privacy     | `openspec/specs/privacy/spec.md`     | Data minimization, locality, loopback binding, export boundaries                                            |
 
 ## Workflow

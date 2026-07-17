@@ -485,9 +485,6 @@ func TestStructuredJSONLogLineEmitted(t *testing.T) {
 	if entry.Status != http.StatusOK {
 		t.Fatalf("status = %d, want %d", entry.Status, http.StatusOK)
 	}
-	if entry.CaptureMode == "" {
-		t.Fatal("missing capture_mode")
-	}
 	if !entry.TokensCaptured {
 		t.Fatal("expected tokens_captured = true")
 	}

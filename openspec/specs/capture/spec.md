@@ -56,28 +56,27 @@ token counts.
 
 ### Requirement: Zero-token persistence
 
-The system SHALL persist requests even when no token usage is present. Requests
-routed with `capture: "usage"` SHALL be persisted with zero token counts and a
-`usage_missing` flag.
+The system SHALL persist proxied requests even when no token usage is present.
+Rows without usage SHALL have zero token counts and a `usage_missing` flag.
 
 #### Scenario: Usage field absent from response
 
-- **WHEN** a response to a route with `capture: "usage"` contains no usage data
+- **WHEN** a proxied response contains no usage data
 - **THEN** the request is persisted with zero token values and `usage_missing`
   set to true
 
 ---
 
-### Requirement: Metadata-only capture
+### Requirement: Metadata capture without usage
 
-The system SHALL support metadata-only capture for endpoints that are useful for
-reporting but do not expose token usage.
+The system SHALL persist request metadata for proxied requests that do not
+expose token usage.
 
-#### Scenario: Metadata-only endpoint
+#### Scenario: Response without usage
 
-- **WHEN** a route has `capture: "metadata"`
+- **WHEN** a proxied response does not contain token usage
 - **THEN** request metadata (endpoint, method, path, model, status, latency) is
-  persisted without requiring usage data
+  persisted without token counts
 
 ---
 
@@ -157,8 +156,8 @@ token, secret, or credential) SHALL be redacted.
 
 The system SHALL emit structured log entries for every proxied request
 containing the request ID, method, path, upstream host, model, status code,
-latency, capture mode, and whether token usage was detected. Log entries SHALL
-omit body text and credentials.
+latency, and whether token usage was detected. Log entries SHALL omit body text
+and credentials.
 
 #### Scenario: Successful request logged
 

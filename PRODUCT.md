@@ -4,25 +4,40 @@
 
 utility
 
+## Positioning
+
+**Copilot Monitor is the local flight recorder for AI coding traffic.** It lets
+one developer see the model, token, cache, latency, status, and activity data
+behind requests their tools already make.
+
+It complements platform gateways and observability services; it is not a
+multi-provider control plane, shared SaaS dashboard, or billing system. A single
+running proxy forwards to one explicitly chosen upstream host and keeps its
+monitoring data in local SQLite.
+
 ## Users
 
-Developers who use LLM APIs through any tool — VSCode with GitHub Copilot, pi
-agent, Claude Code, aider, curl, or anything that speaks OpenAI-compatible or
-Anthropic-compatible HTTP. Self-service, single-user, local tool.
+Individual developers who want a private, request-level record of the AI coding
+tools they use. GitHub Copilot is the primary integration; pi/Kilo and other
+clients that support a custom base URL are compatible where their request shape
+can be forwarded unchanged. Self-service, single-user, loopback-local tool.
 
 ## Product Purpose
 
-A local reverse proxy that sits between your tools and LLM APIs. It captures
-per-request metadata, token counts, latency, and estimated cost without ever
-storing prompts, completions, source code, or auth material. First-class
-built-in support for GitHub Copilot; configurable routes for any
-OpenAI-compatible or Anthropic-compatible API.
+A local reverse proxy that sits between a configured client and one upstream
+host. It captures per-request metadata, token counts, latency, HTTP status, and
+estimated model-rate cost without storing prompts, completions, source code, or
+auth material in the normal SQLite capture. GitHub Copilot traffic, including
+its usage-bearing WebSocket events, is a first-class use case.
 
-All data stays in a local SQLite database. No cloud, no telemetry.
+All monitoring data stays in a local SQLite database. There is no monitoring
+cloud, account, analytics, or phone-home. The proxy still makes the API request
+to the upstream host the user explicitly configures.
 
 You get a CLI for quick inspection and a local dashboard for browsing usage
-patterns, session history, and cost breakdowns. A built-in model policy lets you
-block or allow specific models across all your tools.
+patterns, session history, and cost breakdowns. A built-in model policy applies
+to model-bearing HTTP requests and Copilot WebSocket text messages before they
+are forwarded.
 
 This is a utility, not a platform. It should get out of the way and show the
 data clearly.

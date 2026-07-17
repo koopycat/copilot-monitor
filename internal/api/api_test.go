@@ -89,6 +89,49 @@ func TestCurrentSessionEndpointEmptyDB(t *testing.T) {
 	}
 }
 
+func TestCostEndpointIncludesEstimateMetadata(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.InsertRequest(context.Background(), store.RequestRecord{
+		Timestamp:        time.Now().UTC(),
+		Endpoint:         "chat",
+		Method:           http.MethodPost,
+		Path:             "/chat/completions",
+		UpstreamHost:     "api.githubcopilot.com",
+		Model:            "gpt-5-mini",
+		Status:           http.StatusOK,
+		PromptTokens:     100,
+		CompletionTokens: 50,
+		TotalTokens:      150,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cost?since=all", nil)
+	rr := httptest.NewRecorder()
+	NewHandler(st).ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var response struct {
+		Estimate struct {
+			Currency     string `json:"currency"`
+			RateSource   string `json:"rate_source"`
+			Basis        string `json:"basis"`
+			BillingScope string `json:"billing_scope"`
+		} `json:"estimate"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Estimate.Currency != "USD" || response.Estimate.RateSource == "" || response.Estimate.Basis != "published_token_rates" || response.Estimate.BillingScope != "not_invoice_reconciliation" {
+		t.Fatalf("estimate = %#v", response.Estimate)
+	}
+}
+
 func TestGetPolicyDefault(t *testing.T) {
 	s, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
 	require.NoError(t, err)

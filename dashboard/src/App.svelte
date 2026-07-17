@@ -5,7 +5,6 @@
   import ModelsTable from './components/ModelsTable.svelte';
   import PeriodBar from './components/PeriodBar.svelte';
   import PolicyPanel from './components/PolicyPanel.svelte';
-  import RoutesPanel from './components/RoutesPanel.svelte';
   import SessionsTable from './components/SessionsTable.svelte';
   import ToggleGroup from './components/ToggleGroup.svelte';
   import UpstreamFilter from './components/UpstreamFilter.svelte';
@@ -25,8 +24,8 @@
     aria-busy={dashboard.loading}
     disabled={dashboard.loading}
     onclick={() => dashboard.load()}
-    title="Refresh now"
-  >↻</button>
+    title="Refresh now">↻</button
+  >
 </h1>
 
 <PeriodBar
@@ -62,7 +61,7 @@
 {/if}
 
 <div class="row">
-  <MetricCard value={costText} label={`est. AI-credit cost, ${dashboard.periodLabel}`} />
+  <MetricCard value={costText} label={`est. token-rate cost, ${dashboard.periodLabel}`} />
   <MetricCard value={dashboard.projectedText} label={dashboard.projectedLabel} />
   <MetricCard
     value={dashboard.totalRequests.toLocaleString()}
@@ -115,10 +114,9 @@
   </div>
 </details>
 
-<RoutesPanel />
 <PolicyPanel />
 
 <footer class="footer">
-  <span>Estimated AI-credit list-price cost. Not your GitHub Copilot bill.</span>
+  <span>Published token-rate estimate. Not invoice reconciliation.</span>
   <span><a href={dashboard.exportHref}>Export CSV</a> · Auto-refreshes every 30s</span>
 </footer>
