@@ -1,7 +1,7 @@
 # Copilot Monitor
 
 [![CI](https://github.com/koopycat/copilot-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/koopycat/copilot-monitor/actions/workflows/ci.yml)
-[![Go 1.26](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/koopycat/copilot-monitor)](https://github.com/koopycat/copilot-monitor/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -20,6 +20,11 @@ quotas, or invoice reconciliation. It complements those systems by making the
 traffic from your own tools inspectable without an SDK, collector, or monitoring
 account.
 
+<!-- TODO: add dashboard screenshot -->
+
+> See the [project website](https://koopycat.github.io/copilot-monitor/) for
+> dashboard screenshots.
+
 ## Install
 
 Download an archive for your platform, extract it, and put `copilot-monitor` on
@@ -37,7 +42,7 @@ Homebrew:
 
 ```sh
 brew tap koopycat/copilot-monitor
-brew trust koopycat/copilot-monitor
+brew trust koopycat/copilot-monitor  # signs the tap for Homebrew verification
 brew install copilot-monitor
 ```
 
@@ -55,27 +60,6 @@ Verify an installed binary before continuing:
 copilot-monitor version
 ```
 
-## First capture with pi/Kilo
-
-This path requires a separately installed and authenticated `pi` client.
-
-In terminal 1, start the proxy and dashboard, forwarding to your upstream:
-
-```sh
-copilot-monitor run --dashboard --upstream api.githubcopilot.com
-```
-
-In terminal 2, verify both services, make one request through the proxy, then
-inspect the capture:
-
-```sh
-curl http://127.0.0.1:7733/_health
-curl http://127.0.0.1:7734/api/health
-KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi -p 'Reply OK'
-copilot-monitor stats --since 1h
-copilot-monitor doctor --upstream api.githubcopilot.com
-```
-
 ## Client setup and compatibility
 
 Your client must support a base-URL or upstream override. The proxy forwards all
@@ -84,7 +68,7 @@ non-health requests unchanged to the one configured `--upstream` host.
 | Client                   | Setup                                         | Coverage                                                                    |
 | ------------------------ | --------------------------------------------- | --------------------------------------------------------------------------- |
 | VS Code + GitHub Copilot | One-time advanced setting and a window reload | HTTP and Copilot `/responses` WebSocket usage capture                       |
-| pi + Kilo gateway        | Set `KILO_GATEWAY_BASE_URL` to the proxy      | First-capture path documented above                                         |
+| pi + Kilo gateway        | Set `KILO_GATEWAY_BASE_URL` to the proxy      | First-capture path documented below                                         |
 | Other API clients        | Point a custom base URL at the proxy          | Best effort; paths and headers are forwarded unchanged to one upstream host |
 
 Model policy applies to HTTP requests and complete Copilot WebSocket text
@@ -118,6 +102,27 @@ copilot-monitor doctor --upstream api.githubcopilot.com
 It checks the local proxy, dashboard, database path, and optional upstream TCP
 reachability without creating or migrating the database. It cannot inspect your
 editor's private settings, so keep the VS Code override and reload step above.
+
+## First capture with pi/Kilo
+
+This path requires a separately installed and authenticated `pi` client.
+
+In terminal 1, start the proxy and dashboard, forwarding to your upstream:
+
+```sh
+copilot-monitor run --dashboard --upstream api.githubcopilot.com
+```
+
+In terminal 2, verify both services, make one request through the proxy, then
+inspect the capture:
+
+```sh
+curl http://127.0.0.1:7733/_health
+curl http://127.0.0.1:7734/api/health
+KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi -p 'Reply OK'
+copilot-monitor stats --since 1h
+copilot-monitor doctor --upstream api.githubcopilot.com
+```
 
 ## Commands
 
@@ -173,4 +178,4 @@ output as sensitive.
 
 [API and dashboard](docs/api.md) · [Architecture](docs/architecture.md) ·
 [Homebrew](docs/homebrew.md) ·
-[Project site](https://koopykat.github.io/copilot-monitor/)
+[Project site](https://koopycat.github.io/copilot-monitor/)
