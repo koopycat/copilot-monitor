@@ -130,6 +130,9 @@ func (s *Store) DBPath() string {
 }
 
 func DefaultPath() string {
+	if env := os.Getenv("COPILOT_MONITOR_DB"); env != "" {
+		return env
+	}
 	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
 		return filepath.Join(xdg, "copilot-monitor", "store.db")
 	}
@@ -418,7 +421,7 @@ ORDER BY date ASC, hour ASC, model ASC, upstream_host ASC`, dateExpr, groupExpr)
 	return out, rows.Err()
 }
 
-func (s *Store) ExportRequests(ctx context.Context, since, until time.Time, upstreamHost string) ([]ExportRow, error) {
+func (s *Store) ExportRequests(ctx context.Context, since, until time.Time, project, endpoint, upstreamHost string) ([]ExportRow, error) {
 	if s == nil || s.db == nil {
 		return nil, errors.New("nil store")
 	}
@@ -439,10 +442,12 @@ SELECT ts, endpoint, COALESCE(model,''), status, latency_ms,
 FROM requests
 WHERE (? = '' OR ts >= ?)
   AND (? = '' OR ts < ?)
+  AND (? = '' OR project = ?)
+  AND (? = '' OR endpoint = ?)
   AND (? = '' OR upstream_host = ?)
   AND model IS NOT NULL AND model != ''
   AND status = 200
-ORDER BY ts DESC`, sinceStr, sinceStr, untilStr, untilStr, upstreamHost, upstreamHost)
+ORDER BY ts DESC`, sinceStr, sinceStr, untilStr, untilStr, project, project, endpoint, endpoint, upstreamHost, upstreamHost)
 	if err != nil {
 		return nil, err
 	}
