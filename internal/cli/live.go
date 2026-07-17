@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -24,12 +26,15 @@ func runLive(args []string, stdout, stderr io.Writer) int {
 	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
 	watchFlag := fs.Bool("watch", false, "refresh every 2s (Ctrl+C to stop)")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 
 	st, err := store.Open(*dbPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to open db %q: %v\n", *dbPath, err)
+		fmt.Fprintf(stderr, "error: opening database %q: %v\n", *dbPath, err)
 		return 1
 	}
 	defer st.Close()
@@ -40,7 +45,7 @@ func runLive(args []string, stdout, stderr io.Writer) int {
 
 	current, costResult, err := loadLiveSession(context.Background(), st)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to query live session: %v\n", err)
+		fmt.Fprintf(stderr, "error: querying live session: %v\n", err)
 		return 1
 	}
 	if current == nil {
@@ -75,7 +80,7 @@ func runLive(args []string, stdout, stderr io.Writer) int {
 			Active:        current.Active,
 			Models:        costResult.Rows,
 		}); err != nil {
-			fmt.Fprintf(stderr, "json encode failed: %v\n", err)
+			fmt.Fprintf(stderr, "error: encoding json: %v\n", err)
 			return 1
 		}
 		return 0
@@ -130,7 +135,7 @@ func renderLive(w io.Writer, current *store.CurrentSession, costResult costcalc.
 	overview := aggregateByModel(costResult.Rows)
 
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "\nMODEL\tREQUESTS\tINPUT\tCACHED\tCACHE HIT\tOUTPUT\tCOST")
+	fmt.Fprintln(tw, "\nMODEL\tREQUESTS\tINPUT_TOK\tCACHED_TOK\tCACHE_HIT_PCT\tOUTPUT_TOK\tEST_USD")
 	for _, m := range overview {
 		fmt.Fprintf(tw, "%s\t%d\t%s\t%s\t%s\t%s\t%s\n",
 			m.model,
@@ -280,7 +285,8 @@ func topModelSummaries(models []modelSummary, n int) []string {
 	return out
 }
 
-// runLiveWatch continuously refreshes the full live view, clearing the screen before each render.
+// runLiveWatch continuously refreshes the full live view, overwriting the previous
+// render in place using cursor-up ANSI clearing so terminal scrollback is preserved.
 func runLiveWatch(w io.Writer, st *store.Store) int {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -288,13 +294,11 @@ func runLiveWatch(w io.Writer, st *store.Store) int {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
+	prevLines := 0
 	for {
-		// Clear whole screen, move to home, render.
-		fmt.Fprint(w, "\x1b[2J\x1b[H")
-
 		current, costResult, err := loadLiveSession(context.Background(), st)
 		if err != nil {
-			// Sleep briefly then retry.
+			// Sleep briefly then retry without clearing.
 			select {
 			case <-sigCh:
 				return 0
@@ -302,13 +306,20 @@ func runLiveWatch(w io.Writer, st *store.Store) int {
 				continue
 			}
 		}
+
+		// Render into a buffer so we can count lines before writing.
+		var buf bytes.Buffer
 		if current == nil {
-			fmt.Fprintf(w, "No sessions captured yet.\n")
-			fmt.Fprintf(w, "Ctrl+C to stop\n")
+			fmt.Fprintf(&buf, "No sessions captured yet.\n")
+			fmt.Fprintf(&buf, "Ctrl+C to stop\n")
 		} else {
-			renderLive(w, current, costResult)
-			fmt.Fprintf(w, "\nCtrl+C to stop")
+			renderLive(&buf, current, costResult)
+			fmt.Fprintf(&buf, "\nCtrl+C to stop")
 		}
+
+		// Erase the previous render, then write the new one.
+		clearTail(w, prevLines)
+		prevLines = writeLines(w, buf.String())
 
 		select {
 		case <-sigCh:

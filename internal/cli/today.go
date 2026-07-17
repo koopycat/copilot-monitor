@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -15,10 +16,13 @@ func runToday(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("today", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
-	project := fs.String("project", "", "filter by project")
+	project := fs.String("project", projectDefault(), "filter by project")
 	endpoint := fs.String("endpoint", "", "filter by endpoint")
 	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 
@@ -26,14 +30,14 @@ func runToday(args []string, stdout, stderr io.Writer) int {
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	st, err := store.Open(*dbPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to open db %q: %v\n", *dbPath, err)
+		fmt.Fprintf(stderr, "error: opening database %q: %v\n", *dbPath, err)
 		return 1
 	}
 	defer st.Close()
 
 	rows, err := st.Stats(context.Background(), store.StatsFilter{Since: start, Project: *project, Endpoint: *endpoint})
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to query today's stats: %v\n", err)
+		fmt.Fprintf(stderr, "error: querying today's stats: %v\n", err)
 		return 1
 	}
 
@@ -41,12 +45,12 @@ func runToday(args []string, stdout, stderr io.Writer) int {
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(rows); err != nil {
-			fmt.Fprintf(stderr, "json encode failed: %v\n", err)
+			fmt.Fprintf(stderr, "error: encoding json: %v\n", err)
 			return 1
 		}
 		return 0
 	}
-	fmt.Fprintf(stdout, "Usage since %s\n", start.Format(time.RFC3339))
+	fmt.Fprintf(stdout, "Usage for %s\n", start.Format("January 2, 2006"))
 	printStatsRows(stdout, rows)
 	return 0
 }

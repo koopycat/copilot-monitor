@@ -26,7 +26,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	upstream := fs.String("upstream", "", "upstream host to proxy requests to (required, e.g. api.githubcopilot.com)")
 	headroomProxyAddr := fs.String("headroom-proxy-addr", "127.0.0.1:8787", "headroom compression proxy address")
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
-	project := fs.String("project", "", "optional project label")
+	project := fs.String("project", projectDefault(), "optional project label")
 	usageDebugPath := fs.String("usage-debug-log", "", "optional JSONL path for usage-only debug metadata")
 	rawLogPath := fs.String("raw-log", "", "optional JSONL path for raw request debugging (logs truncated bodies, headers; treat output as sensitive)")
 	noLive := fs.Bool("no-live", false, "disable the live session tail below the startup banner")
@@ -36,6 +36,9 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	dryRun := fs.Bool("dry-run", false, "report retention deletions without executing them")
 	logFormat := fs.String("log-format", "human", "log output format: human (rich colored output, default) or json (one JSON object per line)")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 
@@ -46,7 +49,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 
 	st, err := store.Open(*dbPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to open db %q: %v\n", *dbPath, err)
+		fmt.Fprintf(stderr, "error: opening database %q: %v\n", *dbPath, err)
 		return 1
 	}
 	defer st.Close()
@@ -57,7 +60,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		dryRun:      *dryRun,
 	}, stdout, stderr)
 	if err != nil {
-		fmt.Fprintf(stderr, "retention setup failed: %v\n", err)
+		fmt.Fprintf(stderr, "error: retention setup: %v\n", err)
 		return 1
 	}
 	defer stopRetention()
@@ -67,14 +70,14 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 
 	usageDebug, err := proxy.OpenUsageDebugLogger(*usageDebugPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to open usage debug log %q: %v\n", *usageDebugPath, err)
+		fmt.Fprintf(stderr, "error: opening usage debug log %q: %v\n", *usageDebugPath, err)
 		return 1
 	}
 	defer usageDebug.Close()
 
 	rawLogger, err := proxy.OpenRawLogger(*rawLogPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to open raw debug log %q: %v\n", *rawLogPath, err)
+		fmt.Fprintf(stderr, "error: opening raw debug log %q: %v\n", *rawLogPath, err)
 		return 1
 	}
 	defer rawLogger.Close()
@@ -110,7 +113,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	proxyHandler.SetHeadroomProxyAddr(*headroomProxyAddr)
 	cat, err := st.Catalog()
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to load pricing catalog: %v\n", err)
+		fmt.Fprintf(stderr, "error: loading pricing catalog: %v\n", err)
 		return 1
 	}
 	proxyHandler.SetCatalog(cat)
@@ -133,7 +136,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 		}
 		go func() {
 			if err := dashServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				fmt.Fprintf(stderr, "dashboard server failed: %v\n", err)
+				fmt.Fprintf(stderr, "error: dashboard server: %v\n", err)
 			}
 		}()
 		fmt.Fprintf(stdout, "dashboard: http://%s (UI)  http://%s/api/ (API)\n", dashAddr, dashAddr)
@@ -180,7 +183,7 @@ func runServer(args []string, stdout, stderr io.Writer) int {
 	}()
 
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, context.Canceled) {
-		fmt.Fprintf(stderr, "server failed: %v\n", err)
+		fmt.Fprintf(stderr, "error: server: %v\n", err)
 		return 1
 	}
 

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -18,38 +19,41 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
 	sinceText := fs.String("since", "30d", "duration to look back, e.g. 24h, 7d, 30d, or all")
-	project := fs.String("project", "", "filter by project")
+	project := fs.String("project", projectDefault(), "filter by project")
 	endpoint := fs.String("endpoint", "", "filter by endpoint")
 	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 
 	since, err := parseSince(*sinceText, time.Now())
 	if err != nil {
-		fmt.Fprintf(stderr, "invalid --since value %q: %v\n", *sinceText, err)
+		fmt.Fprintf(stderr, "error: parsing --since %q: %v\n", *sinceText, err)
 		return 2
 	}
 	st, err := store.Open(*dbPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to open db %q: %v\n", *dbPath, err)
+		fmt.Fprintf(stderr, "error: opening database %q: %v\n", *dbPath, err)
 		return 1
 	}
 	defer st.Close()
 
 	rows, err := st.Stats(context.Background(), store.StatsFilter{Since: since, Project: *project, Endpoint: *endpoint})
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to query stats: %v\n", err)
+		fmt.Fprintf(stderr, "error: querying stats: %v\n", err)
 		return 1
 	}
 	usageMissingCount, err := st.CountUsageMissing(context.Background())
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to query usage missing count: %v\n", err)
+		fmt.Fprintf(stderr, "error: querying usage missing count: %v\n", err)
 		return 1
 	}
 	cat, err := st.Catalog()
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to load model catalog: %v\n", err)
+		fmt.Fprintf(stderr, "error: loading model catalog: %v\n", err)
 		return 1
 	}
 	total := costcalc.Calculate(rows, cat)
@@ -58,7 +62,7 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(total); err != nil {
-			fmt.Fprintf(stderr, "json encode failed: %v\n", err)
+			fmt.Fprintf(stderr, "error: encoding json: %v\n", err)
 			return 1
 		}
 		return 0
@@ -68,7 +72,7 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "Rate source: %s\n", total.Estimate.RateSource)
 	}
 	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "MODEL\tENDPOINT\tPROVIDER\tREQUESTS\tINPUT_TOK\tCACHED_TOK\tCACHE_WRITE_TOK\tOUTPUT_TOK\tINPUT USD\tCACHED USD\tCACHE WRITE USD\tOUTPUT USD\tEST. USD")
+	fmt.Fprintln(tw, "MODEL\tENDPOINT\tPROVIDER\tREQUESTS\tINPUT_TOK\tCACHED_TOK\tCACHE_WRITE_TOK\tOUTPUT_TOK\tINPUT USD\tCACHED USD\tCACHE_WRITE_USD\tOUTPUT USD\tEST. USD\tTOKENS_REMOVED")
 	for _, row := range total.Rows {
 		provider := row.Provider
 		if row.Fallback {
@@ -77,9 +81,10 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 		if row.NotBilled {
 			provider += " (not billed)"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\n", row.Model, row.Endpoint, provider, row.Requests, row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens, row.CompletionTokens, row.InputUSD, row.CachedInputUSD, row.CacheWriteUSD, row.OutputUSD, row.TotalUSD)
+		removed := removedString(row.CompressionRemovedTokens)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%s\n", row.Model, row.Endpoint, provider, row.Requests, row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens, row.CompletionTokens, row.InputUSD, row.CachedInputUSD, row.CacheWriteUSD, row.OutputUSD, row.TotalUSD, removed)
 	}
-	fmt.Fprintf(tw, "TOTAL\t\t\t%d\t%d\t%d\t%d\t%d\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\n", total.Requests, total.PromptTokens, total.CachedInputTokens, total.CacheWriteTokens, total.CompletionTokens, total.InputUSD, total.CachedInputUSD, total.CacheWriteUSD, total.OutputUSD, total.TotalUSD)
+	fmt.Fprintf(tw, "TOTAL\t\t\t%d\t%d\t%d\t%d\t%d\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%s\n", total.Requests, total.PromptTokens, total.CachedInputTokens, total.CacheWriteTokens, total.CompletionTokens, total.InputUSD, total.CachedInputUSD, total.CacheWriteUSD, total.OutputUSD, total.TotalUSD, removedString(total.CompressionRemovedTokens))
 	_ = tw.Flush()
 	if total.FallbackCount > 0 {
 		fmt.Fprintf(stdout, "\n* provider or generic fallback pricing used for %d row(s).\n", total.FallbackCount)
@@ -91,4 +96,12 @@ func runCost(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "(%d request(s) had no usage data)\n", usageMissingCount)
 	}
 	return 0
+}
+
+// removedString formats a compression-removed token count, showing "-" when zero.
+func removedString(n int) string {
+	if n <= 0 {
+		return "-"
+	}
+	return fmt.Sprintf("%d", n)
 }

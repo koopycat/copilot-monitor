@@ -159,7 +159,7 @@ func runCompletion(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if args[0] != "zsh" {
-		fmt.Fprintf(stderr, "unsupported shell %q; only \"zsh\" is supported\n", args[0])
+		fmt.Fprintf(stderr, "error: unsupported shell %q; only \"zsh\" is supported\n", args[0])
 		return 2
 	}
 	fmt.Fprint(stdout, completionScript)

@@ -46,14 +46,17 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 	timeout := fs.Duration("timeout", 2*time.Second, "timeout for local and upstream checks")
 	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	if fs.NArg() != 0 {
-		fmt.Fprintln(stderr, "doctor does not accept positional arguments")
+		fmt.Fprintln(stderr, "error: doctor does not accept positional arguments")
 		return 2
 	}
 	if *timeout <= 0 {
-		fmt.Fprintln(stderr, "--timeout must be greater than zero")
+		fmt.Fprintln(stderr, "error: --timeout must be greater than zero")
 		return 2
 	}
 
@@ -61,7 +64,7 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 	if !*skipProxy {
 		base, err := parseDoctorBaseURL("--proxy-url", *proxyURL)
 		if err != nil {
-			fmt.Fprintln(stderr, err)
+			fmt.Fprintf(stderr, "error: %v\n", err)
 			return 2
 		}
 		proxyEndpoint = base + "/_health"
@@ -69,7 +72,7 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 	if !*skipDashboard {
 		base, err := parseDoctorBaseURL("--dashboard-url", *dashboardURL)
 		if err != nil {
-			fmt.Fprintln(stderr, err)
+			fmt.Fprintf(stderr, "error: %v\n", err)
 			return 2
 		}
 		dashboardEndpoint = base + "/api/health"
@@ -80,7 +83,7 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		var err error
 		upstreamAddr, err = doctorUpstreamAddress(*upstream)
 		if err != nil {
-			fmt.Fprintln(stderr, err)
+			fmt.Fprintf(stderr, "error: %v\n", err)
 			return 2
 		}
 	}
@@ -130,7 +133,7 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(report); err != nil {
-			fmt.Fprintf(stderr, "json encode failed: %v\n", err)
+			fmt.Fprintf(stderr, "error: encoding json: %v\n", err)
 			return 1
 		}
 	} else {

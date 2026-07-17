@@ -48,7 +48,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	case "completion":
 		return runCompletion(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
+		fmt.Fprintf(stderr, "error: unknown command %q\n\n", args[0])
 		printUsage(stderr)
 		return 2
 	}
@@ -67,15 +67,15 @@ func printUsage(w io.Writer) {
 Usage:
   copilot-monitor run --upstream <host> [--addr 127.0.0.1:7733] [--headroom-proxy-addr 127.0.0.1:8787] [--db path] [--project name] [--usage-debug-log path] [--no-live] [--dashboard] [--retention-days 365] [--anomaly-retention-days 30] [--dry-run]
   copilot-monitor doctor [--db path] [--proxy-url http://127.0.0.1:7733] [--dashboard-url http://127.0.0.1:7734] [--skip-proxy] [--skip-dashboard] [--upstream host] [--timeout 2s] [--json]
-  copilot-monitor stats [--db path] [--since 30d] [--project name] [--endpoint chat]
-  copilot-monitor cost [--db path] [--since 30d] [--project name] [--endpoint chat]
+  copilot-monitor stats [--db path] [--since 30d|all] [--project name] [--endpoint chat]
+  copilot-monitor cost [--db path] [--since 30d|all] [--project name] [--endpoint chat]
   copilot-monitor today [--db path] [--project name] [--endpoint chat]
-  copilot-monitor sessions [--db path] [--since 30d] [--project name] [--limit 50]
+  copilot-monitor sessions [--db path] [--since 30d|all] [--project name] [--limit 50]
   copilot-monitor rebuild-sessions [--db path] [--gap 30m] [--vacuum]
   copilot-monitor live [--db path] [--json] [--watch]
   copilot-monitor serve [--addr 127.0.0.1:7734] [--db path] [--retention-days 365] [--anomaly-retention-days 30] [--dry-run]
-  copilot-monitor export [--since 30d] [--db path]
-  copilot-monitor inspect [--db path] [--since 7d] [--category category] [--severity severity] [--json] [--alert-on-any]
+  copilot-monitor export [--since 30d|all] [--db path]
+  copilot-monitor inspect [--db path] [--since 30d|all] [--category category] [--severity severity] [--json] [--alert-on-any]
   copilot-monitor completion zsh
   copilot-monitor version
 

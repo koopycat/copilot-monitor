@@ -77,7 +77,7 @@ func startRetention(st *store.Store, cfg retentionConfig, stdout, stderr io.Writ
 				return
 			case <-ticker.C:
 				if err := run(); err != nil {
-					fmt.Fprintf(stderr, "retention prune failed: %v\n", err)
+					fmt.Fprintf(stderr, "error: retention prune: %v\n", err)
 				}
 			}
 		}

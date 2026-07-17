@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -17,10 +18,15 @@ func runSessions(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
 	sinceText := fs.String("since", "30d", "duration to look back, e.g. 24h, 7d, 30d, or all")
-	project := fs.String("project", "", "filter by project")
+	project := fs.String("project", projectDefault(), "filter by project")
 	limit := fs.Int("limit", 50, "maximum sessions to print")
+	cursor := fs.String("cursor", "", "cursor started_at for pagination (format: RFC3339)")
+	cursorID := fs.Int64("cursor-id", 0, "cursor session ID for pagination")
 	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 
@@ -36,9 +42,23 @@ func runSessions(args []string, stdout, stderr io.Writer) int {
 	}
 	defer st.Close()
 
-	rows, err := st.Sessions(context.Background(), store.SessionFilter{Since: since, Project: *project, Limit: *limit})
+	var cursorStartedAt time.Time
+	if *cursor != "" {
+		cursorStartedAt, err = time.Parse(time.RFC3339, *cursor)
+		if err != nil {
+			fmt.Fprintf(stderr, "invalid --cursor value %q: %v\n", *cursor, err)
+			return 2
+		}
+	}
+	rows, err := st.Sessions(context.Background(), store.SessionFilter{
+		Since:           since,
+		Project:         *project,
+		Limit:           *limit,
+		CursorStartedAt: cursorStartedAt,
+		CursorID:        *cursorID,
+	})
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to query sessions: %v\n", err)
+		fmt.Fprintf(stderr, "error: querying sessions: %v\n", err)
 		return 1
 	}
 
@@ -46,7 +66,7 @@ func runSessions(args []string, stdout, stderr io.Writer) int {
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(rows); err != nil {
-			fmt.Fprintf(stderr, "json encode failed: %v\n", err)
+			fmt.Fprintf(stderr, "error: encoding json: %v\n", err)
 			return 1
 		}
 		return 0

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -34,34 +35,37 @@ func runInspect(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("inspect", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	dbPath := fs.String("db", store.DefaultPath(), "SQLite database path")
-	sinceText := fs.String("since", "24h", "duration to look back, e.g. 1h, 24h, 7d")
+	sinceText := fs.String("since", "30d", "duration to look back, e.g. 1h, 24h, 7d, 30d")
 	category := fs.String("category", "", "filter by anomaly category (unrouted_path, parse_error, auth_missing, unknown_content_type, unknown_upstream, unknown_ws_event)")
 	severity := fs.String("severity", "", "filter by severity (info, warn, error)")
 	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
 	alertOnAny := fs.Bool("alert-on-any", false, "exit 1 if any anomalies match")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 
 	if *category != "" && !validAnomalyCategories[*category] {
-		fmt.Fprintf(stderr, "invalid --category %q: valid values are %s\n", *category, strings.Join(categoryNames(), ", "))
+		fmt.Fprintf(stderr, "error: invalid --category %q: valid values are %s\n", *category, strings.Join(categoryNames(), ", "))
 		return 2
 	}
 
 	if *severity != "" && *severity != "info" && *severity != "warn" && *severity != "error" {
-		fmt.Fprintf(stderr, "invalid --severity %q: valid values are info, warn, error\n", *severity)
+		fmt.Fprintf(stderr, "error: invalid --severity %q: valid values are info, warn, error\n", *severity)
 		return 2
 	}
 
 	since, err := parseSince(*sinceText, time.Now())
 	if err != nil {
-		fmt.Fprintf(stderr, "invalid --since value %q: %v\n", *sinceText, err)
+		fmt.Fprintf(stderr, "error: parsing --since %q: %v\n", *sinceText, err)
 		return 2
 	}
 
 	st, err := store.Open(*dbPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to open db %q: %v\n", *dbPath, err)
+		fmt.Fprintf(stderr, "error: opening database %q: %v\n", *dbPath, err)
 		return 1
 	}
 	defer st.Close()
@@ -72,7 +76,7 @@ func runInspect(args []string, stdout, stderr io.Writer) int {
 		Severity: *severity,
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "failed to query anomalies: %v\n", err)
+		fmt.Fprintf(stderr, "error: querying anomalies: %v\n", err)
 		return 1
 	}
 
