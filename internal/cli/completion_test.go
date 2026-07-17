@@ -17,6 +17,7 @@ func TestCompletionZsh(t *testing.T) {
 		"_copilot-monitor",
 		"compdef",
 		"run:Start",
+		"doctor:Check",
 		"serve:Start",
 		"stats:Print",
 		"cost:Print",

@@ -247,7 +247,6 @@ test.describe('Table Sections', () => {
       '.models-section > summary',
       '.sessions-section > summary',
       '.anomaly-feed > summary',
-      '.routes-panel > summary',
     ];
 
     for (const selector of summaries) {

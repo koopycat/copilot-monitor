@@ -30,7 +30,6 @@ context: |
   - DX-003: Fatal errors must include actionable guidance, not just a description of what went wrong.
   - DX-007: Configuration validation must be available as a standalone, side-effect-free command.
   - DX-009: CLI output must be composable into shell pipelines and external tooling.
-  - DX-011: Route configuration files must support inline comments.
 
   ## Naming Conventions
   - CLI flags: --kebab-case

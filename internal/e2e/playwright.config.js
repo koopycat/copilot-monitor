@@ -23,7 +23,7 @@ export default defineConfig({
   webServer: [
     {
       // Go API server (backend)
-      command: `pnpm seed && go run ../../cmd/copilot-monitor serve --db ${DB_PATH} --routes-config ./routes.json --addr 127.0.0.1:${API_PORT}`,
+      command: `pnpm seed && go run ../../cmd/copilot-monitor serve --db ${DB_PATH} --addr 127.0.0.1:${API_PORT}`,
       url: `http://127.0.0.1:${API_PORT}/api/health`,
       timeout: 30_000,
       reuseExistingServer: false,

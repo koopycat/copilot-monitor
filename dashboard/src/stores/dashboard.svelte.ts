@@ -4,7 +4,6 @@
 
 import {
   exportHrefFor,
-  fetchConfig,
   fetchSessionCount,
   fetchSessionProjects,
   fetchSessions,
@@ -26,7 +25,6 @@ import type {
   ModelStats,
   PeriodKey,
   Policy,
-  RouteConfig,
   Session,
   TimelineEntry,
 } from '../lib/types';
@@ -67,7 +65,6 @@ class DashboardStore {
 
   upstream: string = $state('');
   upstreams: string[] = $state([]);
-  routes: RouteConfig[] = $state([]);
   periodIsEmpty: boolean = $state(false);
 
   sessionPulse = $state(false);
@@ -287,14 +284,6 @@ class DashboardStore {
           })
           .catch(() => {});
       }
-      if (this.routes.length === 0) {
-        fetchConfig(signal)
-          .then((cfg) => {
-            if (!signal.aborted) this.routes = cfg.routes;
-          })
-          .catch(() => {});
-      }
-
       this.refreshPolicy().catch(() => {});
       if (this.policyModels.length === 0) {
         fetchPolicyModels(signal)
@@ -341,7 +330,8 @@ class DashboardStore {
       this.sessions = reset ? page : [...this.sessions, ...page];
       this.sessionCount = count;
       this.sessionHasMore = this.sessions.length < count;
-      if (this.sessionProjects.length === 0) this.sessionProjects = await fetchSessionProjects(signal);
+      if (this.sessionProjects.length === 0)
+        this.sessionProjects = await fetchSessionProjects(signal);
     } finally {
       if (!signal.aborted) this.sessionLoading = false;
     }

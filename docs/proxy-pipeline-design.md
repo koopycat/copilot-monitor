@@ -4,10 +4,10 @@
 > proxy landscape, and composable middleware patterns. July 2026.
 >
 > **Note:** This document explores future pipeline architectures. The current
-> implementation is simpler: a single `--upstream` flag, no routes config, no
-> inline compression. Headroom is an optional external enhancement that runs in
-> front of copilot-monitor, not as a pipeline stage. See `architecture.md` for
-> the current state.
+> implementation is simpler: a single `--upstream` flag, no route configuration,
+> no inline compression. Headroom is an optional external enhancement that runs
+> in front of copilot-monitor, not as a pipeline stage. See `architecture.md`
+> for the current state.
 
 ## 1. The Problem
 
@@ -896,7 +896,7 @@ default — in-process stages are simpler, faster, and easier to debug.
 2. **Tested**: The existing test suite covers the current architecture.
 3. **Lightweight**: 15MB RSS, sub-50ms startup, single binary.
 4. **Well-factored**: Each concern is in its own file (`capture.go`, `sse.go`,
-   `websocket.go`, `router.go`, `policy/`).
+   `websocket.go`, `forward.go`, `policy/`).
 
 The next refactoring step should be **extracting the policy check** into a
 standalone `PolicyChecker` struct (it's already mostly there with
@@ -909,10 +909,9 @@ The most impactful near-term work is **documentation and tooling** for chaining
 proxies externally (see the Headroom integration plan). This delivers value
 immediately with zero code changes.
 
-The second most impactful is adding a **`--upstream` flag** to
-`copilot-monitor run` that sends all traffic to a single host. This makes the
-"monitor before Headroom" or "monitor after Headroom" setup even simpler than
-the already-optional routes config.
+The single **`--upstream` flag** is already the current forwarding model. Keep
+the near-term focus on documentation and tooling that make "monitor before
+Headroom" and "monitor after Headroom" easy to operate.
 
 ### 7.3 When to build the pipeline interface
 

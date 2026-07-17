@@ -30,25 +30,42 @@ type Row struct {
 }
 
 type Total struct {
-	Rows                     []Row   `json:"rows"`
-	Requests                 int     `json:"requests"`
-	PromptTokens             int     `json:"prompt_tokens"`
-	CachedInputTokens        int     `json:"cached_input_tokens"`
-	CacheWriteTokens         int     `json:"cache_write_tokens"`
-	CompletionTokens         int     `json:"completion_tokens"`
-	TotalTokens              int     `json:"total_tokens"`
-	InputUSD                 float64 `json:"input_usd"`
-	CachedInputUSD           float64 `json:"cached_input_usd"`
-	CacheWriteUSD            float64 `json:"cache_write_usd"`
-	OutputUSD                float64 `json:"output_usd"`
-	TotalUSD                 float64 `json:"total_usd"`
-	FallbackCount            int     `json:"fallback_count"`
-	NotBilledCount           int     `json:"not_billed_count"`
-	CompressionRemovedTokens int     `json:"compression_removed_tokens"`
+	Estimate                 EstimateMetadata `json:"estimate"`
+	Rows                     []Row            `json:"rows"`
+	Requests                 int              `json:"requests"`
+	PromptTokens             int              `json:"prompt_tokens"`
+	CachedInputTokens        int              `json:"cached_input_tokens"`
+	CacheWriteTokens         int              `json:"cache_write_tokens"`
+	CompletionTokens         int              `json:"completion_tokens"`
+	TotalTokens              int              `json:"total_tokens"`
+	InputUSD                 float64          `json:"input_usd"`
+	CachedInputUSD           float64          `json:"cached_input_usd"`
+	CacheWriteUSD            float64          `json:"cache_write_usd"`
+	OutputUSD                float64          `json:"output_usd"`
+	TotalUSD                 float64          `json:"total_usd"`
+	FallbackCount            int              `json:"fallback_count"`
+	NotBilledCount           int              `json:"not_billed_count"`
+	CompressionRemovedTokens int              `json:"compression_removed_tokens"`
+}
+
+// EstimateMetadata describes how a cost total was calculated. It intentionally
+// distinguishes a local token-rate estimate from account billing or invoices.
+type EstimateMetadata struct {
+	Currency     string `json:"currency"`
+	RateSource   string `json:"rate_source,omitempty"`
+	Basis        string `json:"basis"`
+	BillingScope string `json:"billing_scope"`
 }
 
 func Calculate(stats []store.ModelStats, catalog catalog.Catalog) Total {
-	var total Total
+	total := Total{
+		Estimate: EstimateMetadata{
+			Currency:     catalog.Currency,
+			RateSource:   catalog.Source,
+			Basis:        "published_token_rates",
+			BillingScope: "not_invoice_reconciliation",
+		},
+	}
 	for _, stat := range stats {
 		lookup := catalog.Lookup(stat.Model)
 		// If the model isn't in the catalog and we have a provider hint,

@@ -78,9 +78,11 @@ upstream forwarding. The policy is stored in a single-row `policies` table.
 - **Persistence**: blocked attempts are stored in the `requests` table with
   status 403 and zero token counts
 
-- **WebSocket gap**: WebSocket `/responses` traffic bypasses model policy
-  because the model is only known after the connection is established (see
-  [Known limitations](../.github/SECURITY.md#known-limitations)).
+- **WebSocket policy**: after the upgrade, complete client text messages that
+  explicitly name a model are checked before forwarding. A disallowed message is
+  withheld, recorded as status 403, and receives a close frame with code 1008.
+  Messages with no usable model, invalid JSON, or an over-limit inspection
+  payload retain the documented fail-open behavior.
 
 Policy management is through the dashboard API: `GET/PUT /api/policy` and model
 discovery via `GET /api/policy/models`.

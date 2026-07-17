@@ -52,8 +52,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleExport(w, r)
 	case "/api/upstreams":
 		h.handleUpstreams(w, r)
-	case "/api/config":
-		h.handleConfig(w, r)
 	case "/api/policy":
 		h.handlePolicy(w, r)
 	case "/api/policy/models":
@@ -138,9 +136,4 @@ func (h *Handler) handleUpstreams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(hosts)
-}
-
-func (h *Handler) handleConfig(w http.ResponseWriter, r *http.Request) {
-	jsonHeader(w)
-	json.NewEncoder(w).Encode(map[string]any{"upstream": "configured via CLI"})
 }

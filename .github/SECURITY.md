@@ -42,12 +42,13 @@ trufflehog filesystem .
 
 ## Known limitations
 
-**WebSocket `/responses` endpoint is not covered by model policy.** The policy
-engine blocks models based on the request body's `model` field. WebSocket
-upgrade requests have no body, so the model is only known after the connection
-is established (inside `response.create` frames). Until frame-level policy
-inspection is implemented, `/responses` traffic bypasses the model allow/block
-policy.
+**WebSocket policy scope.** After a WebSocket upgrade, Copilot Monitor checks a
+complete client text message before forwarding it when the message explicitly
+names a model. A blocked model message is withheld and the connection closes
+with WebSocket code 1008. Messages with no usable model, invalid JSON, or an
+over-limit inspection payload fail open, matching HTTP requests that omit a
+model. Use upstream account controls as well when strict enforcement is required
+for opaque traffic.
 
 If you discover a security issue, please do **not** open a public issue.
 Instead, report it via

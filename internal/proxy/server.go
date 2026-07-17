@@ -220,7 +220,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if isWebSocketUpgrade(r) {
-		if err := h.proxyWebSocket(id, w, r, body); err != nil {
+		if err := h.proxyWebSocket(id, w, r, body, activePolicy, policyAvailable); err != nil {
 			h.log.Error("id=%d websocket_error=%q\n", id, err.Error())
 		}
 		return
@@ -319,7 +319,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Model:          meta.Model,
 		Status:         resp.StatusCode,
 		LatencyMS:      latencyMS,
-		CaptureMode:    "usage",
 		TokensCaptured: usageSeen,
 		UsageMissing:   !usageSeen,
 		Endpoint:       r.URL.Path,

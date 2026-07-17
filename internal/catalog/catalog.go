@@ -12,6 +12,7 @@ var catalogFS embed.FS
 
 type Catalog struct {
 	Currency          string             `json:"currency"`
+	Source            string             `json:"source,omitempty"`
 	Fallback          Pricing            `json:"fallback"`
 	ProviderFallbacks map[string]Pricing `json:"provider_fallbacks"`
 	Models            map[string]Pricing `json:"models"`

@@ -27,7 +27,6 @@ type RequestLog struct {
 	Model            string  `json:"model"`
 	Status           int     `json:"status"`
 	LatencyMS        int64   `json:"latency_ms"`
-	CaptureMode      string  `json:"capture_mode"`
 	TokensCaptured   bool    `json:"tokens_captured"`
 	UsageMissing     bool    `json:"usage_missing,omitempty"`
 	Error            string  `json:"error,omitempty"`

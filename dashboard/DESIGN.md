@@ -103,7 +103,6 @@ All collapsible sections share the same visual container:
 | ---------------- | ---------------------------- | ------------------------------------------ |
 | `.table-section` | Models table, Sessions table | `<details>` with summary + state indicator |
 | `.anomaly-feed`  | Anomaly list                 | `<details>` with count badge on summary    |
-| `.routes-panel`  | Route config table           | `<details>`                                |
 | `.policy-panel`  | Policy form                  | Always expanded (no `<details>`)           |
 
 **Do not** nest cards. **Do not** add decorative borders or box-shadows.

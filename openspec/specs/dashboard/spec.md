@@ -16,7 +16,7 @@ cost, total request count, and projected monthly cost for the selected period.
 #### Scenario: Dashboard loads
 
 - **WHEN** the dashboard page is opened
-- **THEN** metric cards show estimated AI-credit cost, projected monthly cost,
+- **THEN** metric cards show estimated token-rate cost, projected monthly cost,
   and total request count for the selected period
 
 ---
@@ -277,19 +277,6 @@ selection and model pattern input.
 
 - **WHEN** the user changes the mode or model patterns and saves
 - **THEN** the new policy is persisted via `PUT /api/policy`
-
----
-
-### Requirement: Route configuration display
-
-The dashboard SHALL display the routes loaded from the configuration file with
-path, upstream host, capture mode, and provider.
-
-#### Scenario: Routes panel
-
-- **WHEN** the routes panel is expanded
-- **THEN** each configured route is shown with its path, upstream host, capture
-  mode, and provider label
 
 ---
 

@@ -20,7 +20,7 @@ server.
 | ------ | --------------------------------- | -------------------------------------------- | -------------------------------------------------------------- |
 | `GET`  | `/api/health`                     | none                                         | Health, including retention status                             |
 | `GET`  | `/api/stats`                      | `?since=&project=&endpoint=`                 | `[]ModelStats` with latency and headroom-proxied flag          |
-| `GET`  | `/api/cost`                       | `?since=&project=&endpoint=`                 | Total cost and rows                                            |
+| `GET`  | `/api/cost`                       | `?since=&project=&endpoint=`                 | Published token-rate estimate, estimate metadata, and rows     |
 | `GET`  | `/api/today`                      | `?project=&endpoint=`                        | `[]ModelStats` since local midnight                            |
 | `GET`  | `/api/sessions`                   | `?since=&project=&limit=&cursor=&cursor_id=` | `[]SessionStats`, newest first                                 |
 | `GET`  | `/api/sessions/count`             | `?since=&until=&project=`                    | `{"count": N}` for the matching session filter                 |
@@ -35,6 +35,13 @@ server.
 first run), and `pruned_count` from the latest retention pass. For session
 pagination, pass the final row's `started_at` and `id` as `cursor` and
 `cursor_id` to retrieve the next older page.
+
+### Cost estimate semantics
+
+`/api/cost` returns a local published token-rate estimate, not account billing
+or invoice reconciliation. Its `estimate` object includes `currency`,
+`rate_source` when available, `basis` (`published_token_rates`), and
+`billing_scope` (`not_invoice_reconciliation`).
 
 ### Headroom-proxied flag
 

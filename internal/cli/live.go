@@ -121,7 +121,7 @@ func renderLive(w io.Writer, current *store.CurrentSession, costResult costcalc.
 	fmt.Fprintf(w, "  project     %s\n", project)
 	fmt.Fprintf(w, "  requests    %d\n", current.RequestCount)
 	fmt.Fprintf(w, "  tokens      %s\n", intComma(current.TokenCount))
-	fmt.Fprintf(w, "  est. cost   %s\n", formatUSD(costResult.TotalUSD))
+	fmt.Fprintf(w, "  est. rate   %s\n", formatUSD(costResult.TotalUSD))
 
 	if len(costResult.Rows) == 0 {
 		return
@@ -163,7 +163,7 @@ func renderLive(w io.Writer, current *store.CurrentSession, costResult costcalc.
 			fmt.Fprintf(w, "\n* provider or generic fallback pricing used for %d row(s).\n", costResult.FallbackCount)
 		}
 		if costResult.NotBilledCount > 0 {
-			fmt.Fprintf(w, "%d row(s) are not billed (not_billed flag set in route config).\n", costResult.NotBilledCount)
+			fmt.Fprintf(w, "%d row(s) are marked not billed and excluded from the estimate.\n", costResult.NotBilledCount)
 		}
 	}
 }

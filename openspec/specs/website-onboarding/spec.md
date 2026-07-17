@@ -23,25 +23,34 @@ operational steps and defer advanced configuration to detailed documentation.
 - **AND** the section identifies the first captured request and dashboard as the
   completion outcome
 
+#### Scenario: Visitor needs local setup help
+
+- **WHEN** a visitor cannot reach the dashboard or does not see a capture after
+  completing the setup path
+- **THEN** the landing page provides a `copilot-monitor doctor` command that
+  checks the local monitor setup
+- **AND** the guidance does not claim to inspect the visitor's editor settings
+
 ### Requirement: Onboarding provides separate VS Code and pi procedures
 
 The getting-started section SHALL provide switchable procedures for VS Code with
-GitHub Copilot and pi through the supported Kilo route. Each procedure SHALL
-include the commands or configuration needed to start Copilot Monitor, route the
-selected client through it, generate a request, and open the dashboard. Only the
-selected procedure SHALL be visually expanded when JavaScript is available.
+GitHub Copilot and pi through the supported Kilo gateway override. Each
+procedure SHALL include the commands or configuration needed to start Copilot
+Monitor, route the selected client through it, generate a request, and open the
+dashboard. Only the selected procedure SHALL be visually expanded when
+JavaScript is available.
 
 #### Scenario: Visitor selects VS Code
 
 - **WHEN** the visitor activates the VS Code option
 - **THEN** the page shows the VS Code Copilot proxy setting, reload action,
   monitor startup command, and dashboard destination
-- **AND** pi-specific route setup is not visually expanded
+- **AND** pi-specific gateway setup is not visually expanded
 
 #### Scenario: Visitor selects pi
 
 - **WHEN** the visitor activates the pi option
-- **THEN** the page shows the Kilo route setup and validation, monitor startup
+- **THEN** the page shows the Kilo gateway prerequisite, monitor startup
   command, pi gateway override, and dashboard destination
 - **AND** VS Code-specific configuration is not visually expanded
 
