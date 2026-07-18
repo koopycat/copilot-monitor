@@ -48,3 +48,6 @@ test.log
 
 # research
 .crawl4ai/
+
+# impeccable critique snapshots (local tool state)
+.impeccable/
