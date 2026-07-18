@@ -225,15 +225,15 @@ func (s *Store) init(ctx context.Context) error {
 		}
 	}
 	// Backfill endpoint_kind for rows captured before the column existed.
-	// Rows without a model and without any tokens are best-effort control_plane
+	// Rows without a model and without captured usage are best-effort control_plane
 	// traffic (e.g. GET /models, /agents); everything else is inference.
 	if _, err := s.db.ExecContext(ctx, `
 UPDATE requests
 SET endpoint_kind = CASE
-  WHEN COALESCE(model, '') = '' AND COALESCE(total_tokens, 0) = 0 THEN 'control_plane'
-  ELSE 'inference'
+  WHEN COALESCE(model, '') = '' AND usage_missing = 1 THEN ?
+  ELSE ?
 END
-WHERE endpoint_kind IS NULL`); err != nil {
+WHERE endpoint_kind IS NULL`, EndpointKindControlPlane, EndpointKindInference); err != nil {
 		return err
 	}
 	// Remove schema objects that are no longer used. These migrations also apply
