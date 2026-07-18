@@ -41,7 +41,7 @@ func normalizeEndpointPath(path string) string {
 	if p == "" {
 		p = "/"
 	}
-	p = strings.TrimSuffix(p, "/")
+	p = strings.TrimRight(p, "/")
 	if p == "" {
 		p = "/"
 	}

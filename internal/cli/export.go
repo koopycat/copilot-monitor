@@ -60,7 +60,7 @@ func runExport(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintln(w, "ts,endpoint,endpoint_kind,model,status,latency_ms,input_tokens,cached_input_tokens,cache_write_tokens,output_tokens,total_tokens,project,headroom_proxied")
 	for _, row := range rows {
 		fmt.Fprintf(w, "%s,%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%s,%t\n",
-			row.Timestamp, row.Endpoint, row.EndpointKind, csvField(row.Model), row.Status, row.LatencyMS,
+			row.Timestamp, row.Endpoint, csvField(row.EndpointKind), csvField(row.Model), row.Status, row.LatencyMS,
 			row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens,
 			row.CompletionTokens, row.TotalTokens, csvField(row.Project),
 			row.HeadroomProxied)

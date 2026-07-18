@@ -250,12 +250,12 @@ CREATE TABLE anomalies (id INTEGER PRIMARY KEY, ts TEXT, category TEXT, severity
 
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, err = legacyDB.ExecContext(ctx, `
-INSERT INTO requests (ts, endpoint, method, path, upstream_host, model, stream, status, latency_ms, prompt_tokens, total_tokens, project)
+INSERT INTO requests (ts, endpoint, method, path, upstream_host, model, stream, status, latency_ms, prompt_tokens, total_tokens, usage_missing, project)
 VALUES
-  (?, 'chat', 'POST', '/chat/completions', 'api.example.com', 'gpt-4o', 0, 200, 10, 5, 7, 'proj'),
-  (?, 'models', 'GET', '/models', 'api.example.com', NULL, 0, 200, 1, 0, 0, NULL),
-  (?, 'agents', 'GET', '/agents', 'api.example.com', '', 0, 200, 1, 0, 0, NULL),
-  (?, 'chat', 'POST', '/chat/completions', 'api.example.com', 'gpt-4o', 0, 200, 0, 0, 0, 'proj')`,
+  (?, 'chat', 'POST', '/chat/completions', 'api.example.com', 'gpt-4o', 0, 200, 10, 5, 7, 0, 'proj'),
+  (?, 'models', 'GET', '/models', 'api.example.com', NULL, 0, 200, 1, 0, 0, 1, NULL),
+  (?, 'agents', 'GET', '/agents', 'api.example.com', '', 0, 200, 1, 0, 0, 1, NULL),
+  (?, 'chat', 'POST', '/chat/completions', 'api.example.com', 'gpt-4o', 0, 200, 0, 0, 0, 0, 'proj')`,
 		now, now, now, now)
 	require.NoError(t, err)
 	require.NoError(t, legacyDB.Close())

@@ -31,6 +31,10 @@ func TestClassifyEndpointKind(t *testing.T) {
 			path: "/openai/models/", want: EndpointKindControlPlane,
 		},
 		{
+			name: "multiple trailing slashes normalize to known helper",
+			path: "/openai/models//", want: EndpointKindControlPlane,
+		},
+		{
 			name: "chat completion with usage is inference",
 			path: "/chat/completions", hasUsage: true, want: EndpointKindInference,
 		},
