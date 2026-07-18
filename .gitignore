@@ -45,3 +45,6 @@ dashboard/node_modules/
 test.jsonl
 /copilot-monitor
 test.log
+
+# research
+.crawl4ai/
