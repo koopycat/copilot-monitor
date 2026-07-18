@@ -325,6 +325,13 @@
       "cached_input_per_m": 0.275,
       "cache_write_per_m": 1.1,
       "output_per_m": 4.4
+    },
+    "moonshotai/kimi-k2.7-code": {
+      "provider": "moonshotai",
+      "input_per_m": 0.95,
+      "cached_input_per_m": 0.19,
+      "cache_write_per_m": 0.95,
+      "output_per_m": 4.0
     }
   }
 }

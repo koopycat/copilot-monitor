@@ -107,6 +107,7 @@ func TestLookupNewCatalogModels(t *testing.T) {
 		{model: "o4-mini", expected: "openai", fallback: false},
 		{model: "deepseek/deepseek-v4-flash:discounted", expected: "deepseek", fallback: false},
 		{model: "deepseek/deepseek-v4-pro:discounted", expected: "deepseek", fallback: false},
+		{model: "moonshotai/kimi-k2.7-code", expected: "moonshotai", fallback: false},
 		{model: "deepseek-v3", expected: "unknown", fallback: true},
 	}
 
