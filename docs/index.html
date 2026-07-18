@@ -1034,6 +1034,13 @@
             monospace;
         }
 
+        .setup-note {
+          margin: 1.1rem 0 0;
+          padding-top: 0.9rem;
+          border-top: 1px dashed var(--border);
+          font-size: 0.86rem;
+        }
+
         /* ---------- evidence-framed screenshot ---------- */
         .evidence-frame {
           position: relative;
@@ -1914,8 +1921,8 @@
         <h2 id="quickstart-title">Get your first capture</h2>
         <p class="quickstart-intro">
           Install the binary, route one real request through the local proxy, then check the
-          dashboard. VS Code needs a one-time advanced setting and reload; pi needs an existing,
-          authenticated Kilo client.
+          dashboard. VS Code needs a one-time advanced setting and reload; pi needs an OpenRouter
+          API key.
         </p>
 
         <div class="install" id="install">
@@ -1964,7 +1971,7 @@ sudo mv copilot-monitor /usr/local/bin/</code></pre>
               tabindex="-1"
             >
               pi
-              <span class="setup-tab-detail">Kilo gateway</span>
+              <span class="setup-tab-detail">OpenRouter</span>
             </button>
           </div>
 
@@ -2037,17 +2044,17 @@ sudo mv copilot-monitor /usr/local/bin/</code></pre>
           >
             <div class="setup-panel-head">
               <div>
-                <h3>pi + Kilo gateway</h3>
+                <h3>pi + OpenRouter</h3>
                 <p>
-                  Requires an installed pi client already authenticated with Kilo.
+                  pi ships with an OpenRouter provider, so an API key and a base URL override are
+                  all you need.
                   <a
-                    href="https://github.com/koopycat/copilot-monitor/blob/main/README.md#first-capture-with-pikilo"
+                    href="https://github.com/koopycat/copilot-monitor/blob/main/README.md#first-capture-with-pi-openrouter"
                     >Detailed guide</a
                   >
                 </p>
-                <p>Start the proxy with <code>--upstream api.githubcopilot.com</code>.</p>
               </div>
-              <span class="setup-time">existing auth</span>
+              <span class="setup-time">base URL override</span>
             </div>
             <ol class="setup-steps">
               <li class="setup-step">
@@ -2056,17 +2063,33 @@ sudo mv copilot-monitor /usr/local/bin/</code></pre>
                   <h4>Start the proxy and dashboard</h4>
                   <pre
                     class="setup-code"
-                  ><code>copilot-monitor run --dashboard --upstream api.githubcopilot.com</code></pre>
+                  ><code>copilot-monitor run --dashboard --upstream openrouter.ai</code></pre>
                 </div>
               </li>
               <li class="setup-step">
                 <span class="setup-step-number" aria-hidden="true">2</span>
                 <div class="setup-step-body">
+                  <h4>Point pi's OpenRouter provider at the proxy</h4>
+                  <p>
+                    Add to <code>~/.pi/agent/models.json</code>. The built-in model catalog is kept:
+                  </p>
+                  <pre class="setup-code"><code>{
+  &quot;providers&quot;: {
+    &quot;openrouter&quot;: { &quot;baseUrl&quot;: &quot;http://127.0.0.1:7733/api/v1&quot; }
+  }
+}</code></pre>
+                  <p>
+                    Authenticate with <code>export OPENROUTER_API_KEY=...</code> or pi's
+                    <code>auth.json</code>.
+                  </p>
+                </div>
+              </li>
+              <li class="setup-step">
+                <span class="setup-step-number" aria-hidden="true">3</span>
+                <div class="setup-step-body">
                   <h4>Send one pi request</h4>
-                  <p>In a second terminal:</p>
-                  <pre
-                    class="setup-code"
-                  ><code>KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi -p 'Reply OK'</code></pre>
+                  <p>With any OpenRouter model selected (pick one with <code>/model</code>):</p>
+                  <pre class="setup-code"><code>pi -p 'Reply OK'</code></pre>
                   <p>
                     Open <code>127.0.0.1:7734</code> once the dashboard is running to inspect the
                     capture.
@@ -2074,12 +2097,21 @@ sudo mv copilot-monitor /usr/local/bin/</code></pre>
                   <p>If the dashboard is unavailable or empty, run:</p>
                   <pre
                     class="setup-code"
-                  ><code>copilot-monitor doctor --upstream api.githubcopilot.com</code></pre>
+                  ><code>copilot-monitor doctor --upstream openrouter.ai</code></pre>
                   <p class="setup-expected">Expected output when the local setup is healthy:</p>
                   <span class="setup-success">Result: ready</span>
                 </div>
               </li>
             </ol>
+            <p class="setup-note">
+              Any OpenAI-compatible client works the same way: point its base URL at the proxy,
+              keeping the path prefix the real API expects (<code
+                >http://127.0.0.1:7733/api/v1</code
+              >
+              for OpenRouter, <code>http://127.0.0.1:7733/v1</code> for OpenAI), and start the proxy
+              with <code>--upstream</code> set to that API's host. The proxy forwards the request
+              path unchanged.
+            </p>
           </article>
         </div>
       </section>

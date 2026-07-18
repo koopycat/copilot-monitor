@@ -34,9 +34,9 @@ operational steps and defer advanced configuration to detailed documentation.
 ### Requirement: Onboarding provides separate VS Code and pi procedures
 
 The getting-started section SHALL provide switchable procedures for VS Code with
-GitHub Copilot and pi through the supported Kilo gateway override. Each
-procedure SHALL include the commands or configuration needed to start Copilot
-Monitor, route the selected client through it, generate a request, and open the
+GitHub Copilot and pi through an OpenRouter base URL override. Each procedure
+SHALL include the commands or configuration needed to start Copilot Monitor,
+route the selected client through it, generate a request, and open the
 dashboard. Only the selected procedure SHALL be visually expanded when
 JavaScript is available.
 
@@ -50,8 +50,8 @@ JavaScript is available.
 #### Scenario: Visitor selects pi
 
 - **WHEN** the visitor activates the pi option
-- **THEN** the page shows the Kilo gateway prerequisite, monitor startup
-  command, pi gateway override, and dashboard destination
+- **THEN** the page shows the OpenRouter prerequisite, monitor startup command,
+  pi base URL override, and dashboard destination
 - **AND** VS Code-specific configuration is not visually expanded
 
 ### Requirement: Agent selector is accessible and resilient

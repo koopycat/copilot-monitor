@@ -68,7 +68,7 @@ non-health requests unchanged to the one configured `--upstream` host.
 | Client                   | Setup                                         | Coverage                                                                    |
 | ------------------------ | --------------------------------------------- | --------------------------------------------------------------------------- |
 | VS Code + GitHub Copilot | One-time advanced setting and a window reload | HTTP and Copilot `/responses` WebSocket usage capture                       |
-| pi + Kilo gateway        | Set `KILO_GATEWAY_BASE_URL` to the proxy      | First-capture path documented below                                         |
+| pi + OpenRouter          | Set its base URL to the proxy                 | First-capture path documented below                                         |
 | Other API clients        | Point a custom base URL at the proxy          | Best effort; paths and headers are forwarded unchanged to one upstream host |
 
 Model policy applies to HTTP requests and complete Copilot WebSocket text
@@ -103,26 +103,46 @@ It checks the local proxy, dashboard, database path, and optional upstream TCP
 reachability without creating or migrating the database. It cannot inspect your
 editor's private settings, so keep the VS Code override and reload step above.
 
-## First capture with pi/Kilo
+## First capture with pi (OpenRouter)
 
-This path requires a separately installed and authenticated `pi` client.
+This path requires a separately installed `pi` client and an OpenRouter API key.
+pi ships with an OpenRouter provider; you only override its base URL so requests
+pass through the monitor.
 
-In terminal 1, start the proxy and dashboard, forwarding to your upstream:
+In terminal 1, start the proxy and dashboard, forwarding to OpenRouter:
 
 ```sh
-copilot-monitor run --dashboard --upstream api.githubcopilot.com
+copilot-monitor run --dashboard --upstream openrouter.ai
 ```
 
-In terminal 2, verify both services, make one request through the proxy, then
-inspect the capture:
+Point pi's OpenRouter provider at the proxy in `~/.pi/agent/models.json`. The
+built-in model catalog is kept:
+
+```json
+{
+  "providers": {
+    "openrouter": { "baseUrl": "http://127.0.0.1:7733/api/v1" }
+  }
+}
+```
+
+In terminal 2, authenticate, verify both services, make one request through the
+proxy, then inspect the capture:
 
 ```sh
+export OPENROUTER_API_KEY=...
 curl http://127.0.0.1:7733/_health
 curl http://127.0.0.1:7734/api/health
-KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi -p 'Reply OK'
+pi -p 'Reply OK'
 copilot-monitor stats --since 1h
-copilot-monitor doctor --upstream api.githubcopilot.com
+copilot-monitor doctor --upstream openrouter.ai
 ```
+
+Any OpenAI-compatible client works the same way: set its base URL to the proxy
+address, keeping the path prefix the real API expects
+(`http://127.0.0.1:7733/api/v1` for OpenRouter, `http://127.0.0.1:7733/v1` for
+OpenAI), and start the proxy with `--upstream` set to that API's host. The proxy
+forwards the request path to the upstream host unchanged.
 
 ## Commands
 
