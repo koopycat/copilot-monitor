@@ -8,6 +8,39 @@
       name="description"
       content="A local traffic recorder for GitHub Copilot and compatible AI clients: model, token, cache, status, and latency data in local SQLite. No monitoring account or analytics."
     />
+    <link rel="canonical" href="https://koopycat.github.io/copilot-monitor/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Copilot Monitor" />
+    <meta property="og:title" content="Copilot Monitor - Local AI traffic, on the record" />
+    <meta
+      property="og:description"
+      content="A local traffic recorder for GitHub Copilot and compatible AI clients: model, token, cache, status, and latency data in local SQLite. No monitoring account or analytics."
+    />
+    <meta property="og:url" content="https://koopycat.github.io/copilot-monitor/" />
+    <meta
+      property="og:image"
+      content="https://koopycat.github.io/copilot-monitor/assets/dashboard.png"
+    />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="1100" />
+    <meta
+      property="og:image:alt"
+      content="Copilot Monitor dashboard showing estimated model-rate cost over 30 days, a live session panel, a stacked usage chart, and a per-model breakdown."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Copilot Monitor - Local AI traffic, on the record" />
+    <meta
+      name="twitter:description"
+      content="A local traffic recorder for GitHub Copilot and compatible AI clients: model, token, cache, status, and latency data in local SQLite. No monitoring account or analytics."
+    />
+    <meta
+      name="twitter:image"
+      content="https://koopycat.github.io/copilot-monitor/assets/dashboard.png"
+    />
+    <meta
+      name="twitter:image:alt"
+      content="Copilot Monitor dashboard showing estimated model-rate cost over 30 days, a live session panel, a stacked usage chart, and a per-model breakdown."
+    />
     <script>
       document.documentElement.classList.add('js');
     </script>
@@ -63,6 +96,7 @@
           --amber: oklch(0.82 0.135 80);
           --amber-strong: oklch(0.78 0.15 72);
           --amber-soft: color-mix(in oklch, var(--amber) 14%, transparent);
+          --amber-bright: oklch(0.87 0.115 80);
 
           /* evidence red - stamps, redaction, alerts */
           --red: oklch(0.64 0.19 27);
@@ -333,7 +367,7 @@
           font-size: 0.86rem;
           letter-spacing: 0.04em;
           text-transform: uppercase;
-          padding: 0.55rem 0.95rem;
+          padding: 0.65rem 1rem;
           border: 1px solid var(--border-strong);
           border-radius: var(--radius);
           color: var(--ink);
@@ -372,6 +406,7 @@
           padding: 0.9rem 0.8rem 0.8rem;
           background: var(--amber);
           color: oklch(0.18 0.02 70);
+          border: 1px solid transparent;
           border-radius: var(--radius);
           font-family: 'Oswald', sans-serif;
           font-weight: 600;
@@ -404,10 +439,118 @@
             font-family: 'JetBrains Mono', monospace;
             font-weight: 500;
             font-size: 0.66rem;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.02em;
             text-transform: none;
             opacity: 0.7;
           }
+        }
+
+        /* platform-detected state: one primary, the rest quiet */
+        .downloads.has-detect .dl-btn:not(.primary) {
+          background: transparent;
+          color: var(--ink);
+          border-color: var(--border-strong);
+          box-shadow: none;
+
+          &:hover {
+            background: var(--amber-soft);
+            color: var(--amber);
+            border-color: var(--amber);
+            box-shadow: none;
+          }
+
+          .dl-sub {
+            opacity: 0.55;
+          }
+        }
+
+        /* ---------- release provenance + data boundary + tertiary links ---------- */
+        .provenance {
+          margin: 0.8rem 0 0;
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 0.72rem;
+          letter-spacing: 0.04em;
+          color: var(--faint);
+
+          a {
+            color: var(--muted);
+
+            &:hover {
+              color: var(--amber);
+            }
+          }
+        }
+
+        .boundary {
+          list-style: none;
+          margin: 1.5rem 0 0;
+          padding: 1rem 0 0;
+          border-top: 1px dashed var(--border);
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.45rem 1.5rem;
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 0.74rem;
+          color: var(--muted);
+
+          .b-key {
+            font-weight: 700;
+            margin-right: 0.4rem;
+
+            &.leaves {
+              color: var(--amber);
+            }
+            &.stored {
+              color: var(--green);
+            }
+            &.never {
+              color: var(--red);
+            }
+          }
+        }
+
+        .hero-links {
+          margin-top: 1.4rem;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.35rem 1.15rem;
+          font-size: 0.84rem;
+
+          a {
+            display: inline-block;
+            padding: 0.35rem 0;
+            color: var(--muted);
+
+            &:hover {
+              color: var(--amber);
+            }
+          }
+        }
+
+        /* ---------- closing CTA ---------- */
+        .closing {
+          text-align: center;
+
+          p {
+            margin-left: auto;
+            margin-right: auto;
+          }
+        }
+
+        .closing-actions {
+          margin-top: 1.6rem;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 0.7rem;
+        }
+
+        .dl-btn.solo {
+          flex-direction: row;
+          align-items: center;
+          gap: 0.55rem;
+          padding: 0.85rem 1.35rem;
         }
 
         /* ---------- intercept feed monitor ---------- */
@@ -433,8 +576,8 @@
             letter-spacing: 0.05em;
             background: oklch(0 0 0 / 0.25);
 
-            .live {
-              color: var(--green);
+            .sample {
+              color: var(--amber);
               font-weight: 700;
               display: inline-flex;
               align-items: center;
@@ -444,9 +587,7 @@
                 width: 7px;
                 height: 7px;
                 border-radius: 50%;
-                background: var(--green);
-                box-shadow: 0 0 8px var(--green);
-                animation: blink 1.6s steps(1) infinite;
+                background: var(--amber);
               }
             }
 
@@ -576,7 +717,7 @@
           font-size: 0.7rem;
           letter-spacing: 0.16em;
           text-transform: uppercase;
-          color: var(--amber);
+          color: var(--amber-bright);
           background: var(--amber-soft);
           border: 1px solid oklch(0.82 0.135 80 / 0.3);
           padding: 0.28rem 0.6rem;
@@ -588,6 +729,50 @@
         .quickstart-intro {
           max-width: 62ch;
           margin-top: 0.8rem;
+        }
+
+        .install {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 1rem;
+          margin-top: 1.5rem;
+        }
+
+        .install-route {
+          min-width: 0;
+          padding: 1.1rem 1.2rem 1rem;
+          background: var(--bg-2);
+          border: 1px solid var(--border-strong);
+          border-radius: var(--radius-lg);
+
+          h3 {
+            margin: 0 0 0.7rem;
+            color: var(--ink-strong);
+            font-family: 'Oswald', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            display: flex;
+            align-items: baseline;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+          }
+
+          .install-tag {
+            color: var(--amber);
+            font:
+              500 0.66rem/1.2 'JetBrains Mono',
+              monospace;
+            letter-spacing: 0.04em;
+          }
+
+          .setup-code {
+            margin-top: 0;
+          }
+
+          .install-note {
+            margin: 0.6rem 0 0;
+            font-size: 0.84rem;
+          }
         }
 
         .setup-shell {
@@ -788,11 +973,61 @@
           }
         }
 
+        pre.setup-code,
+        pre.install {
+          position: relative;
+        }
+
+        .copy-btn {
+          position: absolute;
+          top: 0.45rem;
+          right: 0.45rem;
+          appearance: none;
+          background: var(--surface-2);
+          color: var(--muted);
+          border: 1px solid var(--border-strong);
+          border-radius: 4px;
+          font:
+            500 0.62rem/1 'JetBrains Mono',
+            monospace;
+          letter-spacing: 0.08em;
+          padding: 0.5rem 0.6rem;
+          cursor: pointer;
+          opacity: 0.75;
+          transition:
+            color 150ms,
+            border-color 150ms,
+            opacity 150ms;
+        }
+
+        .copy-btn:hover,
+        .copy-btn:focus-visible {
+          color: var(--amber);
+          border-color: var(--amber);
+          opacity: 1;
+        }
+
+        .copy-btn.is-copied {
+          color: var(--green);
+          border-color: var(--green);
+        }
+
+        /* .setup-expected labels the command's expected output, not a visitor check. */
+        .setup-expected {
+          display: block;
+          margin: 0.55rem 0 0;
+          color: var(--faint);
+          font:
+            500 0.68rem/1.4 'JetBrains Mono',
+            monospace;
+          letter-spacing: 0.04em;
+        }
+
         .setup-success {
           display: inline-flex;
           align-items: center;
           gap: 0.4rem;
-          margin-top: 0.55rem;
+          margin-top: 0.25rem;
           color: var(--green);
           font:
             500 0.76rem/1.4 'JetBrains Mono',
@@ -1186,7 +1421,7 @@
             display: inline-block;
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.74rem;
-            color: var(--amber);
+            color: var(--amber-bright);
             background: var(--amber-soft);
             padding: 0.15rem 0.5rem;
             border-radius: 3px;
@@ -1320,6 +1555,12 @@
             padding: 3rem 0;
           }
           .statusbar .classif {
+            display: none;
+          }
+          .feed .stats th:nth-child(4),
+          .feed .stats td:nth-child(4),
+          .feed .stats th:nth-child(5),
+          .feed .stats td:nth-child(5) {
             display: none;
           }
           h1 {
@@ -1478,8 +1719,6 @@
     <div class="statusbar">
       <div class="wrap">
         <span class="rec"><span class="dot" aria-hidden="true"></span>REC</span>
-        <span class="case">CASE №CM-0142</span>
-        <span class="sep">/</span>
         <span class="case">SUBJECT: github.copilot</span>
         <span class="spacer"></span>
         <span class="classif">CLASSIFIED: LOCAL EYES ONLY</span>
@@ -1500,9 +1739,11 @@
               normal mode.
             </p>
 
-            <div class="downloads">
+            <div class="downloads" data-downloads>
               <a
                 class="dl-btn"
+                data-platform="darwin-arm64"
+                data-os="macOS"
                 href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-arm64.tar.gz"
               >
                 <svg
@@ -1526,6 +1767,8 @@
               </a>
               <a
                 class="dl-btn"
+                data-platform="linux-amd64"
+                data-os="Linux"
                 href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-amd64.tar.gz"
               >
                 <svg
@@ -1548,6 +1791,8 @@
               </a>
               <a
                 class="dl-btn"
+                data-platform="windows-amd64"
+                data-os="Windows"
                 href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-windows-amd64.zip"
               >
                 <svg
@@ -1570,22 +1815,37 @@
               </a>
             </div>
 
+            <p class="provenance">
+              <a href="https://github.com/koopycat/copilot-monitor/releases">v0.2.2</a> · MIT
+              license · single binary
+            </p>
+
             <div class="hero-actions">
+              <a class="btn ghost" href="#install">Homebrew</a>
               <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor/releases"
                 >All releases →</a
               >
-              <a class="btn ghost" href="https://github.com/koopycat/copilot-monitor">GitHub</a>
-              <a class="btn ghost" href="#quickstart">Quickstart</a>
-              <a class="btn ghost" href="./architecture">Architecture</a>
-              <a class="btn ghost" href="./api">API reference</a>
+            </div>
+
+            <ul class="boundary">
+              <li><span class="b-key leaves">leaves</span> only the API requests you proxy</li>
+              <li><span class="b-key stored">stored</span> model, token, latency, cost metadata</li>
+              <li><span class="b-key never">never</span> prompts, code, auth material</li>
+            </ul>
+
+            <div class="hero-links">
+              <a href="#quickstart">Quickstart</a>
+              <a href="https://github.com/koopycat/copilot-monitor">GitHub</a>
+              <a href="./architecture">Architecture</a>
+              <a href="./api">API reference</a>
             </div>
           </div>
 
           <!-- intercept feed monitor -->
           <div class="feed" aria-hidden="true">
             <div class="feed-head">
-              <span class="live"><span class="dot"></span>LIVE</span>
-              <span>$ copilot-monitor live · today</span>
+              <span class="sample"><span class="dot"></span>EXAMPLE</span>
+              <span>$ copilot-monitor today</span>
               <span class="dots"><i></i><i></i><i></i></span>
             </div>
             <div class="feed-body">
@@ -1641,7 +1901,7 @@
                 </tbody>
               </table>
               <div class="feed-foot">
-                <span class="rec-dot"></span>auto-refresh every 30s · binds 127.0.0.1 only
+                <span class="rec-dot"></span>sample output · auto-refresh 30s · binds 127.0.0.1 only
               </div>
             </div>
           </div>
@@ -1653,10 +1913,32 @@
       <section class="quickstart" id="quickstart" aria-labelledby="quickstart-title">
         <h2 id="quickstart-title">Get your first capture</h2>
         <p class="quickstart-intro">
-          With <code>copilot-monitor</code> on your PATH, route one real request through the local
-          proxy. VS Code needs a one-time advanced setting and reload; pi needs an existing,
+          Install the binary, route one real request through the local proxy, then check the
+          dashboard. VS Code needs a one-time advanced setting and reload; pi needs an existing,
           authenticated Kilo client.
         </p>
+
+        <div class="install" id="install">
+          <div class="install-route">
+            <h3>Install with Homebrew <span class="install-tag">macOS · apple silicon</span></h3>
+            <pre class="setup-code"><code>brew tap koopycat/copilot-monitor
+brew trust koopycat/copilot-monitor
+brew install copilot-monitor</code></pre>
+            <p class="install-note">
+              Puts <code>copilot-monitor</code> on your PATH. The formula is Apple Silicon only; on
+              Intel Mac use the archive route.
+            </p>
+          </div>
+          <div class="install-route">
+            <h3>Install from an archive</h3>
+            <pre class="setup-code"><code>tar -xzf copilot-monitor-*.tar.gz
+sudo mv copilot-monitor /usr/local/bin/</code></pre>
+            <p class="install-note">
+              After downloading a build above. On Windows, extract the .zip and put
+              <code>copilot-monitor.exe</code> on your PATH.
+            </p>
+          </div>
+        </div>
 
         <div class="setup-shell" data-setup-tabs>
           <div class="setup-tabs" role="tablist" aria-label="Choose an agent setup">
@@ -1720,6 +2002,10 @@
     &quot;debug.overrideCapiUrl&quot;: &quot;http://127.0.0.1:7733&quot;
   }
 }</code></pre>
+                  <p>
+                    To revert later, remove the <code>debug.overrideCapiUrl</code> entry and reload
+                    the window.
+                  </p>
                 </div>
               </li>
               <li class="setup-step">
@@ -1728,13 +2014,15 @@
                   <h4>Reload and send one Copilot chat</h4>
                   <p>
                     Run <strong>Developer: Reload Window</strong>, use Copilot normally, then open
-                    <a href="http://127.0.0.1:7734">127.0.0.1:7734</a> to confirm the capture.
+                    <code>127.0.0.1:7734</code> once the dashboard is running to confirm the
+                    capture.
                   </p>
                   <p>If the dashboard is unavailable or empty, run:</p>
                   <pre
                     class="setup-code"
                   ><code>copilot-monitor doctor --upstream api.githubcopilot.com</code></pre>
-                  <span class="setup-success">✓ Local setup checked</span>
+                  <p class="setup-expected">Expected output when the local setup is healthy:</p>
+                  <span class="setup-success">Result: ready</span>
                 </div>
               </li>
             </ol>
@@ -1780,13 +2068,15 @@
                     class="setup-code"
                   ><code>KILO_GATEWAY_BASE_URL=http://127.0.0.1:7733 pi -p 'Reply OK'</code></pre>
                   <p>
-                    Open <a href="http://127.0.0.1:7734">127.0.0.1:7734</a> to inspect the capture.
+                    Open <code>127.0.0.1:7734</code> once the dashboard is running to inspect the
+                    capture.
                   </p>
                   <p>If the dashboard is unavailable or empty, run:</p>
                   <pre
                     class="setup-code"
                   ><code>copilot-monitor doctor --upstream api.githubcopilot.com</code></pre>
-                  <span class="setup-success">✓ Local setup checked</span>
+                  <p class="setup-expected">Expected output when the local setup is healthy:</p>
+                  <span class="setup-success">Result: ready</span>
                 </div>
               </li>
             </ol>
@@ -2116,6 +2406,23 @@
         </p>
       </section>
 
+      <section class="closing">
+        <h2 data-reveal>Start your first capture</h2>
+        <p data-reveal>
+          One binary, one setting, one request. No account, no deployment. Nothing leaves your
+          machine except the API calls you already make.
+        </p>
+        <div class="closing-actions" data-reveal>
+          <a
+            class="dl-btn solo"
+            data-closing-dl
+            href="https://github.com/koopycat/copilot-monitor/releases"
+            >Download copilot-monitor</a
+          >
+          <a class="btn ghost" href="#quickstart">Quickstart →</a>
+        </div>
+      </section>
+
       <!-- ====================== FOOTER ====================== -->
       <footer>
         <div class="footer-grid">
@@ -2129,7 +2436,7 @@
           </div>
         </div>
         <div class="footer-classif">
-          End of file · Case CM-0142 · classified: local eyes only · nothing transmitted
+          End of file · classified: local eyes only · nothing transmitted
         </div>
       </footer>
     </div>
@@ -2177,6 +2484,96 @@
           });
 
           if (tabs.length > 0) activateTab(tabs[0], false);
+        });
+
+        // Platform-aware downloads: promote the matching build, quiet the rest.
+        var ua = navigator.userAgent || '';
+        var platform = 'darwin-arm64';
+        if (/Windows/i.test(ua)) platform = 'windows-amd64';
+        else if (/(Linux|Android)/i.test(ua)) platform = 'linux-amd64';
+
+        var downloads = document.querySelector('[data-downloads]');
+        var detected = downloads && downloads.querySelector('[data-platform="' + platform + '"]');
+        if (detected) {
+          downloads.classList.add('has-detect');
+          detected.classList.add('primary');
+          downloads.prepend(detected);
+        }
+
+        var closingDl = document.querySelector('[data-closing-dl]');
+        if (closingDl && detected) {
+          closingDl.href = detected.href;
+          closingDl.textContent = 'Download for ' + detected.getAttribute('data-os');
+        }
+
+        function fallbackCopy(text) {
+          var textarea = document.createElement('textarea');
+          textarea.value = text;
+          textarea.setAttribute('readonly', '');
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+          var copied = false;
+          try {
+            copied = document.execCommand('copy');
+          } catch (e) {}
+          textarea.parentNode.removeChild(textarea);
+          return copied ? Promise.resolve() : Promise.reject(new Error('copy failed'));
+        }
+
+        function writeClipboard(text) {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            try {
+              return navigator.clipboard.writeText(text).catch(function () {
+                return fallbackCopy(text);
+              });
+            } catch (e) {}
+          }
+          return fallbackCopy(text);
+        }
+
+        document.querySelectorAll('pre.setup-code, pre.install').forEach(function (pre) {
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'copy-btn';
+          button.setAttribute('aria-label', 'Copy command to clipboard');
+          button.textContent = 'copy';
+          pre.appendChild(button);
+          var resetTimer;
+
+          button.addEventListener('click', function () {
+            var codeEl = pre.querySelector('code');
+            var text;
+            if (codeEl) {
+              text = codeEl.innerText;
+            } else {
+              var clone = pre.cloneNode(true);
+              var copyButton = clone.querySelector('.copy-btn');
+              if (copyButton) copyButton.parentNode.removeChild(copyButton);
+              text = clone.innerText;
+            }
+
+            writeClipboard(text).then(
+              function () {
+                clearTimeout(resetTimer);
+                button.textContent = 'copied';
+                button.classList.add('is-copied');
+                resetTimer = setTimeout(function () {
+                  button.textContent = 'copy';
+                  button.classList.remove('is-copied');
+                }, 1500);
+              },
+              function () {
+                clearTimeout(resetTimer);
+                button.textContent = 'error';
+                button.classList.remove('is-copied');
+                resetTimer = setTimeout(function () {
+                  button.textContent = 'copy';
+                }, 1500);
+              },
+            );
+          });
         });
 
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
