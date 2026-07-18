@@ -180,6 +180,25 @@
           font-family: 'JetBrains Mono', ui-monospace, monospace;
         }
 
+        .icon-sprite {
+          position: absolute;
+          width: 0;
+          height: 0;
+          overflow: hidden;
+        }
+
+        .ui-icon {
+          display: block;
+          width: 1.125rem;
+          height: 1.125rem;
+          flex: 0 0 auto;
+          fill: none;
+          stroke: currentColor;
+          stroke-width: 1.8;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
         /* ---------- type roles ---------- */
         .kicker {
           font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -431,7 +450,9 @@
             translate: 0 0;
           }
 
-          svg {
+          > .ui-icon {
+            width: 1.375rem;
+            height: 1.375rem;
             opacity: 0.85;
           }
 
@@ -1186,8 +1207,6 @@
           }
 
           .icon {
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: 700;
             color: var(--amber);
             width: 2rem;
             height: 2rem;
@@ -1197,6 +1216,12 @@
             border: 1px solid oklch(0.82 0.135 80 / 0.4);
             border-radius: 4px;
             margin-bottom: 0.7rem;
+
+            .ui-icon {
+              width: 1.1rem;
+              height: 1.1rem;
+              stroke-width: 1.7;
+            }
           }
 
           h3 {
@@ -1356,7 +1381,7 @@
           gap: 0.6rem;
 
           li {
-            padding: 0.85rem 1rem 0.85rem 2.3rem;
+            padding: 0.85rem 1rem 0.85rem 2.5rem;
             background: var(--surface);
             border: 1px solid var(--border);
             border-left: 0;
@@ -1364,14 +1389,14 @@
             position: relative;
             color: var(--muted);
 
-            &::before {
-              content: '✓';
+            .guarantee-icon {
               position: absolute;
               left: 0.9rem;
-              top: 0.8rem;
+              top: 1rem;
+              width: 1rem;
+              height: 1rem;
               color: var(--amber);
-              font-weight: 700;
-              font-family: 'JetBrains Mono', monospace;
+              stroke-width: 2.2;
             }
 
             strong {
@@ -1722,6 +1747,50 @@
     </style>
   </head>
   <body>
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-download" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <path d="m7 10 5 5 5-5" />
+        <path d="M12 15V3" />
+      </symbol>
+      <symbol id="icon-circle-dollar" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+        <path d="M12 18V6" />
+      </symbol>
+      <symbol id="icon-terminal" viewBox="0 0 24 24">
+        <path d="m4 17 6-6-6-6" />
+        <path d="M12 19h8" />
+      </symbol>
+      <symbol id="icon-activity" viewBox="0 0 24 24">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+      </symbol>
+      <symbol id="icon-calendar" viewBox="0 0 24 24">
+        <path d="M8 2v4" />
+        <path d="M16 2v4" />
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path d="M3 10h18" />
+        <path d="M8 14h.01" />
+        <path d="M12 14h.01" />
+        <path d="M16 14h.01" />
+        <path d="M8 18h.01" />
+        <path d="M12 18h.01" />
+      </symbol>
+      <symbol id="icon-shield-check" viewBox="0 0 24 24">
+        <path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z" />
+        <path d="m9 12 2 2 4-4" />
+      </symbol>
+      <symbol id="icon-file-search" viewBox="0 0 24 24">
+        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+        <path d="M14 2v6h6" />
+        <circle cx="11.5" cy="14.5" r="2.5" />
+        <path d="m13.3 16.3 1.7 1.7" />
+      </symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24">
+        <path d="m20 6-11 11-5-5" />
+      </symbol>
+    </svg>
+
     <!-- ====================== STATUS BAR ====================== -->
     <div class="statusbar">
       <div class="wrap">
@@ -1753,21 +1822,8 @@
                 data-os="macOS"
                 href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-darwin-arm64.tar.gz"
               >
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5" />
-                  <path
-                    d="M8.5 2c1.93 0 3.5 1.57 3.5 3.5S10.43 9 8.5 9 5 7.43 5 5.5 6.57 2 8.5 2Z"
-                  />
+                <svg class="ui-icon" aria-hidden="true">
+                  <use href="#icon-download"></use>
                 </svg>
                 macOS
                 <span class="dl-sub">apple silicon</span>
@@ -1778,20 +1834,8 @@
                 data-os="Linux"
                 href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-linux-amd64.tar.gz"
               >
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M4 20h16" />
-                  <path d="m6 16 6-12 6 12" />
-                  <path d="M8 12h8" />
+                <svg class="ui-icon" aria-hidden="true">
+                  <use href="#icon-download"></use>
                 </svg>
                 Linux
                 <span class="dl-sub">x86_64</span>
@@ -1802,20 +1846,8 @@
                 data-os="Windows"
                 href="https://github.com/koopycat/copilot-monitor/releases/latest/download/copilot-monitor-windows-amd64.zip"
               >
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <rect x="2" y="3" width="20" height="14" rx="2" />
-                  <path d="M8 21h8" />
-                  <path d="M12 17v4" />
+                <svg class="ui-icon" aria-hidden="true">
+                  <use href="#icon-download"></use>
                 </svg>
                 Windows
                 <span class="dl-sub">x86_64</span>
@@ -2237,7 +2269,11 @@ sudo mv copilot-monitor /usr/local/bin/</code></pre>
         <div class="features">
           <div class="feature wide" data-reveal>
             <div class="wide-inner">
-              <div class="icon" aria-hidden="true">$</div>
+              <div class="icon" aria-hidden="true">
+                <svg class="ui-icon">
+                  <use href="#icon-circle-dollar"></use>
+                </svg>
+              </div>
               <h3>Per-model cost estimates, not a bill</h3>
               <p>
                 Embedded per-token USD rates turn captured usage into a directional estimate, broken
@@ -2253,7 +2289,11 @@ sudo mv copilot-monitor /usr/local/bin/</code></pre>
           </div>
 
           <div class="feature" data-reveal>
-            <div class="icon" aria-hidden="true">&#9000;</div>
+            <div class="icon" aria-hidden="true">
+              <svg class="ui-icon">
+                <use href="#icon-terminal"></use>
+              </svg>
+            </div>
             <h3>CLI + JSON API</h3>
             <p>
               Core reports (<code>stats</code>, <code>cost</code>, <code>today</code>,
@@ -2264,7 +2304,11 @@ sudo mv copilot-monitor /usr/local/bin/</code></pre>
           </div>
 
           <div class="feature" data-reveal>
-            <div class="icon" aria-hidden="true">&#9201;</div>
+            <div class="icon" aria-hidden="true">
+              <svg class="ui-icon">
+                <use href="#icon-activity"></use>
+              </svg>
+            </div>
             <h3>Live session view</h3>
             <p>
               Requests grouped by a 30-minute inactivity gap. See the model mix, cost, and duration
@@ -2273,7 +2317,11 @@ sudo mv copilot-monitor /usr/local/bin/</code></pre>
           </div>
 
           <div class="feature" data-reveal>
-            <div class="icon" aria-hidden="true">&#128197;</div>
+            <div class="icon" aria-hidden="true">
+              <svg class="ui-icon">
+                <use href="#icon-calendar"></use>
+              </svg>
+            </div>
             <h3>Period drill-down</h3>
             <p>
               Today / yesterday / 7d / 30d / 90d / 365d. Every section of the dashboard filters to
@@ -2282,7 +2330,11 @@ sudo mv copilot-monitor /usr/local/bin/</code></pre>
           </div>
 
           <div class="feature" data-reveal>
-            <div class="icon" aria-hidden="true">&#128274;</div>
+            <div class="icon" aria-hidden="true">
+              <svg class="ui-icon">
+                <use href="#icon-shield-check"></use>
+              </svg>
+            </div>
             <h3>Local monitoring by design</h3>
             <p>
               Binds to <code>127.0.0.1</code>. SQLite at
@@ -2292,7 +2344,11 @@ sudo mv copilot-monitor /usr/local/bin/</code></pre>
           </div>
 
           <div class="feature" data-reveal>
-            <div class="icon" aria-hidden="true">&#10003;</div>
+            <div class="icon" aria-hidden="true">
+              <svg class="ui-icon">
+                <use href="#icon-file-search"></use>
+              </svg>
+            </div>
             <h3>Inspectable</h3>
             <p>
               Single Go binary. Schema in <code>internal/store/schema.sql</code>. Read the source,
@@ -2355,15 +2411,24 @@ sudo mv copilot-monitor /usr/local/bin/</code></pre>
         </div>
         <ul class="guarantees" data-reveal>
           <li>
+            <svg class="ui-icon guarantee-icon" aria-hidden="true">
+              <use href="#icon-check"></use>
+            </svg>
             <strong>Loopback by default.</strong> The proxy and dashboard bind to
             <code>127.0.0.1</code> unless you explicitly change their listen address.
           </li>
           <li>
+            <svg class="ui-icon guarantee-icon" aria-hidden="true">
+              <use href="#icon-check"></use>
+            </svg>
             <strong>No monitoring network calls.</strong> The binary never phones home, updates
             itself, or sends analytics. It does forward the API request to the upstream host you
             explicitly configured.
           </li>
           <li>
+            <svg class="ui-icon guarantee-icon" aria-hidden="true">
+              <use href="#icon-check"></use>
+            </svg>
             <strong>Local database.</strong> Normal capture lives at
             <code>~/.local/share/copilot-monitor/store.db</code> on your machine. Opt-in raw debug
             logs are separate sensitive files.
