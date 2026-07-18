@@ -617,10 +617,12 @@ func writeWSModelBlockedClose(w io.Writer) error {
 // storeRequestRecord builds a store.RequestRecord for persistence.
 func storeRequestRecord(ts time.Time, h *Handler, r *http.Request, model string, stream bool, status int, latencyMS int64, usage Usage, usageSeen bool, project string) store.RequestRecord {
 	hp := h.isHeadroomProxied(r)
+	kind := ClassifyEndpointKind(r.URL.Path, model != "", usageSeen)
 	if !usageSeen {
 		return store.RequestRecord{
 			Timestamp:       ts,
 			Endpoint:        r.URL.Path,
+			EndpointKind:    kind,
 			Method:          r.Method,
 			Path:            r.URL.RequestURI(),
 			UpstreamHost:    h.upstream,
@@ -635,6 +637,7 @@ func storeRequestRecord(ts time.Time, h *Handler, r *http.Request, model string,
 	return store.RequestRecord{
 		Timestamp:         ts,
 		Endpoint:          r.URL.Path,
+		EndpointKind:      kind,
 		Method:            r.Method,
 		Path:              r.URL.RequestURI(),
 		UpstreamHost:      h.upstream,

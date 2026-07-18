@@ -373,6 +373,7 @@ func (h *Handler) persistBlockedRequest(ctx context.Context, ts time.Time, r *ht
 	if err := h.store.InsertRequest(ctx, store.RequestRecord{
 		Timestamp:       ts,
 		Endpoint:        r.URL.Path,
+		EndpointKind:    ClassifyEndpointKind(r.URL.Path, meta.Model != "", false),
 		Method:          r.Method,
 		Path:            r.URL.RequestURI(),
 		UpstreamHost:    h.upstream,
@@ -418,6 +419,7 @@ func (h *Handler) persistRequest(ctx context.Context, ts time.Time, r *http.Requ
 		Project:           h.project,
 		HeadroomProxied:   h.isHeadroomProxied(r),
 		UsageMissing:      usageMissing,
+		EndpointKind:      ClassifyEndpointKind(r.URL.Path, model != "", !usageMissing),
 	}); err != nil {
 		h.log.Warn("store_error=%q\n", err.Error())
 	}

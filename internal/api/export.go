@@ -15,10 +15,10 @@ func (h *Handler) handleExport(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", "attachment; filename=export.csv")
-	w.Write([]byte("ts,endpoint,model,status,latency_ms,input_tokens,cached_input_tokens,cache_write_tokens,output_tokens,total_tokens,project,headroom_proxied\n"))
+	w.Write([]byte("ts,endpoint,endpoint_kind,model,status,latency_ms,input_tokens,cached_input_tokens,cache_write_tokens,output_tokens,total_tokens,project,headroom_proxied\n"))
 	for _, row := range rows {
-		fmt.Fprintf(w, "%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%s,%t\n",
-			row.Timestamp, row.Endpoint, csvEscape(row.Model), row.Status, row.LatencyMS,
+		fmt.Fprintf(w, "%s,%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%s,%t\n",
+			row.Timestamp, row.Endpoint, row.EndpointKind, csvEscape(row.Model), row.Status, row.LatencyMS,
 			row.PromptTokens, row.CachedInputTokens, row.CacheWriteTokens,
 			row.CompletionTokens, row.TotalTokens, csvEscape(row.Project),
 			row.HeadroomProxied)

@@ -11,9 +11,9 @@ logs and debug output.
 ### Requirement: Usage metadata capture
 
 The system SHALL capture usage metadata for model-generation traffic when token
-usage is present. Captured rows SHALL include timestamp, endpoint label, model
-(when known), streaming flag, status, latency, project label, provider, and
-token counts.
+usage is present. Captured rows SHALL include timestamp, endpoint label,
+endpoint kind (`inference` or `control_plane`), model (when known), streaming
+flag, status, latency, project label, provider, and token counts.
 
 #### Scenario: OpenAI-style usage captured
 
@@ -51,6 +51,12 @@ token counts.
 - **WHEN** the request body contains `response.model` (Copilot Responses API
   format)
 - **THEN** that nested model name is extracted
+
+#### Scenario: Endpoint kind is captured with every row
+
+- **WHEN** a proxied request is persisted
+- **THEN** the row includes an `endpoint_kind` of `inference` or `control_plane`
+  determined from the request path, model field, and usage
 
 ---
 
