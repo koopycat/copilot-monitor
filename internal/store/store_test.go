@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestCatalogCaching(t *testing.T) {
@@ -206,4 +209,124 @@ func TestWriteAndQueryAnomalies(t *testing.T) {
 	if len(recent) != 1 || recent[0].Category != "unrouted_path" {
 		t.Fatalf("recent = %#v", recent)
 	}
+}
+
+func TestEndpointKindMigration(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "legacy.db")
+
+	// Create a database with the pre-endpoint_kind schema.
+	legacyDB, err := sql.Open("sqlite", path)
+	require.NoError(t, err)
+	_, err = legacyDB.ExecContext(ctx, `
+CREATE TABLE requests (
+  id INTEGER PRIMARY KEY,
+  ts TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  method TEXT NOT NULL,
+  path TEXT NOT NULL,
+  upstream_host TEXT NOT NULL,
+  model TEXT,
+  stream INTEGER NOT NULL,
+  status INTEGER NOT NULL,
+  error TEXT,
+  latency_ms INTEGER NOT NULL,
+  prompt_tokens INTEGER,
+  cached_input_tokens INTEGER,
+  cache_write_tokens INTEGER,
+  completion_tokens INTEGER,
+  total_tokens INTEGER,
+  project TEXT,
+  not_billed INTEGER NOT NULL DEFAULT 0,
+  provider TEXT NOT NULL DEFAULT '',
+  session_id INTEGER,
+  usage_missing INTEGER NOT NULL DEFAULT 0,
+  headroom_proxied INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE sessions (id INTEGER PRIMARY KEY, started_at TEXT, ended_at TEXT, project TEXT, request_count INTEGER, token_count INTEGER);
+CREATE TABLE policies (id INTEGER PRIMARY KEY CHECK (id = 1), mode TEXT NOT NULL DEFAULT 'allow_all', models_json TEXT NOT NULL DEFAULT '[]');
+CREATE TABLE anomalies (id INTEGER PRIMARY KEY, ts TEXT, category TEXT, severity TEXT, request_id INTEGER, path TEXT, method TEXT, endpoint TEXT, model TEXT, upstream TEXT, status INTEGER, detail TEXT, json_detail TEXT);`)
+	require.NoError(t, err)
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	_, err = legacyDB.ExecContext(ctx, `
+INSERT INTO requests (ts, endpoint, method, path, upstream_host, model, stream, status, latency_ms, prompt_tokens, total_tokens, project)
+VALUES
+  (?, 'chat', 'POST', '/chat/completions', 'api.example.com', 'gpt-4o', 0, 200, 10, 5, 7, 'proj'),
+  (?, 'models', 'GET', '/models', 'api.example.com', NULL, 0, 200, 1, 0, 0, NULL),
+  (?, 'agents', 'GET', '/agents', 'api.example.com', '', 0, 200, 1, 0, 0, NULL),
+  (?, 'chat', 'POST', '/chat/completions', 'api.example.com', 'gpt-4o', 0, 200, 0, 0, 0, 'proj')`,
+		now, now, now, now)
+	require.NoError(t, err)
+	require.NoError(t, legacyDB.Close())
+
+	// Re-open with the current store implementation. This should add the column
+	// and backfill it.
+	s, err := Open(path)
+	require.NoError(t, err)
+	defer s.Close()
+
+	// Verify endpoint_kind is populated for all rows.
+	rows, err := s.db.QueryContext(ctx, "SELECT endpoint, endpoint_kind FROM requests ORDER BY id")
+	require.NoError(t, err)
+	defer rows.Close()
+
+	expected := []struct {
+		endpoint     string
+		endpointKind string
+	}{
+		{"chat", EndpointKindInference},
+		{"models", EndpointKindControlPlane},
+		{"agents", EndpointKindControlPlane},
+		{"chat", EndpointKindInference}, // model present but no tokens -> still inference
+	}
+	count := 0
+	for rows.Next() {
+		var endpoint, endpointKind string
+		require.NoError(t, rows.Scan(&endpoint, &endpointKind))
+		require.NotEmpty(t, endpointKind, "row %d should have endpoint_kind backfilled", count)
+		require.Equal(t, expected[count].endpoint, endpoint)
+		require.Equal(t, expected[count].endpointKind, endpointKind)
+		count++
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, len(expected), count)
+
+	// Stats should exclude the control-plane rows.
+	stats, err := s.Stats(ctx, StatsFilter{})
+	require.NoError(t, err)
+	require.Len(t, stats, 1)
+	require.Equal(t, "gpt-4o", stats[0].Model)
+	require.Equal(t, 2, stats[0].Requests, "both inference chat rows should be aggregated")
+	require.Equal(t, 7, stats[0].TotalTokens)
+}
+
+func TestEndpointKindFilter(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	defer s.Close()
+
+	now := time.Now().UTC()
+	recs := []RequestRecord{
+		{Timestamp: now, Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.example.com", Model: "gpt-4o", Status: 200, PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15, EndpointKind: EndpointKindInference},
+		{Timestamp: now, Endpoint: "models", Method: "GET", Path: "/models", UpstreamHost: "api.example.com", Status: 200, EndpointKind: EndpointKindControlPlane},
+		{Timestamp: now, Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.example.com", Model: "gpt-4o", Status: 200, EndpointKind: EndpointKindInference, UsageMissing: true},
+	}
+	for _, rec := range recs {
+		require.NoError(t, s.InsertRequest(ctx, rec))
+	}
+
+	stats, err := s.Stats(ctx, StatsFilter{})
+	require.NoError(t, err)
+	require.Len(t, stats, 1)
+	require.Equal(t, 2, stats[0].Requests, "inference rows with and without usage_missing should be included")
+
+	timeline, err := s.Timeline(ctx, StatsFilter{}, "day")
+	require.NoError(t, err)
+	require.Len(t, timeline, 1)
+
+	export, err := s.ExportRequests(ctx, time.Time{}, time.Time{}, "", "", "")
+	require.NoError(t, err)
+	require.Len(t, export, 3, "export should include all rows regardless of endpoint_kind")
 }

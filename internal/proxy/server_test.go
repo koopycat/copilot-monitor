@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -411,16 +412,33 @@ func TestHandlerDoesNotPersistZeroUsageAgentRoutes(t *testing.T) {
 
 	h.ServeHTTP(rr, req)
 
-	// Zero usage should be persisted with usage_missing=true
-	stats, err := st.Stats(context.Background(), store.StatsFilter{})
+	// Zero-usage agent routes are persisted as control_plane but excluded from
+	// usage stats because they are not model-generation traffic.
+	ctx := context.Background()
+	exportRows, err := st.ExportRequests(ctx, time.Time{}, time.Time{}, "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(stats) != 1 {
-		t.Fatalf("expected 1 persisted row (usage_missing), got: %#v", stats)
+	if len(exportRows) != 1 {
+		t.Fatalf("expected 1 persisted row, got: %#v", exportRows)
 	}
-	if !stats[0].UsageMissing {
-		t.Fatal("expected UsageMissing = true for zero-usage agent route")
+	if exportRows[0].EndpointKind != store.EndpointKindControlPlane {
+		t.Fatalf("expected endpoint_kind = control_plane, got %q", exportRows[0].EndpointKind)
+	}
+	missing, err := st.CountUsageMissing(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if missing != 1 {
+		t.Fatalf("expected 1 usage_missing row, got %d", missing)
+	}
+
+	stats, err := st.Stats(ctx, store.StatsFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 0 {
+		t.Fatalf("expected zero usage stats, got: %#v", stats)
 	}
 }
 
@@ -687,4 +705,41 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+func TestHandlerClassifiesHelperEndpoints(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	defer st.Close()
+
+	h := NewHandlerWithStore(log.NewWriterWithFormat(io.Discard, log.FormatHuman), st, "test-project")
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":[]}`)),
+		}, nil
+	})})
+
+	for _, path := range []string{"/models", "/agents"} {
+		req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7733"+path, nil)
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code, "path %s", path)
+	}
+
+	// All persisted rows should be control_plane.
+	exportRows, err := st.ExportRequests(ctx, time.Time{}, time.Time{}, "", "", "")
+	require.NoError(t, err)
+	require.Len(t, exportRows, 2, "helper endpoints should be persisted")
+	for i, row := range exportRows {
+		assert.Equal(t, store.EndpointKindControlPlane, row.EndpointKind, "row %d", i)
+	}
+
+	// Stats should exclude helper endpoints.
+	stats, err := st.Stats(ctx, store.StatsFilter{})
+	require.NoError(t, err)
+	require.Empty(t, stats, "helper endpoints should not appear in usage stats")
 }

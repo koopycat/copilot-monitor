@@ -436,7 +436,7 @@ func TestExportCommandCSV(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := st.InsertRequest(context.Background(), store.RequestRecord{Timestamp: time.Now().UTC(), Endpoint: "agent", Method: "POST", Path: "/agents", UpstreamHost: "api.githubcopilot.com", Model: "<unknown>", Status: 200}); err != nil {
+	if err := st.InsertRequest(context.Background(), store.RequestRecord{Timestamp: time.Now().UTC(), Endpoint: "models", Method: "GET", Path: "/models", UpstreamHost: "api.githubcopilot.com", Status: 200, EndpointKind: store.EndpointKindControlPlane}); err != nil {
 		t.Fatal(err)
 	}
 	_ = st.Close()
@@ -448,11 +448,11 @@ func TestExportCommandCSV(t *testing.T) {
 	}
 	out := stdout.String()
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
-	if len(lines) < 2 {
-		t.Fatalf("expected header + at least 1 row, got:\n%s", out)
+	if len(lines) != 3 {
+		t.Fatalf("expected header + 2 rows, got:\n%s", out)
 	}
 	header := lines[0]
-	for _, want := range []string{"ts", "endpoint", "model", "input_tokens", "cached_input_tokens", "total_tokens", "project"} {
+	for _, want := range []string{"ts", "endpoint", "endpoint_kind", "model", "input_tokens", "cached_input_tokens", "total_tokens", "project"} {
 		if !strings.Contains(header, want) {
 			t.Fatalf("header missing %q: %s", want, header)
 		}
@@ -463,8 +463,11 @@ func TestExportCommandCSV(t *testing.T) {
 	if !strings.Contains(out, ",demo") {
 		t.Fatalf("expected demo project in a row, got:\n%s", out)
 	}
-	if strings.Contains(out, "<unknown>,agent,200") {
-		t.Fatalf("row with empty model should be excluded, got:\n%s", out)
+	if !strings.Contains(out, store.EndpointKindControlPlane) {
+		t.Fatalf("expected control_plane row in export, got:\n%s", out)
+	}
+	if !strings.Contains(out, store.EndpointKindInference) {
+		t.Fatalf("expected inference row in export, got:\n%s", out)
 	}
 }
 
@@ -555,5 +558,51 @@ func TestRun_SingleUpstreamStarts(t *testing.T) {
 		}
 	case <-time.After(2000 * time.Millisecond):
 		t.Fatal("timed out waiting for startup banner")
+	}
+}
+
+func TestStatsCostTodayExcludeControlPlane(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "store.db")
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	now := time.Now().UTC()
+	if err := st.InsertRequest(ctx, store.RequestRecord{Timestamp: now, Endpoint: "chat", Method: "POST", Path: "/chat/completions", UpstreamHost: "api.githubcopilot.com", Model: "gpt-4o", Status: 200, PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.InsertRequest(ctx, store.RequestRecord{Timestamp: now, Endpoint: "models", Method: "GET", Path: "/models", UpstreamHost: "api.githubcopilot.com", Status: 200, EndpointKind: store.EndpointKindControlPlane}); err != nil {
+		t.Fatal(err)
+	}
+	_ = st.Close()
+
+	for _, cmd := range []string{"stats", "cost", "today"} {
+		var stdout, stderr bytes.Buffer
+		args := []string{cmd, "--db", dbPath, "--since", "all"}
+		if cmd == "today" {
+			args = []string{cmd, "--db", dbPath}
+		}
+		code := Run(args, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("%s exit code = %d, stderr = %s", cmd, code, stderr.String())
+		}
+		out := stdout.String()
+		if !strings.Contains(out, "gpt-4o") {
+			t.Fatalf("%s output missing gpt-4o:\n%s", cmd, out)
+		}
+		if strings.Contains(out, "<unknown>") {
+			t.Fatalf("%s output should not contain helper <unknown> row:\n%s", cmd, out)
+		}
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"export", "--db", dbPath, "--since", "all"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("export exit code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, store.EndpointKindControlPlane) || !strings.Contains(out, store.EndpointKindInference) {
+		t.Fatalf("export should contain both endpoint kinds:\n%s", out)
 	}
 }

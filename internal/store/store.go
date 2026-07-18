@@ -34,6 +34,11 @@ type Store struct {
 	catalogErr  error
 }
 
+const (
+	EndpointKindInference    = "inference"
+	EndpointKindControlPlane = "control_plane"
+)
+
 type RequestRecord struct {
 	Timestamp                 time.Time
 	Endpoint                  string
@@ -59,6 +64,7 @@ type RequestRecord struct {
 	CompressionFinalTokens    int
 	CompressionLatencyMS      int64
 	HeadroomProxied           bool
+	EndpointKind              string
 }
 
 type StatsFilter struct {
@@ -105,6 +111,7 @@ type TimelineBucket struct {
 type ExportRow struct {
 	Timestamp                 string `json:"ts"`
 	Endpoint                  string `json:"endpoint"`
+	EndpointKind              string `json:"endpoint_kind"`
 	Model                     string `json:"model"`
 	Status                    int    `json:"status"`
 	LatencyMS                 int64  `json:"latency_ms"`
@@ -210,11 +217,24 @@ func (s *Store) init(ctx context.Context) error {
 		{"compression_final_tokens", "INTEGER"},
 		{"compression_latency_ms", "INTEGER"},
 		{"headroom_proxied", "INTEGER NOT NULL DEFAULT 0"},
+		{"endpoint_kind", "TEXT"},
 	} {
 		var count int
 		if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pragma_table_info('requests') WHERE name = ?", m.name).Scan(&count); err == nil && count == 0 {
 			_, _ = s.db.ExecContext(ctx, fmt.Sprintf("ALTER TABLE requests ADD COLUMN %s %s", m.name, m.def))
 		}
+	}
+	// Backfill endpoint_kind for rows captured before the column existed.
+	// Rows without a model and without any tokens are best-effort control_plane
+	// traffic (e.g. GET /models, /agents); everything else is inference.
+	if _, err := s.db.ExecContext(ctx, `
+UPDATE requests
+SET endpoint_kind = CASE
+  WHEN COALESCE(model, '') = '' AND COALESCE(total_tokens, 0) = 0 THEN 'control_plane'
+  ELSE 'inference'
+END
+WHERE endpoint_kind IS NULL`); err != nil {
+		return err
 	}
 	// Remove schema objects that are no longer used. These migrations also apply
 	// to databases created before the schema was updated.
@@ -247,6 +267,9 @@ func (s *Store) InsertRequest(ctx context.Context, rec RequestRecord) error {
 	if rec.Timestamp.IsZero() {
 		rec.Timestamp = time.Now().UTC()
 	}
+	if rec.EndpointKind == "" {
+		rec.EndpointKind = EndpointKindInference
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -263,8 +286,8 @@ INSERT INTO requests (
   latency_ms, prompt_tokens, cached_input_tokens, cache_write_tokens,
   completion_tokens, total_tokens, project, not_billed, provider, session_id, usage_missing,
   compression_status, compression_original_tokens, compression_final_tokens,
-  compression_latency_ms, headroom_proxied
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  compression_latency_ms, headroom_proxied, endpoint_kind
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		rec.Timestamp.UTC().Format(time.RFC3339Nano),
 		rec.Endpoint,
 		rec.Method,
@@ -290,6 +313,7 @@ INSERT INTO requests (
 		nullInt(rec.CompressionFinalTokens),
 		nullInt64(rec.CompressionLatencyMS),
 		boolInt(rec.HeadroomProxied),
+		rec.EndpointKind,
 	)
 	if err != nil {
 		return err
@@ -327,6 +351,7 @@ WHERE (? = '' OR ts >= ?)
   AND (? = '' OR project = ?)
   AND (? = '' OR endpoint = ?)
   AND (? = '' OR upstream_host = ?)
+  AND endpoint_kind = 'inference'
 GROUP BY model, endpoint, upstream_host
 ORDER BY total_tokens DESC, requests DESC, model ASC, endpoint ASC`
 	since := ""
@@ -400,6 +425,7 @@ WHERE (? = '' OR ts >= ?)
   AND (? = '' OR project = ?)
   AND (? = '' OR endpoint = ?)
   AND (? = '' OR upstream_host = ?)
+  AND endpoint_kind = 'inference'
   AND model IS NOT NULL AND model != ''
 GROUP BY %s, model, upstream_host
 ORDER BY date ASC, hour ASC, model ASC, upstream_host ASC`, dateExpr, groupExpr)
@@ -434,7 +460,7 @@ func (s *Store) ExportRequests(ctx context.Context, since, until time.Time, proj
 		untilStr = until.UTC().Format(time.RFC3339Nano)
 	}
 	rows, err := s.db.QueryContext(ctx, `
-SELECT ts, endpoint, COALESCE(model,''), status, latency_ms,
+SELECT ts, endpoint, endpoint_kind, COALESCE(model,''), status, latency_ms,
   COALESCE(prompt_tokens,0), COALESCE(cached_input_tokens,0), COALESCE(cache_write_tokens,0),
   COALESCE(completion_tokens,0), COALESCE(total_tokens,0), COALESCE(project,''),
   COALESCE(compression_status,''), COALESCE(compression_original_tokens,0), COALESCE(compression_final_tokens,0), COALESCE(compression_latency_ms,0),
@@ -445,8 +471,6 @@ WHERE (? = '' OR ts >= ?)
   AND (? = '' OR project = ?)
   AND (? = '' OR endpoint = ?)
   AND (? = '' OR upstream_host = ?)
-  AND model IS NOT NULL AND model != ''
-  AND status = 200
 ORDER BY ts DESC`, sinceStr, sinceStr, untilStr, untilStr, project, project, endpoint, endpoint, upstreamHost, upstreamHost)
 	if err != nil {
 		return nil, err
@@ -456,7 +480,7 @@ ORDER BY ts DESC`, sinceStr, sinceStr, untilStr, untilStr, project, project, end
 	var out []ExportRow
 	for rows.Next() {
 		var row ExportRow
-		if err := rows.Scan(&row.Timestamp, &row.Endpoint, &row.Model, &row.Status, &row.LatencyMS,
+		if err := rows.Scan(&row.Timestamp, &row.Endpoint, &row.EndpointKind, &row.Model, &row.Status, &row.LatencyMS,
 			&row.PromptTokens, &row.CachedInputTokens, &row.CacheWriteTokens,
 			&row.CompletionTokens, &row.TotalTokens, &row.Project,
 			&row.CompressionStatus, &row.CompressionOriginalTokens, &row.CompressionFinalTokens, &row.CompressionLatencyMS,

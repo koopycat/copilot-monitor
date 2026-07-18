@@ -37,10 +37,12 @@ The entry point is `cmd/copilot-monitor/main.go`, which delegates to
 7. Responses are streamed back to the client as they arrive. For JSON and SSE
    responses, `internal/proxy/sse.go` watches chunks for `usage` and response
    `model` fields without retaining the full response.
-8. `internal/proxy/server.go` persists metadata and token counts through
-   `internal/store.InsertRequest`. WebSocket traffic (Copilot `/responses`) is
-   inspected frame-by-frame by `internal/proxy/websocket.go` for
-   `response.create` (model) and `response.completed` (usage) events, and
+8. `internal/proxy/server.go` classifies each request as `inference` or
+   `control_plane` based on its endpoint path, the presence of a model, and
+   whether token usage was captured, then persists metadata and token counts
+   through `internal/store.InsertRequest`. WebSocket traffic (Copilot
+   `/responses`) is inspected frame-by-frame by `internal/proxy/websocket.go`
+   for `response.create` (model) and `response.completed` (usage) events, and
    persisted the same way as HTTP completions.
 9. CLI reporting commands and the dashboard API read aggregate data from
    `internal/store`.
@@ -91,11 +93,14 @@ discovery via `GET /api/policy/models`.
 
 The core invariant is: do not store prompts, completions, source code, auth
 material, cookies, or API keys. The `requests` table stores timestamps, endpoint
-and path, upstream host, model, stream flag, HTTP status, latency, token counts,
-project label, and an optional session link. The `sessions` table is maintained
-at request insertion time using a 30-minute inactivity gap and can be rebuilt
-with the offline `rebuild-sessions` command. Request bodies are parsed for
-metadata and then forwarded, but are never persisted. Response bodies are
+and path, endpoint kind (`inference` or `control_plane`), upstream host, model,
+stream flag, HTTP status, latency, token counts, project label, and an optional
+session link. The endpoint kind is derived at capture time; usage views
+(`stats`, `cost`, `today`, `timeline`) include only `inference` traffic, while
+CSV export retains every captured row with its kind. The `sessions` table is
+maintained at request insertion time using a 30-minute inactivity gap and can be
+rebuilt with the offline `rebuild-sessions` command. Request bodies are parsed
+for metadata and then forwarded, but are never persisted. Response bodies are
 streamed to the client while observers look only for usage fields. Debug usage
 logs are opt-in via `--usage-debug-log` and must stay metadata-only;
 `SafeHeaders` redacts sensitive response headers. Keep listeners loopback-only
