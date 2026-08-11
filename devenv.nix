@@ -27,7 +27,7 @@
         version = "11.18.0";
         src = pkgs.fetchurl {
           url = "https://registry.npmjs.org/pnpm/-/pnpm-11.18.0.tgz";
-          hash = "sha256-pM6NoB7OTwO/RB5h6O01S/Zf7v9UnXrFJvTqHpJ2qlE=";
+          hash = "sha256-KcNcqNKih5iP3uPg824H2bk3g/VntXm3/Vt5ikVj3YE=";
         };
       });
     };
