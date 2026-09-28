@@ -16,22 +16,18 @@ updates:
       interval: 'weekly'
     open-pull-requests-limit: 3
 
+  # pnpm uses one workspace lockfile at the repository root. Run Dependabot
+  # from that root so manifest bumps and pnpm-lock.yaml stay atomic.
   - package-ecosystem: 'npm'
-    directory: '/dashboard'
+    directory: '/'
     schedule:
       interval: 'weekly'
     open-pull-requests-limit: 5
     groups:
-      dashboard-deps:
+      workspace-deps:
         patterns:
           - '*'
-
-  - package-ecosystem: 'npm'
-    directory: '/internal/e2e'
-    schedule:
-      interval: 'weekly'
-    open-pull-requests-limit: 3
-    groups:
-      e2e-deps:
-        patterns:
-          - '*'
+    ignore:
+      # svelte-check 4 requires extra configuration for TypeScript 7.
+      - dependency-name: 'typescript'
+        versions: ['>=7']
