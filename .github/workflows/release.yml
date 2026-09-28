@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          repository: koopycat/homebrew-copilot-monitor
+          repository: koopycat/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
       - name: Download release assets and compute SHA256s

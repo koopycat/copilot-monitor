@@ -8,15 +8,14 @@ used.
 
 ## Approach
 
-A custom Homebrew tap (`koopycat/homebrew-copilot-monitor`) with a formula
+The central Homebrew tap (`koopycat/homebrew-tap`) contains a formula
 auto-updated by the release workflow. A dedicated job in `release.yml` downloads
 the release tarballs, computes SHA256s, and pushes the updated formula.
 
 ## Tap repo
 
-The tap repository `github.com/koopycat/homebrew-copilot-monitor` must exist
-before the first release that triggers the update job. Seed it with an initial
-formula using real SHA256s from a published release.
+The tap repository `github.com/koopycat/homebrew-tap` contains the initial
+formula with real SHA256s from a published release.
 
 ### Initial formula template
 
@@ -73,14 +72,14 @@ the tap repo.
 ## Secrets
 
 The release workflow needs `HOMEBREW_TAP_TOKEN` — a GitHub fine-grained PAT with
-`contents: write` on `koopycat/homebrew-copilot-monitor`. Set it in the main
-repo's Actions secrets.
+`contents: write` on `koopycat/homebrew-tap`. Set it in the main repo's Actions
+secrets.
 
 ## Install
 
 ```sh
-brew tap koopycat/copilot-monitor
-brew trust koopycat/copilot-monitor
+brew tap koopycat/tap
+brew trust koopycat/tap
 brew install copilot-monitor
 ```
 

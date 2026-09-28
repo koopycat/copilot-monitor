@@ -16,15 +16,15 @@ release workflow on each tagged release.
 #### Scenario: User installs via Homebrew
 
 - **WHEN** a macOS user runs
-  `brew tap koopycat/copilot-monitor && brew trust koopycat/copilot-monitor && brew install copilot-monitor`
+  `brew tap koopycat/tap && brew trust koopycat/tap && brew install copilot-monitor`
 - **THEN** the latest release binary is downloaded and installed to
   `/opt/homebrew/bin/copilot-monitor` (Apple Silicon)
 
 #### Scenario: Formula updates on release
 
 - **WHEN** a new GitHub Release is published via the release workflow
-- **THEN** the formula in the `homebrew-copilot-monitor` tap repo is
-  automatically updated with the new version and SHA256
+- **THEN** the formula in the `homebrew-tap` tap repo is automatically updated
+  with the new version and SHA256
 
 ### Requirement: Release workflow formula update
 
@@ -49,5 +49,5 @@ download table.
 
 - **WHEN** a visitor reads the README
 - **THEN** they see
-  `brew tap koopycat/copilot-monitor && brew trust koopycat/copilot-monitor && brew install copilot-monitor`
+  `brew tap koopycat/tap && brew trust koopycat/tap && brew install copilot-monitor`
   as an install method

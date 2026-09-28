@@ -41,8 +41,8 @@ your `PATH`.
 Homebrew:
 
 ```sh
-brew tap koopycat/copilot-monitor
-brew trust koopycat/copilot-monitor  # signs the tap for Homebrew verification
+brew tap koopycat/tap
+brew trust koopycat/tap  # signs the tap for Homebrew verification
 brew install copilot-monitor
 ```
 
