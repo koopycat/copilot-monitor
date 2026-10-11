@@ -120,38 +120,34 @@ func parseUsageObject(value any) (Usage, bool) {
 		return Usage{}, false
 	}
 
+	// Usage is normalized to the OpenAI convention: PromptTokens includes cache
+	// reads (CachedInputTokens is a subset of it) and excludes cache writes.
 	promptTokens := intFromJSONNumber(m["prompt_tokens"])
 	completionTokens := intFromJSONNumber(m["completion_tokens"])
 	cachedInputTokens := intFromJSONNumber(m["cached_input_tokens"])
 	cacheWriteTokens := intFromJSONNumber(m["cache_write_tokens"])
-	anthropicStyle := false
+	promptExcludesCacheReads := promptTokens == 0
 
 	if details, ok := m["prompt_tokens_details"].(map[string]any); ok && cachedInputTokens == 0 {
 		cachedInputTokens = intFromJSONNumber(details["cached_tokens"])
 	}
 	if promptTokens == 0 {
-		if inputTokens := intFromJSONNumber(m["input_tokens"]); inputTokens != 0 {
-			promptTokens = inputTokens
-			anthropicStyle = true
-		}
+		promptTokens = intFromJSONNumber(m["input_tokens"])
 	}
 	if completionTokens == 0 {
-		if outputTokens := intFromJSONNumber(m["output_tokens"]); outputTokens != 0 {
-			completionTokens = outputTokens
-			anthropicStyle = true
-		}
+		completionTokens = intFromJSONNumber(m["output_tokens"])
 	}
 	if cachedInputTokens == 0 {
 		if cacheReadTokens := intFromJSONNumber(m["cache_read_input_tokens"]); cacheReadTokens != 0 {
 			cachedInputTokens = cacheReadTokens
-			anthropicStyle = true
+			// Anthropic input_tokens counts only the uncached input.
+			if promptExcludesCacheReads {
+				promptTokens += cacheReadTokens
+			}
 		}
 	}
 	if cacheWriteTokens == 0 {
-		if cacheCreationTokens := intFromJSONNumber(m["cache_creation_input_tokens"]); cacheCreationTokens != 0 {
-			cacheWriteTokens = cacheCreationTokens
-			anthropicStyle = true
-		}
+		cacheWriteTokens = intFromJSONNumber(m["cache_creation_input_tokens"])
 	}
 
 	usage := Usage{
@@ -162,12 +158,7 @@ func parseUsageObject(value any) (Usage, bool) {
 		TotalTokens:       intFromJSONNumber(m["total_tokens"]),
 	}
 	if usage.TotalTokens == 0 {
-		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
-		if anthropicStyle {
-			usage.TotalTokens += usage.CachedInputTokens + usage.CacheWriteTokens
-		} else {
-			usage.TotalTokens += usage.CacheWriteTokens
-		}
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens + usage.CacheWriteTokens
 	}
 	return usage, usage.PromptTokens != 0 || usage.CachedInputTokens != 0 || usage.CacheWriteTokens != 0 || usage.CompletionTokens != 0 || usage.TotalTokens != 0
 }

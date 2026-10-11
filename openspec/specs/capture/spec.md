@@ -28,6 +28,14 @@ flag, status, latency, project label, provider, and token counts.
 - **THEN** input tokens are mapped to prompt_tokens and output tokens to
   completion_tokens
 
+#### Scenario: Prompt tokens include cache reads
+
+- **WHEN** the response reports cache reads in `usage.cache_read_input_tokens`
+  next to `usage.input_tokens` (Anthropic, where input tokens exclude cache
+  reads)
+- **THEN** prompt_tokens is input tokens plus cache read tokens, so that
+  prompt_tokens includes cache reads for every provider
+
 #### Scenario: Cache read tokens captured
 
 - **WHEN** the response contains `usage.cached_input_tokens` (OpenAI) or
