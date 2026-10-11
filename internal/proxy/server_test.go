@@ -284,6 +284,51 @@ func TestHandlerPersistsJSONUsage(t *testing.T) {
 	}
 }
 
+// cancelOnWriteRecorder cancels the request context as soon as the response
+// body is written, like a client that disconnects right after reading it.
+type cancelOnWriteRecorder struct {
+	*httptest.ResponseRecorder
+	cancel context.CancelFunc
+}
+
+func (r *cancelOnWriteRecorder) Write(b []byte) (int, error) {
+	n, err := r.ResponseRecorder.Write(b)
+	r.cancel()
+	return n, err
+}
+
+func TestHandlerPersistsUsageAfterClientDisconnect(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
+	require.NoError(t, err)
+	defer st.Close()
+
+	var logs bytes.Buffer
+	h := NewHandlerWithStore(log.NewWriterWithFormat(&logs, log.FormatHuman), st, "test-project")
+	h.SetUpstream("api.githubcopilot.com")
+	h.SetTestClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"model":"gpt-4o","usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}`)),
+		}, nil
+	})})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7733/chat/completions", strings.NewReader(`{"model":"gpt-4o","stream":false}`)).WithContext(ctx)
+	rr := &cancelOnWriteRecorder{ResponseRecorder: httptest.NewRecorder(), cancel: cancel}
+
+	h.ServeHTTP(rr, req)
+
+	require.Error(t, req.Context().Err(), "client context should be canceled before the row is persisted")
+	assert.NotContains(t, logs.String(), "store_error")
+	stats, err := st.Stats(context.Background(), store.StatsFilter{})
+	require.NoError(t, err)
+	require.Len(t, stats, 1)
+	assert.Equal(t, 7, stats[0].PromptTokens)
+	assert.Equal(t, 3, stats[0].CompletionTokens)
+}
+
 func TestHandlerDoesNotRetainUpstreamErrorBody(t *testing.T) {
 	st, err := store.Open(filepath.Join(t.TempDir(), "store.db"))
 	if err != nil {
