@@ -1,4 +1,11 @@
-## ADDED Requirements
+<!-- markdownlint-disable MD041 -->
+
+## Purpose
+
+Keep CLI and dashboard output readable and consistent: human-friendly headers
+and summaries, matching report columns, and uniform dashboard section styling.
+
+## Requirements
 
 ### Requirement: today prints friendly date header
 

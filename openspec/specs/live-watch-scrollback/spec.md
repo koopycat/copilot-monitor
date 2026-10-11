@@ -1,4 +1,11 @@
-## ADDED Requirements
+<!-- markdownlint-disable MD041 -->
+
+## Purpose
+
+Refresh the `live --watch` display in place without clearing the terminal's
+scrollback history.
+
+## Requirements
 
 ### Requirement: live --watch preserves terminal scrollback
 

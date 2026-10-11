@@ -1,6 +1,11 @@
 <!-- markdownlint-disable MD041 -->
 
-## ADDED Requirements
+## Purpose
+
+Bound how long captured data is kept, prune old data without blocking the proxy,
+and leave disk compaction to an explicit user action.
+
+## Requirements
 
 ### Requirement: Configurable retention period
 
