@@ -292,7 +292,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.log.Info("id=%d status=%d bytes=%d latency_ms=%d\n", id, resp.StatusCode, bytesWritten, latencyMS)
 	}
 
-	h.persistRequest(r.Context(), started, r, meta, resp.StatusCode, latencyMS, observer)
+	// The response is complete, so a client hanging up now must not cancel the
+	// write of usage that was already served.
+	h.persistRequest(context.WithoutCancel(r.Context()), started, r, meta, resp.StatusCode, latencyMS, observer)
 	h.writeUsageDebug(started, id, r, meta, resp, observer)
 	h.writeRawLog(started, id, r, meta, body, resp, true)
 

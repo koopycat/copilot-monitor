@@ -24,9 +24,16 @@ flag, status, latency, project label, provider, and token counts.
 #### Scenario: Anthropic-style usage captured
 
 - **WHEN** the upstream response contains `usage.input_tokens` and
-  `usage.output_tokens`
-- **THEN** input tokens are mapped to prompt_tokens and output tokens to
-  completion_tokens
+  `usage.output_tokens` instead of `usage.prompt_tokens`
+- **THEN** output tokens are mapped to completion_tokens, and prompt_tokens is
+  input tokens plus any `usage.cache_read_input_tokens`, because Anthropic input
+  tokens exclude cache reads while prompt_tokens includes them
+
+#### Scenario: Reported prompt tokens kept as reported
+
+- **WHEN** the response contains `usage.prompt_tokens`
+- **THEN** prompt_tokens is persisted as reported, even if the response also
+  contains `usage.cache_read_input_tokens`
 
 #### Scenario: Cache read tokens captured
 
@@ -39,6 +46,14 @@ flag, status, latency, project label, provider, and token counts.
 - **WHEN** the response contains `usage.cache_write_tokens` (OpenAI) or
   `usage.cache_creation_input_tokens` (Anthropic)
 - **THEN** cache write token count is extracted and persisted
+
+#### Scenario: Streamed usage combined across events
+
+- **WHEN** a streamed response reports usage in more than one event, such as
+  input and cache counts at the start and output counts at the end
+- **THEN** each persisted count is the largest value any event reported for it,
+  so a later event that omits a count or reports it as null or zero does not
+  lower an earlier value
 
 #### Scenario: Request model takes precedence
 

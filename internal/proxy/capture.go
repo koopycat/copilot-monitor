@@ -92,26 +92,58 @@ func findBoolKey(value any, key string) (bool, bool) {
 }
 
 func findUsage(value any) (Usage, bool) {
+	fields, ok := findUsageObject(value)
+	if !ok {
+		return Usage{}, false
+	}
+	return parseUsageObject(fields)
+}
+
+// findUsageObject returns the first "usage" object that carries token counts.
+func findUsageObject(value any) (map[string]any, bool) {
 	switch typed := value.(type) {
 	case map[string]any:
-		if raw, ok := typed["usage"]; ok {
-			if usage, ok := parseUsageObject(raw); ok {
-				return usage, true
+		if fields, ok := typed["usage"].(map[string]any); ok {
+			if _, ok := parseUsageObject(fields); ok {
+				return fields, true
 			}
 		}
 		for _, v := range typed {
-			if usage, ok := findUsage(v); ok {
-				return usage, true
+			if fields, ok := findUsageObject(v); ok {
+				return fields, true
 			}
 		}
 	case []any:
 		for _, item := range typed {
-			if usage, ok := findUsage(item); ok {
-				return usage, true
+			if fields, ok := findUsageObject(item); ok {
+				return fields, true
 			}
 		}
 	}
-	return Usage{}, false
+	return nil, false
+}
+
+// mergeUsageFields merges a usage object from a later stream event into acc.
+// Stream usage counts are cumulative, so each count keeps its largest value,
+// and a field that is missing or null keeps the earlier value. Anthropic
+// streams report input and cache counts in message_start and may omit or null
+// them in the final message_delta.
+func mergeUsageFields(acc, next map[string]any) {
+	for key, value := range next {
+		switch typed := value.(type) {
+		case float64:
+			if prev, ok := acc[key].(float64); !ok || typed > prev {
+				acc[key] = typed
+			}
+		case map[string]any:
+			nested, ok := acc[key].(map[string]any)
+			if !ok {
+				nested = map[string]any{}
+				acc[key] = nested
+			}
+			mergeUsageFields(nested, typed)
+		}
+	}
 }
 
 func parseUsageObject(value any) (Usage, bool) {
@@ -120,38 +152,34 @@ func parseUsageObject(value any) (Usage, bool) {
 		return Usage{}, false
 	}
 
+	// Usage is normalized to the OpenAI convention: PromptTokens includes cache
+	// reads (CachedInputTokens is a subset of it) and excludes cache writes.
 	promptTokens := intFromJSONNumber(m["prompt_tokens"])
 	completionTokens := intFromJSONNumber(m["completion_tokens"])
 	cachedInputTokens := intFromJSONNumber(m["cached_input_tokens"])
 	cacheWriteTokens := intFromJSONNumber(m["cache_write_tokens"])
-	anthropicStyle := false
+	promptExcludesCacheReads := promptTokens == 0
 
 	if details, ok := m["prompt_tokens_details"].(map[string]any); ok && cachedInputTokens == 0 {
 		cachedInputTokens = intFromJSONNumber(details["cached_tokens"])
 	}
 	if promptTokens == 0 {
-		if inputTokens := intFromJSONNumber(m["input_tokens"]); inputTokens != 0 {
-			promptTokens = inputTokens
-			anthropicStyle = true
-		}
+		promptTokens = intFromJSONNumber(m["input_tokens"])
 	}
 	if completionTokens == 0 {
-		if outputTokens := intFromJSONNumber(m["output_tokens"]); outputTokens != 0 {
-			completionTokens = outputTokens
-			anthropicStyle = true
-		}
+		completionTokens = intFromJSONNumber(m["output_tokens"])
 	}
 	if cachedInputTokens == 0 {
 		if cacheReadTokens := intFromJSONNumber(m["cache_read_input_tokens"]); cacheReadTokens != 0 {
 			cachedInputTokens = cacheReadTokens
-			anthropicStyle = true
+			// Anthropic input_tokens counts only the uncached input.
+			if promptExcludesCacheReads {
+				promptTokens += cacheReadTokens
+			}
 		}
 	}
 	if cacheWriteTokens == 0 {
-		if cacheCreationTokens := intFromJSONNumber(m["cache_creation_input_tokens"]); cacheCreationTokens != 0 {
-			cacheWriteTokens = cacheCreationTokens
-			anthropicStyle = true
-		}
+		cacheWriteTokens = intFromJSONNumber(m["cache_creation_input_tokens"])
 	}
 
 	usage := Usage{
@@ -162,12 +190,7 @@ func parseUsageObject(value any) (Usage, bool) {
 		TotalTokens:       intFromJSONNumber(m["total_tokens"]),
 	}
 	if usage.TotalTokens == 0 {
-		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
-		if anthropicStyle {
-			usage.TotalTokens += usage.CachedInputTokens + usage.CacheWriteTokens
-		} else {
-			usage.TotalTokens += usage.CacheWriteTokens
-		}
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens + usage.CacheWriteTokens
 	}
 	return usage, usage.PromptTokens != 0 || usage.CachedInputTokens != 0 || usage.CacheWriteTokens != 0 || usage.CompletionTokens != 0 || usage.TotalTokens != 0
 }

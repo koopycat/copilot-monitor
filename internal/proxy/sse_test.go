@@ -52,3 +52,96 @@ func TestJSONObserverDetectsUsageAndModelAcrossMultilineJSON(t *testing.T) {
 		t.Fatalf("usage = %#v", observer.Usage)
 	}
 }
+
+func TestSSEObserverMergesUsageAcrossEvents(t *testing.T) {
+	const messageStart = `event: message_start
+data: {"type":"message_start","message":{"model":"claude-sonnet-4-5","usage":{"input_tokens":12,"cache_creation_input_tokens":7,"cache_read_input_tokens":5,"output_tokens":1}}}
+
+`
+	tests := []struct {
+		name   string
+		stream string
+		want   Usage
+	}{
+		{
+			name: "anthropic delta with output tokens only",
+			stream: messageStart + `event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}
+
+`,
+			want: Usage{PromptTokens: 17, CachedInputTokens: 5, CacheWriteTokens: 7, CompletionTokens: 3, TotalTokens: 27},
+		},
+		{
+			name: "anthropic delta with cumulative input and cache tokens",
+			stream: messageStart + `event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":12,"cache_creation_input_tokens":7,"cache_read_input_tokens":5,"output_tokens":3}}
+
+`,
+			want: Usage{PromptTokens: 17, CachedInputTokens: 5, CacheWriteTokens: 7, CompletionTokens: 3, TotalTokens: 27},
+		},
+		{
+			name: "anthropic delta with null input and cache tokens",
+			stream: messageStart + `event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":null,"cache_creation_input_tokens":null,"cache_read_input_tokens":null,"output_tokens":3}}
+
+`,
+			want: Usage{PromptTokens: 17, CachedInputTokens: 5, CacheWriteTokens: 7, CompletionTokens: 3, TotalTokens: 27},
+		},
+		{
+			name: "openai final chunk keeps the reported total",
+			stream: `data: {"choices":[{"delta":{"content":"hi"}}]}
+
+data: {"choices":[],"usage":{"prompt_tokens":7,"prompt_tokens_details":{"cached_tokens":2},"cache_write_tokens":2,"completion_tokens":3,"total_tokens":10}}
+
+data: [DONE]
+
+`,
+			want: Usage{PromptTokens: 7, CachedInputTokens: 2, CacheWriteTokens: 2, CompletionTokens: 3, TotalTokens: 10},
+		},
+		{
+			name: "anthropic delta with zero input and cache tokens",
+			stream: messageStart + `event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":3}}
+
+`,
+			want: Usage{PromptTokens: 17, CachedInputTokens: 5, CacheWriteTokens: 7, CompletionTokens: 3, TotalTokens: 27},
+		},
+		{
+			name: "detail fields merged across events",
+			stream: `data: {"usage":{"prompt_tokens":7,"prompt_tokens_details":{"cached_tokens":2}}}
+
+data: {"usage":{"prompt_tokens":7,"prompt_tokens_details":{},"completion_tokens":3,"total_tokens":10}}
+
+`,
+			want: Usage{PromptTokens: 7, CachedInputTokens: 2, CompletionTokens: 3, TotalTokens: 10},
+		},
+		{
+			name: "responses stream with usage only on completion",
+			stream: `event: response.created
+data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-5-mini","usage":null}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","delta":"hi"}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-5-mini","usage":{"input_tokens":100,"output_tokens":20,"output_tokens_details":{"reasoning_tokens":8},"total_tokens":120}}}
+
+`,
+			want: Usage{PromptTokens: 100, CompletionTokens: 20, TotalTokens: 120},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			observer := NewSSEObserver()
+			observer.Observe([]byte(tt.stream))
+			observer.Finish()
+
+			if !observer.UsageSeen {
+				t.Fatal("usage was not detected")
+			}
+			if observer.Usage != tt.want {
+				t.Fatalf("usage = %#v, want %#v", observer.Usage, tt.want)
+			}
+		})
+	}
+}

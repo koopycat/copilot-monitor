@@ -9,6 +9,7 @@ import (
 type SSEObserver struct {
 	buf         []byte
 	plainJSON   bool
+	usageFields map[string]any
 	Bytes       int64
 	Usage       Usage
 	UsageSeen   bool
@@ -88,8 +89,12 @@ func (o *SSEObserver) processJSON(data []byte) {
 		return
 	}
 
-	if usage, ok := findUsage(value); ok {
-		o.Usage = usage
+	if fields, ok := findUsageObject(value); ok {
+		if o.usageFields == nil {
+			o.usageFields = map[string]any{}
+		}
+		mergeUsageFields(o.usageFields, fields)
+		o.Usage, _ = parseUsageObject(o.usageFields)
 		o.UsageSeen = true
 	}
 	if model, ok := findStringKey(value, "model"); ok && model != "" {
