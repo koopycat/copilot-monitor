@@ -98,6 +98,37 @@ data: [DONE]
 `,
 			want: Usage{PromptTokens: 7, CachedInputTokens: 2, CacheWriteTokens: 2, CompletionTokens: 3, TotalTokens: 10},
 		},
+		{
+			name: "anthropic delta with zero input and cache tokens",
+			stream: messageStart + `event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":3}}
+
+`,
+			want: Usage{PromptTokens: 17, CachedInputTokens: 5, CacheWriteTokens: 7, CompletionTokens: 3, TotalTokens: 27},
+		},
+		{
+			name: "detail fields merged across events",
+			stream: `data: {"usage":{"prompt_tokens":7,"prompt_tokens_details":{"cached_tokens":2}}}
+
+data: {"usage":{"prompt_tokens":7,"prompt_tokens_details":{},"completion_tokens":3,"total_tokens":10}}
+
+`,
+			want: Usage{PromptTokens: 7, CachedInputTokens: 2, CompletionTokens: 3, TotalTokens: 10},
+		},
+		{
+			name: "responses stream with usage only on completion",
+			stream: `event: response.created
+data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-5-mini","usage":null}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","delta":"hi"}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-5-mini","usage":{"input_tokens":100,"output_tokens":20,"output_tokens_details":{"reasoning_tokens":8},"total_tokens":120}}}
+
+`,
+			want: Usage{PromptTokens: 100, CompletionTokens: 20, TotalTokens: 120},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
