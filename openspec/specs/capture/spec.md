@@ -48,6 +48,13 @@ flag, status, latency, project label, provider, and token counts.
   `usage.cache_creation_input_tokens` (Anthropic)
 - **THEN** cache write token count is extracted and persisted
 
+#### Scenario: Streamed usage combined across events
+
+- **WHEN** a streamed response reports usage in more than one event, such as
+  input and cache counts at the start and output counts at the end
+- **THEN** the persisted counts combine all events, and a later event that omits
+  a count or reports it as null does not erase an earlier value
+
 #### Scenario: Request model takes precedence
 
 - **WHEN** both the request body and the response indicate a model name
