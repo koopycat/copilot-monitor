@@ -1,6 +1,6 @@
 default: all
 
-all: vet secrets test build  # fast targets only (excludes integration, e2e)
+all: build vet secrets test  # fast targets only (excludes integration, e2e); build first so vet sees the embedded dashboard
 
 # ── Setup ────────────────────────────────────────────────────────────────────
 
