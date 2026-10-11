@@ -1,4 +1,11 @@
-## ADDED Requirements
+<!-- markdownlint-disable MD041 -->
+
+## Purpose
+
+Give every CLI command one fatal error format on stderr, so errors are easy to
+recognize for people and easy to match for scripts.
+
+## Requirements
 
 ### Requirement: Error messages use consistent format
 

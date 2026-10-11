@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD041 -->
 
-## ADDED Requirements
+## Purpose
+
+Group captured requests into sessions as they are recorded, serve session data
+from the stored sessions without recomputing them, and allow a full offline
+rebuild.
+
+## Requirements
 
 ### Requirement: Incremental session assignment
 

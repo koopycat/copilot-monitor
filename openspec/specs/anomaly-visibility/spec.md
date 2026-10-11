@@ -1,6 +1,11 @@
 <!-- markdownlint-disable MD041 -->
 
-## ADDED Requirements
+## Purpose
+
+Make recorded anomalies visible through the reporting API and the dashboard, and
+keep anomaly records for a shorter period than request data.
+
+## Requirements
 
 ### Requirement: Anomaly API endpoint
 
